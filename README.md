@@ -8,6 +8,11 @@ Interactive 2D physics engine project in C.
 A C99 2D rigid-body physics engine with a Windows Direct2D sandbox app and regression tests.  
 基于 C99 的 2D 刚体物理引擎，包含 Windows Direct2D 可视化沙盒程序与回归测试。
 
+## About / 关于
+
+C99 2D rigid-body physics engine with an interactive Windows sandbox, scene presets, and regression tests.  
+基于 C99 的 2D 刚体物理引擎，提供可交互的 Windows 沙盒、场景预设与回归测试。
+
 ## GitHub Metadata / GitHub 元数据
 
 - Suggested description / 建议描述: C99 2D rigid-body physics engine with an interactive Windows sandbox, scene presets, and regression tests.
