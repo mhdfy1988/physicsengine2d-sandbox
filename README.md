@@ -2,6 +2,13 @@
 
 Interactive 2D physics engine project in C.
 
+A C99 2D rigid-body physics engine with a Windows Direct2D sandbox app and regression tests.
+
+## GitHub Metadata
+
+- Suggested description: C99 2D rigid-body physics engine with an interactive Windows sandbox, scene presets, and regression tests.
+- Suggested topics: `physics-engine`, `2d-physics`, `rigid-body`, `collision-detection`, `impulse-solver`, `c99`, `direct2d`, `directwrite`, `windows`, `sandbox`
+
 The repository is organized around a visual sandbox workflow:
 - engine core (`src/`, `include/`)
 - interactive app (`apps/sandbox_dwrite/`)
