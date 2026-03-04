@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stdio.h>
+#include <string.h>
 #include "../include/physics.h"
 
 #define EPS 1e-3f
@@ -16,6 +17,78 @@
 #define STACK_MAX_X 110.0f
 #define STACK_MIN_Y -20.0f
 #define STACK_MAX_Y 70.0f
+
+typedef struct {
+    int broadphase_called;
+    int narrowphase_called;
+} PipelineHookCtx;
+
+typedef struct {
+    PipelineHookCtx hook;
+    int init_called;
+    int shutdown_called;
+} PluginHookCtx;
+
+typedef struct {
+    int dispatch_count;
+} JobSystemHookCtx;
+
+typedef struct {
+    int step_begin_count;
+    int step_end_count;
+    int error_count;
+} EventSinkCtx;
+
+static int custom_broadphase_builder(PhysicsEngine* engine, void* user) {
+    PipelineHookCtx* ctx = (PipelineHookCtx*)user;
+    if (ctx != NULL) ctx->broadphase_called++;
+    physics_engine_clear_broadphase_pairs(engine);
+    return physics_engine_add_broadphase_pair(engine, 0, 1);
+}
+
+static int custom_narrowphase_builder(PhysicsEngine* engine, void* user) {
+    PipelineHookCtx* ctx = (PipelineHookCtx*)user;
+    RigidBody* a;
+    RigidBody* b;
+    CollisionInfo info = {0};
+    if (ctx != NULL) ctx->narrowphase_called++;
+    physics_engine_clear_contacts(engine);
+    a = physics_engine_get_body(engine, 0);
+    b = physics_engine_get_body(engine, 1);
+    if (a == NULL || b == NULL) return 0;
+    if (!collision_detect(a, b, &info)) return 0;
+    return physics_engine_add_contact(engine, a, b, &info);
+}
+
+static int plugin_init_ok(PhysicsEngine* engine, void* user) {
+    PluginHookCtx* ctx = (PluginHookCtx*)user;
+    (void)engine;
+    if (ctx != NULL) ctx->init_called++;
+    return 1;
+}
+
+static void plugin_shutdown_mark(PhysicsEngine* engine, void* user) {
+    PluginHookCtx* ctx = (PluginHookCtx*)user;
+    (void)engine;
+    if (ctx != NULL) ctx->shutdown_called++;
+}
+
+static void job_system_parallel_for(int count, int grain, PhysicsJobRangeFn fn, void* fn_user, void* user) {
+    JobSystemHookCtx* ctx = (JobSystemHookCtx*)user;
+    (void)grain;
+    if (ctx != NULL) ctx->dispatch_count++;
+    if (fn != NULL && count > 0) {
+        fn(0, count, fn_user);
+    }
+}
+
+static void event_sink_collect(const PhysicsTraceEvent* event, void* user) {
+    EventSinkCtx* ctx = (EventSinkCtx*)user;
+    if (ctx == NULL || event == NULL) return;
+    if (event->type == PHYSICS_EVENT_STEP_BEGIN) ctx->step_begin_count++;
+    if (event->type == PHYSICS_EVENT_STEP_END) ctx->step_end_count++;
+    if (event->type == PHYSICS_EVENT_ERROR) ctx->error_count++;
+}
 static int test_circle_circle_detection(void) {
     Shape* s1 = shape_create_circle(2.0f);
     Shape* s2 = shape_create_circle(2.0f);
@@ -496,6 +569,321 @@ static int test_constraint_break_force(void) {
     return 1;
 }
 
+static int test_custom_pipeline_builders(void) {
+    PhysicsEngine* engine = physics_engine_create();
+    PipelineHookCtx ctx = {0};
+    PhysicsPipelinePluginV1 plugin;
+    RigidBody* a;
+    RigidBody* b;
+    int pass = 1;
+    if (engine == NULL) {
+        printf("[FAIL] failed to create engine for custom pipeline test\n");
+        return 0;
+    }
+
+    physics_engine_set_gravity(engine, vec2(0.0f, 0.0f));
+    physics_engine_set_damping(engine, 1.0f);
+    physics_engine_set_time_step(engine, 1.0f / 60.0f);
+
+    a = body_create(0.0f, 0.0f, 1.0f, shape_create_circle(2.0f));
+    b = body_create(3.0f, 0.0f, 1.0f, shape_create_circle(2.0f));
+    body_set_type(a, BODY_STATIC);
+    body_set_type(b, BODY_STATIC);
+    physics_engine_add_body(engine, a);
+    physics_engine_add_body(engine, b);
+
+    memset(&plugin, 0, sizeof(plugin));
+    plugin.api_version = PHYSICS_PIPELINE_PLUGIN_API_VERSION;
+    plugin.capabilities = PHYSICS_PIPELINE_PLUGIN_CAP_BROADPHASE | PHYSICS_PIPELINE_PLUGIN_CAP_NARROWPHASE;
+    plugin.broadphase_builder = custom_broadphase_builder;
+    plugin.narrowphase_builder = custom_narrowphase_builder;
+    plugin.user = &ctx;
+    if (physics_engine_install_pipeline_plugin(engine, &plugin) == 0) {
+        physics_engine_free(engine);
+        printf("[FAIL] failed to install plugin for custom pipeline test\n");
+        return 0;
+    }
+    physics_engine_detect_collisions(engine);
+
+    if (ctx.broadphase_called <= 0 || ctx.narrowphase_called <= 0) {
+        printf("[FAIL] custom pipeline callbacks were not called\n");
+        pass = 0;
+    } else if (physics_engine_get_contact_count(engine) <= 0) {
+        printf("[FAIL] custom pipeline did not produce contact\n");
+        pass = 0;
+    }
+
+    physics_engine_uninstall_pipeline_plugin(engine);
+    physics_engine_free(engine);
+    if (!pass) return 0;
+    printf("[PASS] custom pipeline builders\n");
+    return 1;
+}
+
+static int test_pipeline_plugin_abi(void) {
+    PhysicsEngine* engine = physics_engine_create();
+    PluginHookCtx ctx = {0};
+    PhysicsPipelinePluginV1 plugin;
+    PhysicsPipelinePluginV1 bad_plugin;
+    RigidBody* a;
+    RigidBody* b;
+    int pass = 1;
+    if (engine == NULL) {
+        printf("[FAIL] failed to create engine for plugin ABI test\n");
+        return 0;
+    }
+
+    a = body_create(0.0f, 0.0f, 1.0f, shape_create_circle(2.0f));
+    b = body_create(3.0f, 0.0f, 1.0f, shape_create_circle(2.0f));
+    body_set_type(a, BODY_STATIC);
+    body_set_type(b, BODY_STATIC);
+    physics_engine_add_body(engine, a);
+    physics_engine_add_body(engine, b);
+
+    memset(&bad_plugin, 0, sizeof(bad_plugin));
+    bad_plugin.api_version = 999u;
+    if (physics_engine_install_pipeline_plugin(engine, &bad_plugin) != 0) {
+        printf("[FAIL] plugin ABI should reject wrong api version\n");
+        pass = 0;
+    } else if (physics_engine_get_last_error(engine) != PHYSICS_ERROR_API_VERSION_MISMATCH) {
+        printf("[FAIL] expected API version mismatch error, got %s\n",
+               physics_error_code_string(physics_engine_get_last_error(engine)));
+        pass = 0;
+    }
+
+    memset(&plugin, 0, sizeof(plugin));
+    plugin.api_version = PHYSICS_PIPELINE_PLUGIN_API_VERSION;
+    plugin.capabilities = PHYSICS_PIPELINE_PLUGIN_CAP_BROADPHASE | PHYSICS_PIPELINE_PLUGIN_CAP_NARROWPHASE;
+    plugin.init = plugin_init_ok;
+    plugin.shutdown = plugin_shutdown_mark;
+    plugin.broadphase_builder = custom_broadphase_builder;
+    plugin.narrowphase_builder = custom_narrowphase_builder;
+    plugin.user = &ctx;
+
+    if (physics_engine_install_pipeline_plugin(engine, &plugin) == 0) {
+        printf("[FAIL] plugin ABI install failed for valid plugin\n");
+        pass = 0;
+    } else {
+        physics_engine_detect_collisions(engine);
+        if (ctx.init_called <= 0) {
+            printf("[FAIL] plugin init hook was not called\n");
+            pass = 0;
+        }
+        if (ctx.hook.broadphase_called <= 0 || ctx.hook.narrowphase_called <= 0) {
+            printf("[FAIL] plugin builders were not invoked\n");
+            pass = 0;
+        }
+        physics_engine_uninstall_pipeline_plugin(engine);
+        if (ctx.shutdown_called <= 0) {
+            printf("[FAIL] plugin shutdown hook was not called\n");
+            pass = 0;
+        }
+    }
+
+    physics_engine_free(engine);
+    if (!pass) return 0;
+    printf("[PASS] pipeline plugin ABI\n");
+    return 1;
+}
+
+static int test_error_channel_basics(void) {
+    PhysicsEngine* engine = physics_engine_create();
+    int pass = 1;
+    if (engine == NULL) {
+        printf("[FAIL] failed to create engine for error channel test\n");
+        return 0;
+    }
+
+    if (physics_engine_add_broadphase_pair(engine, -1, 0) != 0) {
+        printf("[FAIL] invalid broadphase pair should fail\n");
+        pass = 0;
+    } else if (physics_engine_get_last_error(engine) != PHYSICS_ERROR_INVALID_ARGUMENT) {
+        printf("[FAIL] expected invalid-argument error, got %s\n",
+               physics_error_code_string(physics_engine_get_last_error(engine)));
+        pass = 0;
+    }
+
+    physics_engine_clear_error(engine);
+    if (physics_engine_get_last_error(engine) != PHYSICS_ERROR_NONE) {
+        printf("[FAIL] clear_error should reset last error\n");
+        pass = 0;
+    }
+
+    physics_engine_free(engine);
+    if (!pass) return 0;
+    printf("[PASS] error channel basics\n");
+    return 1;
+}
+
+static int test_job_system_hook(void) {
+    PhysicsEngine* engine = physics_engine_create();
+    JobSystemHookCtx ctx = {0};
+    PhysicsJobSystemV1 js;
+    RigidBody* a;
+    RigidBody* b;
+    int pass = 1;
+    if (engine == NULL) {
+        printf("[FAIL] failed to create engine for job-system test\n");
+        return 0;
+    }
+
+    memset(&js, 0, sizeof(js));
+    js.api_version = PHYSICS_JOB_SYSTEM_API_VERSION;
+    js.parallel_for = job_system_parallel_for;
+    js.user = &ctx;
+    if (physics_engine_set_job_system(engine, &js) == 0) {
+        physics_engine_free(engine);
+        printf("[FAIL] failed to install job system hook\n");
+        return 0;
+    }
+
+    physics_engine_set_gravity(engine, vec2(0.0f, 0.0f));
+    a = body_create(0.0f, 0.0f, 1.0f, shape_create_circle(2.0f));
+    b = body_create(3.0f, 0.0f, 1.0f, shape_create_circle(2.0f));
+    physics_engine_add_body(engine, a);
+    physics_engine_add_body(engine, b);
+    physics_engine_detect_collisions(engine);
+    physics_engine_resolve_collisions(engine);
+
+    if (ctx.dispatch_count <= 0) {
+        printf("[FAIL] job system hook was not used by solver path\n");
+        pass = 0;
+    }
+
+    physics_engine_reset_job_system(engine);
+    physics_engine_free(engine);
+    if (!pass) return 0;
+    printf("[PASS] job system hook\n");
+    return 1;
+}
+
+static int test_layered_config_snapshot(void) {
+    PhysicsEngine* engine = physics_engine_create();
+    PhysicsRuntimeConfig rcfg;
+    PhysicsSolverConfig scfg;
+    PhysicsPipelineConfig pcfg;
+    PhysicsExperimentalConfig ecfg;
+    PhysicsConfigSnapshot snap;
+    int pass = 1;
+    if (engine == NULL) {
+        printf("[FAIL] failed to create engine for layered-config test\n");
+        return 0;
+    }
+
+    rcfg.time_step = 1.0f / 120.0f;
+    rcfg.substeps = 2;
+    rcfg.damping = 0.97f;
+    scfg.iterations = 9;
+    scfg.max_position_iterations_bias = 4;
+    pcfg.broadphase_cell_size = 7.5f;
+    pcfg.broadphase_type = PHYSICS_BROADPHASE_GRID;
+    ecfg.ccd_enabled = 1;
+    ecfg.sleep_enabled = 0;
+    ecfg.threading_enabled = 1;
+    ecfg.worker_count = 2;
+
+    physics_engine_set_runtime_config(engine, &rcfg);
+    physics_engine_set_solver_config(engine, &scfg);
+    physics_engine_set_pipeline_config(engine, &pcfg);
+    physics_engine_set_experimental_config(engine, &ecfg);
+    physics_engine_step(engine);
+    physics_engine_get_step_config_snapshot(engine, &snap);
+
+    if (fabsf(snap.runtime.time_step - rcfg.time_step) > EPS ||
+        snap.runtime.substeps != rcfg.substeps ||
+        fabsf(snap.runtime.damping - rcfg.damping) > EPS ||
+        snap.solver.iterations != scfg.iterations ||
+        snap.solver.max_position_iterations_bias != scfg.max_position_iterations_bias ||
+        fabsf(snap.pipeline.broadphase_cell_size - pcfg.broadphase_cell_size) > EPS ||
+        snap.pipeline.broadphase_type != pcfg.broadphase_type ||
+        snap.experimental.ccd_enabled != ecfg.ccd_enabled ||
+        snap.experimental.threading_enabled != ecfg.threading_enabled ||
+        snap.experimental.worker_count != ecfg.worker_count) {
+        printf("[FAIL] layered config snapshot mismatch\n");
+        pass = 0;
+    }
+
+    physics_engine_free(engine);
+    if (!pass) return 0;
+    printf("[PASS] layered config snapshot\n");
+    return 1;
+}
+
+static int test_generation_handles(void) {
+    PhysicsEngine* engine = physics_engine_create();
+    RigidBody* a;
+    RigidBody* b;
+    Constraint* c;
+    PhysicsBodyHandle bh;
+    PhysicsConstraintHandle ch;
+    int pass = 1;
+    if (engine == NULL) {
+        printf("[FAIL] failed to create engine for generation-handle test\n");
+        return 0;
+    }
+
+    a = body_create(0.0f, 0.0f, 1.0f, shape_create_circle(1.0f));
+    b = body_create(2.0f, 0.0f, 1.0f, shape_create_circle(1.0f));
+    physics_engine_add_body(engine, a);
+    physics_engine_add_body(engine, b);
+    bh = physics_engine_get_body_handle(engine, a);
+    if (physics_engine_resolve_body_handle(engine, bh) != a) {
+        printf("[FAIL] body handle should resolve before mutation\n");
+        pass = 0;
+    }
+
+    c = physics_engine_add_distance_constraint(engine, a, b, a->position, b->position, 0.8f, 1);
+    ch = physics_engine_get_constraint_handle(engine, c);
+    if (physics_engine_resolve_constraint_handle(engine, ch) == NULL) {
+        printf("[FAIL] constraint handle should resolve before mutation\n");
+        pass = 0;
+    }
+
+    physics_engine_detach_body(engine, a);
+    body_free(a);
+    if (physics_engine_resolve_body_handle(engine, bh) != NULL) {
+        printf("[FAIL] stale body handle should be invalid after mutation\n");
+        pass = 0;
+    }
+    if (physics_engine_resolve_constraint_handle(engine, ch) != NULL) {
+        printf("[FAIL] stale constraint handle should be invalid after related mutation\n");
+        pass = 0;
+    }
+
+    physics_engine_free(engine);
+    if (!pass) return 0;
+    printf("[PASS] generation handles\n");
+    return 1;
+}
+
+static int test_event_sink_trace(void) {
+    PhysicsEngine* engine = physics_engine_create();
+    EventSinkCtx ctx = {0};
+    int pass = 1;
+    if (engine == NULL) {
+        printf("[FAIL] failed to create engine for event-sink test\n");
+        return 0;
+    }
+
+    physics_engine_set_event_sink(engine, event_sink_collect, &ctx);
+    physics_engine_step(engine);
+    (void)physics_engine_add_broadphase_pair(engine, -1, 0);
+
+    if (ctx.step_begin_count <= 0 || ctx.step_end_count <= 0) {
+        printf("[FAIL] event sink did not receive step begin/end\n");
+        pass = 0;
+    }
+    if (ctx.error_count <= 0) {
+        printf("[FAIL] event sink did not receive error event\n");
+        pass = 0;
+    }
+
+    physics_engine_free(engine);
+    if (!pass) return 0;
+    printf("[PASS] event sink trace\n");
+    return 1;
+}
+
 int main(void) {
     int passed = 0;
     int total = 0;
@@ -522,6 +910,13 @@ int main(void) {
     RUN_TEST_OR_FAIL(test_add_body_duplicate_guard);
     RUN_TEST_OR_FAIL(test_distance_constraint_stability);
     RUN_TEST_OR_FAIL(test_constraint_break_force);
+    RUN_TEST_OR_FAIL(test_custom_pipeline_builders);
+    RUN_TEST_OR_FAIL(test_pipeline_plugin_abi);
+    RUN_TEST_OR_FAIL(test_error_channel_basics);
+    RUN_TEST_OR_FAIL(test_job_system_hook);
+    RUN_TEST_OR_FAIL(test_layered_config_snapshot);
+    RUN_TEST_OR_FAIL(test_generation_handles);
+    RUN_TEST_OR_FAIL(test_event_sink_trace);
 
     printf("\nResult: PASS (%d/%d)\n", passed, total);
     return 0;

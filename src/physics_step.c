@@ -1,6 +1,31 @@
 #include <math.h>
 #include <stddef.h>
+#include <string.h>
+#include <time.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include "physics_internal.h"
+
+static double time_now_ms(void) {
+#ifdef _WIN32
+    static LARGE_INTEGER freq = {0};
+    LARGE_INTEGER now;
+    if (freq.QuadPart == 0) {
+        QueryPerformanceFrequency(&freq);
+    }
+    QueryPerformanceCounter(&now);
+    return (double)now.QuadPart * 1000.0 / (double)freq.QuadPart;
+#elif defined(CLOCK_MONOTONIC)
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == 0) {
+        return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1000000.0;
+    }
+    return (double)clock() * 1000.0 / (double)CLOCKS_PER_SEC;
+#else
+    return (double)clock() * 1000.0 / (double)CLOCKS_PER_SEC;
+#endif
+}
 
 static void sanitize_dynamic_body_after_step(RigidBody* body, Vec2 prev_pos, float prev_angle) {
     const float max_linear_speed = 120.0f;
@@ -33,20 +58,60 @@ static void sanitize_dynamic_body_after_step(RigidBody* body, Vec2 prev_pos, flo
     if (body->angular_velocity < -max_angular_speed) body->angular_velocity = -max_angular_speed;
 }
 
+static void step_stage_integrate(PhysicsEngine* engine, float dt, Vec2* prev_pos, float* prev_angle) {
+    int i;
+    physics_internal_update_velocities(engine, dt);
+    physics_internal_update_positions(engine, dt);
+    for (i = 0; i < engine->body_count; i++) {
+        sanitize_dynamic_body_after_step(engine->bodies[i], prev_pos[i], prev_angle[i]);
+        if (engine->bodies[i] != NULL) {
+            prev_pos[i] = engine->bodies[i]->position;
+            prev_angle[i] = engine->bodies[i]->angle;
+        }
+    }
+}
+
+static void step_stage_solve(PhysicsEngine* engine, float dt) {
+    PhysicsSolverContext solver_ctx;
+    solver_ctx.velocity_iterations = engine->config.iterations;
+    solver_ctx.position_iterations = engine->config.iterations + engine->config.max_position_iterations_bias;
+    solver_ctx.dt = dt;
+    physics_internal_resolve_collisions(engine, &solver_ctx);
+}
+
 void physics_internal_step(PhysicsEngine* engine) {
-    enum { PHYSICS_SUBSTEPS = 3 };
     Vec2 saved_force[MAX_BODIES];
     Vec2 prev_pos[MAX_BODIES];
     float prev_angle[MAX_BODIES];
     float saved_torque[MAX_BODIES];
+    PhysicsStepProfile profile;
     float full_dt;
+    float sub_dt;
+    int substeps;
     int i;
     int sub;
+    double t0;
     if (engine == NULL) {
         return;
     }
+    engine->last_step_config_snapshot.runtime.time_step = engine->config.time_step;
+    engine->last_step_config_snapshot.runtime.substeps = engine->config.substeps;
+    engine->last_step_config_snapshot.runtime.damping = engine->config.damping;
+    engine->last_step_config_snapshot.solver.iterations = engine->config.iterations;
+    engine->last_step_config_snapshot.solver.max_position_iterations_bias = engine->config.max_position_iterations_bias;
+    engine->last_step_config_snapshot.pipeline.broadphase_cell_size = engine->config.broadphase_cell_size;
+    engine->last_step_config_snapshot.pipeline.broadphase_type = engine->config.broadphase_type;
+    engine->last_step_config_snapshot.experimental = engine->experimental;
 
-    full_dt = engine->time_step;
+    physics_internal_emit_event(engine, PHYSICS_EVENT_STEP_BEGIN, 0, 0.0, NULL, NULL);
+
+    memset(&profile, 0, sizeof(profile));
+    t0 = time_now_ms();
+    full_dt = engine->config.time_step;
+    substeps = engine->config.substeps;
+    if (substeps < 1) substeps = 1;
+    if (substeps > 8) substeps = 8;
+
     for (i = 0; i < engine->body_count; i++) {
         RigidBody* body = engine->bodies[i];
         if (body == NULL) {
@@ -62,26 +127,57 @@ void physics_internal_step(PhysicsEngine* engine) {
         prev_angle[i] = body->angle;
     }
 
-    engine->time_step = full_dt / (float)PHYSICS_SUBSTEPS;
-    for (sub = 0; sub < PHYSICS_SUBSTEPS; sub++) {
+    sub_dt = full_dt / (float)substeps;
+    for (sub = 0; sub < substeps; sub++) {
+        double ta;
+        double tb;
         for (i = 0; i < engine->body_count; i++) {
             RigidBody* body = engine->bodies[i];
             if (body == NULL) continue;
             body->force = saved_force[i];
             body->torque = saved_torque[i];
         }
-        physics_internal_update_velocities(engine);
-        physics_internal_update_positions(engine);
-        physics_internal_detect_collisions(engine);
-        physics_internal_resolve_collisions(engine);
-        for (i = 0; i < engine->body_count; i++) {
-            sanitize_dynamic_body_after_step(engine->bodies[i], prev_pos[i], prev_angle[i]);
-            if (engine->bodies[i] != NULL) {
-                prev_pos[i] = engine->bodies[i]->position;
-                prev_angle[i] = engine->bodies[i]->angle;
-            }
+
+        ta = time_now_ms();
+        step_stage_integrate(engine, sub_dt, prev_pos, prev_angle);
+        tb = time_now_ms();
+        profile.integrate_ms += (tb - ta);
+
+        physics_internal_scratch_reset(engine);
+        engine->contact_count = 0;
+        ta = time_now_ms();
+        physics_internal_prepare_collision_inputs(engine);
+        if (engine->broadphase_ops.build_pairs != NULL) {
+            engine->broadphase_ops.build_pairs(engine, engine->broadphase_ops.user);
         }
+        tb = time_now_ms();
+        profile.broadphase_ms += (tb - ta);
+        physics_internal_emit_event(engine, PHYSICS_EVENT_POST_BROADPHASE, engine->broadphase_pair_count, (tb - ta), NULL, NULL);
+
+        ta = time_now_ms();
+        if (engine->narrowphase_ops.build_contacts != NULL) {
+            engine->narrowphase_ops.build_contacts(engine, engine->narrowphase_ops.user);
+        }
+        tb = time_now_ms();
+        profile.narrowphase_ms += (tb - ta);
+        physics_internal_emit_event(engine, PHYSICS_EVENT_POST_NARROWPHASE, engine->contact_count, (tb - ta), NULL, NULL);
+
+        ta = time_now_ms();
+        step_stage_solve(engine, sub_dt);
+        tb = time_now_ms();
+        profile.solve_ms += (tb - ta);
     }
-    engine->time_step = full_dt;
-    physics_internal_clear_forces(engine);
+
+    {
+        double ta = time_now_ms();
+        physics_internal_clear_forces(engine);
+        profile.clear_forces_ms = time_now_ms() - ta;
+    }
+
+    profile.step_index = engine->last_profile.step_index + 1;
+    profile.pair_count = engine->broadphase_pair_count;
+    profile.contact_count = engine->contact_count;
+    profile.total_ms = time_now_ms() - t0;
+    engine->last_profile = profile;
+    physics_internal_emit_event(engine, PHYSICS_EVENT_STEP_END, profile.contact_count, profile.total_ms, NULL, NULL);
 }

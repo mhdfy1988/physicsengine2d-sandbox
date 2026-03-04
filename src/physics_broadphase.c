@@ -11,29 +11,51 @@ typedef struct {
     int next;
 } GridEntry;
 
-static unsigned char g_pair_flags[MAX_BODIES][MAX_BODIES];
-
 static int aabb_overlaps(AABB a, AABB b) {
     if (a.max.x < b.min.x || b.max.x < a.min.x) return 0;
     if (a.max.y < b.min.y || b.max.y < a.min.y) return 0;
     return 1;
 }
 
-static int physics_engine_pair_blocked_by_constraint(const PhysicsEngine* engine, const RigidBody* a, const RigidBody* b) {
+static int pair_stamp_mark_if_new(PhysicsEngine* engine, int ia, int ib) {
+    unsigned int idx;
+    if (engine == NULL || engine->pair_stamp == NULL) return 0;
+    if (ia > ib) {
+        int t = ia;
+        ia = ib;
+        ib = t;
+    }
+    idx = (unsigned int)ia * (unsigned int)MAX_BODIES + (unsigned int)ib;
+    if (engine->pair_stamp[idx] == engine->pair_stamp_frame) {
+        return 0;
+    }
+    engine->pair_stamp[idx] = engine->pair_stamp_frame;
+    return 1;
+}
+
+static void broadphase_mark_blocked_pairs(PhysicsEngine* engine) {
     int i;
+    if (engine == NULL) return;
     for (i = 0; i < engine->constraint_count; i++) {
         const Constraint* c = &engine->constraints[i];
+        int ia;
+        int ib;
         if (!c->active || c->collide_connected) {
             continue;
         }
-        if ((c->body_a == a && c->body_b == b) || (c->body_a == b && c->body_b == a)) {
-            return 1;
+        ia = physics_internal_body_id_of(engine, c->body_a);
+        ib = physics_internal_body_id_of(engine, c->body_b);
+        if (ia < 0 || ib < 0 || ia == ib) continue;
+        if (ia > ib) {
+            int t = ia;
+            ia = ib;
+            ib = t;
         }
+        (void)pair_stamp_mark_if_new(engine, ia, ib);
     }
-    return 0;
 }
 
-static int broadphase_add_pair(PhysicsEngine* engine, int ia, int ib, AABB* aabbs) {
+static int broadphase_add_pair(PhysicsEngine* engine, int ia, int ib, const AABB* aabbs) {
     RigidBody* a;
     RigidBody* b;
     if (ia == ib) {
@@ -44,10 +66,9 @@ static int broadphase_add_pair(PhysicsEngine* engine, int ia, int ib, AABB* aabb
         ia = ib;
         ib = t;
     }
-    if (g_pair_flags[ia][ib]) {
+    if (!pair_stamp_mark_if_new(engine, ia, ib)) {
         return 0;
     }
-    g_pair_flags[ia][ib] = 1;
 
     a = engine->bodies[ia];
     b = engine->bodies[ib];
@@ -57,9 +78,6 @@ static int broadphase_add_pair(PhysicsEngine* engine, int ia, int ib, AABB* aabb
     if (a->type == BODY_STATIC && b->type == BODY_STATIC) {
         return 0;
     }
-    if (physics_engine_pair_blocked_by_constraint(engine, a, b)) {
-        return 0;
-    }
     if (!aabb_overlaps(aabbs[ia], aabbs[ib])) {
         return 0;
     }
@@ -67,8 +85,10 @@ static int broadphase_add_pair(PhysicsEngine* engine, int ia, int ib, AABB* aabb
         return 0;
     }
 
-    engine->broadphase_pairs[engine->broadphase_pair_count].a = a;
-    engine->broadphase_pairs[engine->broadphase_pair_count].b = b;
+    (void)a;
+    (void)b;
+    engine->broadphase_pairs[engine->broadphase_pair_count].ia = ia;
+    engine->broadphase_pairs[engine->broadphase_pair_count].ib = ib;
     engine->broadphase_pair_count++;
     return 1;
 }
@@ -79,7 +99,7 @@ static int grid_hash(int x, int y) {
     return (int)((hx ^ hy) % GRID_BUCKETS);
 }
 
-static void broadphase_build_bruteforce(PhysicsEngine* engine, AABB* aabbs) {
+static void broadphase_build_bruteforce(PhysicsEngine* engine, const AABB* aabbs) {
     int i;
     int j;
     for (i = 0; i < engine->body_count; i++) {
@@ -89,12 +109,18 @@ static void broadphase_build_bruteforce(PhysicsEngine* engine, AABB* aabbs) {
     }
 }
 
-static void broadphase_build_grid(PhysicsEngine* engine, AABB* aabbs, float cell_size) {
-    int bucket_heads[GRID_BUCKETS];
-    GridEntry entries[GRID_MAX_ENTRIES];
+static void broadphase_build_grid(PhysicsEngine* engine, const AABB* aabbs, float cell_size) {
+    int* bucket_heads;
+    GridEntry* entries;
     int entry_count = 0;
     int i;
-    memset(bucket_heads, -1, sizeof(bucket_heads));
+    bucket_heads = (int*)physics_internal_scratch_alloc(engine, (int)(sizeof(int) * GRID_BUCKETS), 16);
+    entries = (GridEntry*)physics_internal_scratch_alloc(engine, (int)(sizeof(GridEntry) * GRID_MAX_ENTRIES), 16);
+    if (bucket_heads == NULL || entries == NULL) {
+        broadphase_build_bruteforce(engine, aabbs);
+        return;
+    }
+    memset(bucket_heads, 0xFF, sizeof(int) * (size_t)GRID_BUCKETS);
 
     for (i = 0; i < engine->body_count; i++) {
         RigidBody* body = engine->bodies[i];
@@ -147,14 +173,26 @@ static void broadphase_build_grid(PhysicsEngine* engine, AABB* aabbs, float cell
     }
 }
 
-void physics_internal_build_broadphase_pairs(PhysicsEngine* engine, AABB* aabbs) {
-    if (engine == NULL || aabbs == NULL) {
-        return;
+int physics_internal_default_build_pairs(PhysicsEngine* engine, void* user) {
+    const AABB* aabbs;
+    (void)user;
+    if (engine == NULL) {
+        return 0;
     }
-    memset(g_pair_flags, 0, sizeof(g_pair_flags));
-    if (engine->broadphase_use_grid && engine->broadphase_cell_size > 1e-6f) {
-        broadphase_build_grid(engine, aabbs, engine->broadphase_cell_size);
+    if (engine->pair_stamp == NULL) {
+        return 0;
+    }
+    engine->pair_stamp_frame++;
+    if (engine->pair_stamp_frame == 0) {
+        memset(engine->pair_stamp, 0, sizeof(unsigned short) * (size_t)(MAX_BODIES * MAX_BODIES));
+        engine->pair_stamp_frame = 1;
+    }
+    aabbs = engine->aabbs;
+    broadphase_mark_blocked_pairs(engine);
+    if (engine->config.broadphase_type == PHYSICS_BROADPHASE_GRID && engine->config.broadphase_cell_size > 1e-6f) {
+        broadphase_build_grid(engine, aabbs, engine->config.broadphase_cell_size);
     } else {
         broadphase_build_bruteforce(engine, aabbs);
     }
+    return engine->broadphase_pair_count;
 }

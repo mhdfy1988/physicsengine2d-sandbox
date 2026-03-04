@@ -1,47 +1,22 @@
 #include <stddef.h>
 #include "physics_internal.h"
 
-void physics_internal_resolve_collisions(PhysicsEngine* engine) {
-    int position_iters;
-    int i;
-    int iter;
+void physics_internal_resolve_collisions(PhysicsEngine* engine, const PhysicsSolverContext* ctx) {
+    PhysicsSolverWorldView view;
+    PhysicsSolverContext local_ctx;
     if (engine == NULL) {
         return;
     }
-    position_iters = engine->iterations + 3;
+    local_ctx.velocity_iterations = (ctx != NULL && ctx->velocity_iterations > 0) ? ctx->velocity_iterations : engine->config.iterations;
+    local_ctx.position_iterations =
+        (ctx != NULL && ctx->position_iterations > 0) ? ctx->position_iterations
+                                                      : (engine->config.iterations + engine->config.max_position_iterations_bias);
+    local_ctx.dt = (ctx != NULL && ctx->dt > 0.0f) ? ctx->dt : engine->config.time_step;
 
-    for (i = 0; i < engine->constraint_count; i++) {
-        constraint_warm_start(&engine->constraints[i]);
-    }
-
-    for (iter = 0; iter < engine->iterations; iter++) {
-        for (i = 0; i < engine->contact_count; i++) {
-            collision_resolve_velocity(&engine->contacts[i]);
-        }
-        for (i = 0; i < engine->constraint_count; i++) {
-            constraint_solve_velocity(&engine->constraints[i], engine->time_step);
-        }
-    }
-
-    for (iter = 0; iter < position_iters; iter++) {
-        for (i = 0; i < engine->contact_count; i++) {
-            CollisionManifold* m = &engine->contacts[i];
-            if (m->bodyA == NULL || m->bodyB == NULL) {
-                continue;
-            }
-
-            {
-                CollisionInfo refreshed = {0};
-                if (!collision_detect(m->bodyA, m->bodyB, &refreshed)) {
-                    continue;
-                }
-
-                m->info = refreshed;
-                collision_resolve_position(m);
-            }
-        }
-        for (i = 0; i < engine->constraint_count; i++) {
-            constraint_solve_position(&engine->constraints[i]);
-        }
-    }
+    view.contacts = engine->contacts;
+    view.contact_count = engine->contact_count;
+    view.constraints = engine->constraints;
+    view.constraint_count = engine->constraint_count;
+    view.engine_hint = engine;
+    physics_internal_solve_world_view(&view, &local_ctx);
 }

@@ -120,6 +120,16 @@ int main(void) {
 
 生产逻辑建议仍然使用 `physics_engine_step`，避免流程顺序不一致。
 
+### 5.3 回调与事件钩子（架构调试推荐）
+
+可通过 `physics_engine_set_callbacks` 注册统一回调：
+
+- `on_pre_step`：帧开始
+- `on_post_broadphase`：广相完成（拿到 pair_count）
+- `on_post_narrowphase`：窄相完成（拿到 contact_count）
+- `on_contact_created`：每个接触生成时触发
+- `on_post_step`：帧结束（含 `PhysicsStepProfile`）
+
 ## 6. 参数调优建议（实战）
 
 ### 6.1 基础稳定性参数
@@ -140,6 +150,21 @@ int main(void) {
 - `physics_engine_set_broadphase_cell_size(engine, cell_size)`
 
 一般规则：`cell_size` 取“场景常见物体直径的 1~2 倍”。
+
+### 6.3 自定义 Pipeline（高级）
+
+可以注册自定义阶段构建器：
+
+- `physics_engine_set_broadphase_builder(engine, builder, user)`
+- `physics_engine_set_narrowphase_builder(engine, builder, user)`
+- `physics_engine_reset_pipeline(engine)`（恢复默认实现）
+
+自定义实现可使用这些辅助接口回写结果：
+
+- `physics_engine_clear_broadphase_pairs`
+- `physics_engine_add_broadphase_pair`
+- `physics_engine_clear_contacts`
+- `physics_engine_add_contact`
 
 ## 7. 常用读取接口怎么用
 

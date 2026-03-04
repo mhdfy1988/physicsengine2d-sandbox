@@ -195,6 +195,8 @@ typedef struct {
     int perf_hist_count;
     int focused_param;
     int inspector_focused_row;
+    int debug_focused_row;
+    int keyboard_focus_area;
     InspectorTargetType inspector_target_type;
     RigidBody* inspector_body_target;
     Constraint* inspector_constraint_target;
@@ -460,8 +462,8 @@ static int selected_constraint_is_active(void);
 static int copy_selected_body_to_clipboard(void);
 static int paste_body_from_clipboard(void);
 static float body_box_size_hint(const RigidBody* b);
-static int compute_stage_rect_max_from_target(D2D1_RECT_F* out_stage_rect);
-static Vec2 clamp_spawn_inside_stage_max(Vec2 p, float bound_radius);
+static int compute_stage_rect_from_layout(HWND hwnd, D2D1_RECT_F* out_stage_rect);
+static Vec2 clamp_spawn_inside_stage(Vec2 p, float bound_radius);
 static int finite_positive(float v, float min_v);
 static void trace_spawn_step(const char* stage, const char* fmt, ...);
 
@@ -638,7 +640,7 @@ static int paste_body_from_clipboard(void) {
     Shape* sh;
     RigidBody* b;
     Vec2 p;
-    D2D1_RECT_F max_stage_rect;
+    D2D1_RECT_F visible_stage_rect;
     float spawn_bound;
     trace_spawn_step("paste.begin", "valid=%d mass=%.4f size=%.4f", g_clipboard_body.valid, g_clipboard_body.mass, g_clipboard_body.size);
     if (g_state.engine == NULL || !g_clipboard_body.valid) {
@@ -657,23 +659,23 @@ static int paste_body_from_clipboard(void) {
     }
     sh->restitution = clamp(g_clipboard_body.restitution, 0.0f, 1.0f);
     sh->friction = clamp(g_clipboard_body.friction, 0.0f, 2.0f);
-    if (!compute_stage_rect_max_from_target(&max_stage_rect)) {
+    if (!compute_stage_rect_from_layout(g_app_hwnd, &visible_stage_rect)) {
         trace_spawn_step("paste.abort", "stage-rect-failed");
         shape_free(sh);
         return 0;
     }
-    if (g_state.mouse_screen.x >= max_stage_rect.left &&
-        g_state.mouse_screen.x <= max_stage_rect.right &&
-        g_state.mouse_screen.y >= max_stage_rect.top &&
-        g_state.mouse_screen.y <= max_stage_rect.bottom) {
+    if (g_state.mouse_screen.x >= visible_stage_rect.left &&
+        g_state.mouse_screen.x <= visible_stage_rect.right &&
+        g_state.mouse_screen.y >= visible_stage_rect.top &&
+        g_state.mouse_screen.y <= visible_stage_rect.bottom) {
         p = screen_to_world(g_state.mouse_screen);
     } else {
-        p = screen_to_world((ScreenPt){(max_stage_rect.left + max_stage_rect.right) * 0.5f, (max_stage_rect.top + max_stage_rect.bottom) * 0.5f});
+        p = screen_to_world((ScreenPt){(visible_stage_rect.left + visible_stage_rect.right) * 0.5f, (visible_stage_rect.top + visible_stage_rect.bottom) * 0.5f});
     }
     p.x += 1.4f;
     p.y -= 1.2f;
     spawn_bound = g_clipboard_body.is_circle ? max_f(0.2f, g_clipboard_body.size) : max_f(0.4f, g_clipboard_body.size) * 0.72f;
-    p = clamp_spawn_inside_stage_max(p, spawn_bound);
+    p = clamp_spawn_inside_stage(p, spawn_bound);
     b = body_create(p.x, p.y, max_f(0.1f, g_clipboard_body.mass), sh);
     if (b == NULL) {
         shape_free(sh);
@@ -1506,34 +1508,6 @@ static int compute_stage_rect_max(HWND hwnd, D2D1_RECT_F* out_stage_rect) {
     return compute_stage_rect_for_size((float)(wr.right - wr.left), (float)(wr.bottom - wr.top), 1, out_stage_rect);
 }
 
-static int compute_stage_rect_max_from_target(D2D1_RECT_F* out_stage_rect) {
-    RECT wr;
-    if (g_app_hwnd == NULL) return 0;
-    GetClientRect(g_app_hwnd, &wr);
-    return compute_stage_rect_for_size((float)(wr.right - wr.left), (float)(wr.bottom - wr.top), 1, out_stage_rect);
-}
-
-static int stage_world_bounds_max(float* min_x, float* max_x, float* min_y, float* max_y) {
-    D2D1_RECT_F stage_rect;
-    ScreenPt smin;
-    ScreenPt smax;
-    Vec2 wmin;
-    Vec2 wmax;
-    if (min_x == NULL || max_x == NULL || min_y == NULL || max_y == NULL) return 0;
-    if (!compute_stage_rect_max_from_target(&stage_rect)) return 0;
-    smin.x = stage_rect.left;
-    smin.y = stage_rect.top;
-    smax.x = stage_rect.right;
-    smax.y = stage_rect.bottom;
-    wmin = screen_to_world(smin);
-    wmax = screen_to_world(smax);
-    *min_x = min_f(wmin.x, wmax.x);
-    *max_x = max_f(wmin.x, wmax.x);
-    *min_y = min_f(wmin.y, wmax.y);
-    *max_y = max_f(wmin.y, wmax.y);
-    return 1;
-}
-
 static Vec2 clamp_spawn_inside_stage(Vec2 p, float bound_radius) {
     float min_x;
     float max_x;
@@ -1548,37 +1522,70 @@ static Vec2 clamp_spawn_inside_stage(Vec2 p, float bound_radius) {
     return p;
 }
 
-static Vec2 clamp_spawn_inside_stage_max(Vec2 p, float bound_radius) {
-    float min_x;
-    float max_x;
-    float min_y;
-    float max_y;
-    float r = max_f(bound_radius, 0.1f);
-    if (!stage_world_bounds_max(&min_x, &max_x, &min_y, &max_y)) return p;
-    if (p.x < min_x + r) p.x = min_x + r;
-    if (p.x > max_x - r) p.x = max_x - r;
-    if (p.y < min_y + r) p.y = min_y + r;
-    if (p.y > max_y - r) p.y = max_y - r;
-    return p;
-}
-
-static void fit_dynamic_bodies_into_stage(void) {
+static void fit_scene_bodies_into_stage(void) {
     int i;
-    float min_x;
-    float max_x;
-    float min_y;
-    float max_y;
+    int has_body = 0;
+    float scene_min_x = 0.0f;
+    float scene_max_x = 0.0f;
+    float scene_min_y = 0.0f;
+    float scene_max_y = 0.0f;
+    float stage_min_x;
+    float stage_max_x;
+    float stage_min_y;
+    float stage_max_y;
+    float dx;
+    float dy;
+    float stage_h;
+    const float vertical_bias_ratio = 0.04f;
     if (g_state.engine == NULL) return;
-    if (!stage_world_bounds(&min_x, &max_x, &min_y, &max_y)) return;
+    if (!stage_world_bounds(&stage_min_x, &stage_max_x, &stage_min_y, &stage_max_y)) return;
 
     for (i = 0; i < physics_engine_get_body_count(g_state.engine); i++) {
         RigidBody* b = physics_engine_get_body(g_state.engine, i);
         float r;
-        Vec2 p;
-        if (b == NULL || b->type != BODY_DYNAMIC) continue;
+        float bx0;
+        float bx1;
+        float by0;
+        float by1;
+        if (b == NULL || b->shape == NULL || !b->active) continue;
         r = body_bound_radius(b);
-        p = clamp_spawn_inside_stage(b->position, r);
-        b->position = p;
+        bx0 = b->position.x - r;
+        bx1 = b->position.x + r;
+        by0 = b->position.y - r;
+        by1 = b->position.y + r;
+        if (!has_body) {
+            scene_min_x = bx0;
+            scene_max_x = bx1;
+            scene_min_y = by0;
+            scene_max_y = by1;
+            has_body = 1;
+        } else {
+            if (bx0 < scene_min_x) scene_min_x = bx0;
+            if (bx1 > scene_max_x) scene_max_x = bx1;
+            if (by0 < scene_min_y) scene_min_y = by0;
+            if (by1 > scene_max_y) scene_max_y = by1;
+        }
+    }
+    if (!has_body) return;
+
+    dx = ((stage_min_x + stage_max_x) * 0.5f) - ((scene_min_x + scene_max_x) * 0.5f);
+    dy = ((stage_min_y + stage_max_y) * 0.5f) - ((scene_min_y + scene_max_y) * 0.5f);
+    stage_h = stage_max_y - stage_min_y;
+    if (stage_h > 0.0f) {
+        dy += stage_h * vertical_bias_ratio;
+    }
+    for (i = 0; i < physics_engine_get_body_count(g_state.engine); i++) {
+        RigidBody* b = physics_engine_get_body(g_state.engine, i);
+        if (b == NULL || b->shape == NULL || !b->active) continue;
+        b->position.x += dx;
+        b->position.y += dy;
+    }
+    for (i = 0; i < physics_engine_get_body_count(g_state.engine); i++) {
+        RigidBody* b = physics_engine_get_body(g_state.engine, i);
+        float r;
+        if (b == NULL || b->type != BODY_DYNAMIC || b->shape == NULL || !b->active) continue;
+        r = body_bound_radius(b);
+        b->position = clamp_spawn_inside_stage(b->position, r);
     }
 }
 
@@ -1763,12 +1770,10 @@ static void spawn_circle_at_cursor(void) {
     Shape* shape;
     RigidBody* body;
     Vec2 p;
-    D2D1_RECT_F max_stage_rect;
     trace_spawn_step("spawn.circle.begin", "mx=%.1f my=%.1f", g_state.mouse_screen.x, g_state.mouse_screen.y);
     if (g_state.engine == NULL) return;
-    if (!compute_stage_rect_max_from_target(&max_stage_rect)) return;
-    if (g_state.mouse_screen.x < max_stage_rect.left || g_state.mouse_screen.x > max_stage_rect.right ||
-        g_state.mouse_screen.y < max_stage_rect.top || g_state.mouse_screen.y > max_stage_rect.bottom) {
+    if (g_state.mouse_screen.x < g_state.stage_left || g_state.mouse_screen.x > g_state.stage_right ||
+        g_state.mouse_screen.y < g_state.stage_top || g_state.mouse_screen.y > g_state.stage_bottom) {
         push_console_log(L"[警告] 鼠标未在舞台内，无法创建圆");
         return;
     }
@@ -1779,7 +1784,7 @@ static void spawn_circle_at_cursor(void) {
         return;
     }
     p = screen_to_world(g_state.mouse_screen);
-    p = clamp_spawn_inside_stage_max(p, cfg->spawn_circle_radius);
+    p = clamp_spawn_inside_stage(p, cfg->spawn_circle_radius);
     shape = shape_create_circle(cfg->spawn_circle_radius);
     if (shape == NULL) {
         trace_spawn_step("spawn.circle.abort", "shape-create-failed");
@@ -1814,13 +1819,11 @@ static void spawn_box_at_cursor(void) {
     Shape* shape;
     RigidBody* body;
     Vec2 p;
-    D2D1_RECT_F max_stage_rect;
     float half;
     trace_spawn_step("spawn.box.begin", "mx=%.1f my=%.1f", g_state.mouse_screen.x, g_state.mouse_screen.y);
     if (g_state.engine == NULL) return;
-    if (!compute_stage_rect_max_from_target(&max_stage_rect)) return;
-    if (g_state.mouse_screen.x < max_stage_rect.left || g_state.mouse_screen.x > max_stage_rect.right ||
-        g_state.mouse_screen.y < max_stage_rect.top || g_state.mouse_screen.y > max_stage_rect.bottom) {
+    if (g_state.mouse_screen.x < g_state.stage_left || g_state.mouse_screen.x > g_state.stage_right ||
+        g_state.mouse_screen.y < g_state.stage_top || g_state.mouse_screen.y > g_state.stage_bottom) {
         push_console_log(L"[警告] 鼠标未在舞台内，无法创建方块");
         return;
     }
@@ -1832,7 +1835,7 @@ static void spawn_box_at_cursor(void) {
     }
     half = cfg->spawn_box_size * 0.72f;
     p = screen_to_world(g_state.mouse_screen);
-    p = clamp_spawn_inside_stage_max(p, half);
+    p = clamp_spawn_inside_stage(p, half);
     shape = shape_create_box(cfg->spawn_box_size, cfg->spawn_box_size);
     if (shape == NULL) {
         trace_spawn_step("spawn.box.abort", "shape-create-failed");
@@ -2029,16 +2032,6 @@ static void sync_scene_runtime_params(void) {
     if (g_state.engine == NULL) return;
     cfg = &g_state.scenes[g_state.scene_index];
     runtime_param_sync_engine(g_state.engine, cfg);
-}
-
-static void debug_adjust_runtime_param(int idx, int sign) {
-    SceneConfig* cfg = &g_state.scenes[g_state.scene_index];
-    if (sign == 0) return;
-    history_push_snapshot();
-    if (runtime_param_debug_adjust(cfg, idx, sign)) {
-        sync_scene_runtime_params();
-        push_console_log(L"[调试] 参数已调整");
-    }
 }
 
 static int can_adjust_param(const SceneConfig* cfg, int param_index, int sign) {
@@ -2484,6 +2477,29 @@ static void draw_toolbar_icon_button(D2D1_RECT_F r, ToolbarIconId icon, int acti
     ui_draw_toolbar_icon_button(g_ui.target, g_ui.brush, r, icon, active, hovered);
 }
 
+static void draw_text_tab_button(D2D1_RECT_F rect, const wchar_t* label, int active, int hovered) {
+    D2D1_RECT_F indicator;
+    D2D1_COLOR_F text_color;
+    float text_w;
+    float tab_w;
+    float indicator_w;
+    float cx;
+    if (active) text_color = rgba(0.94f, 0.97f, 1.0f, 1.0f);
+    else if (hovered) text_color = rgba(0.82f, 0.89f, 0.97f, 1.0f);
+    else text_color = rgba(0.70f, 0.78f, 0.90f, 1.0f);
+    draw_text_hvcenter(label, rect, g_ui.fmt_info, text_color);
+    if (active) {
+        text_w = measure_text_width(label, g_ui.fmt_info);
+        tab_w = rect.right - rect.left;
+        indicator_w = text_w + 16.0f;
+        if (indicator_w < 24.0f) indicator_w = 24.0f;
+        if (indicator_w > tab_w - 8.0f) indicator_w = tab_w - 8.0f;
+        cx = (rect.left + rect.right) * 0.5f;
+        indicator = rc(cx - indicator_w * 0.5f, rect.bottom - 2.0f, cx + indicator_w * 0.5f, rect.bottom);
+        draw_card_round(indicator, 1.0f, rgba(0.56f, 0.73f, 0.95f, 1.0f), rgba(0.56f, 0.73f, 0.95f, 1.0f));
+    }
+}
+
 static const wchar_t* body_kind_name(const RigidBody* b) {
     if (b == NULL) return L"--";
     if (b->type == BODY_STATIC) return L"静态";
@@ -2504,50 +2520,6 @@ static int inspector_row_count(void) {
     }
     if (g_state.selected != NULL) return 8;
     return 0;
-}
-
-static void inspector_adjust_row(int row, int sign) {
-    const Constraint* csel = selected_constraint_ref();
-    if (sign == 0) return;
-    history_push_snapshot();
-    if (csel != NULL && csel->active) {
-        if (row == 0) physics_engine_constraint_set_rest_length(g_state.engine, g_state.selected_constraint_index, csel->rest_length + 0.20f * sign);
-        if (row == 1) {
-            float min_stiffness = (csel->type == CONSTRAINT_DISTANCE) ? 0.08f : 0.20f;
-            physics_engine_constraint_set_stiffness(g_state.engine, g_state.selected_constraint_index,
-                                                    max_f(min_stiffness, csel->stiffness + 0.50f * sign));
-        }
-        if (row == 2) physics_engine_constraint_set_damping(g_state.engine, g_state.selected_constraint_index, csel->damping + 0.20f * sign);
-        if (row == 3) physics_engine_constraint_set_break_force(g_state.engine, g_state.selected_constraint_index, csel->break_force + 20.0f * sign);
-        if (row == 4) physics_engine_constraint_set_collide_connected(g_state.engine, g_state.selected_constraint_index, !csel->collide_connected);
-        if (row == 5 && csel->type == CONSTRAINT_SPRING) {
-            int preset = spring_preset_for_constraint(csel);
-            if (preset < 0) preset = 1;
-            preset = (preset + (sign > 0 ? 1 : 2)) % 3;
-            apply_spring_preset_to_constraint_index(g_state.selected_constraint_index, preset);
-        }
-        push_console_log(L"[检查器] 约束参数已调整");
-        return;
-    }
-    if (g_state.selected != NULL) {
-        RigidBody* b = g_state.selected;
-        if (row == 0) {
-            b->mass = max_f(0.1f, b->mass + 0.10f * sign);
-            b->inv_mass = (b->mass > 0.0f) ? (1.0f / b->mass) : 0.0f;
-            if (b->shape != NULL) {
-                b->inertia = shape_get_moment_of_inertia(b->shape, b->mass);
-                b->inv_inertia = (b->inertia > 0.0f) ? (1.0f / b->inertia) : 0.0f;
-            }
-        }
-        if (row == 1) b->position.x += 0.2f * sign;
-        if (row == 2) b->position.y += 0.2f * sign;
-        if (row == 3) b->velocity.x += 0.2f * sign;
-        if (row == 4) b->velocity.y += 0.2f * sign;
-        if (row == 5) b->angular_velocity += 0.1f * sign;
-        if (row == 6) b->damping = clamp(b->damping + 0.02f * sign, 0.0f, 1.0f);
-        if (row == 7 && b->shape != NULL) b->shape->restitution = clamp(b->shape->restitution + 0.05f * sign, 0.0f, 1.0f);
-        push_console_log(L"[检查器] 物体参数已调整");
-    }
 }
 
 static void begin_value_input_for_inspector_row(int row) {
@@ -2584,20 +2556,26 @@ static void begin_value_input_for_inspector_row(int row) {
     g_state.value_input_caret = g_state.value_input_len;
 }
 
-static void begin_value_input_for_log_search(void) {
-    lstrcpynW(g_state.value_input_buf, g_state.log_search_buf, 64);
-    g_state.value_input_target = 2;
+static void begin_value_input_for_hierarchy_filter(void) {
+    lstrcpynW(g_state.value_input_buf, g_state.hierarchy_filter_buf, 64);
+    g_state.value_input_target = 3;
     g_state.value_input_row = 0;
     g_state.show_value_input = 1;
     g_state.value_input_len = (int)lstrlenW(g_state.value_input_buf);
     g_state.value_input_caret = g_state.value_input_len;
 }
 
-static void begin_value_input_for_hierarchy_filter(void) {
-    lstrcpynW(g_state.value_input_buf, g_state.hierarchy_filter_buf, 64);
-    g_state.value_input_target = 3;
-    g_state.value_input_row = 0;
+static void begin_value_input_for_debug_param(int row) {
+    SceneConfig* cfg = &g_state.scenes[g_state.scene_index];
+    g_state.value_input_target = 4;
+    g_state.value_input_row = row;
     g_state.show_value_input = 1;
+    g_state.value_input_len = 0;
+    g_state.value_input_caret = 0;
+    g_state.value_input_buf[0] = L'\0';
+    if (row == 0) swprintf(g_state.value_input_buf, 64, L"%.2f", cfg->gravity_y);
+    if (row == 1) swprintf(g_state.value_input_buf, 64, L"%.4f", cfg->time_step);
+    if (row == 2) swprintf(g_state.value_input_buf, 64, L"%d", cfg->iterations);
     g_state.value_input_len = (int)lstrlenW(g_state.value_input_buf);
     g_state.value_input_caret = g_state.value_input_len;
 }
@@ -2629,6 +2607,24 @@ static void apply_value_input(void) {
         lstrcpynW(g_state.hierarchy_filter_buf, g_state.value_input_buf, 32);
         g_state.hierarchy_filter_len = (int)lstrlenW(g_state.hierarchy_filter_buf);
         push_console_log(L"[层级] 过滤关键字: %s", g_state.hierarchy_filter_len > 0 ? g_state.hierarchy_filter_buf : L"(空)");
+        return;
+    }
+    if (g_state.value_input_target == 4) {
+        SceneConfig* cfg = &g_state.scenes[g_state.scene_index];
+        int row = g_state.value_input_row;
+        history_push_snapshot();
+        if (row == 0) {
+            cfg->gravity_y = clamp((float)v, 0.0f, 30.0f);
+        } else if (row == 1) {
+            cfg->time_step = clamp((float)v, 0.001f, 0.05f);
+        } else if (row == 2) {
+            int iv = (int)v;
+            if (iv < 1) iv = 1;
+            if (iv > 64) iv = 64;
+            cfg->iterations = iv;
+        }
+        sync_scene_runtime_params();
+        push_console_log(L"[调试] 已输入模拟参数");
         return;
     }
     if (g_state.value_input_target != 1) return;
@@ -2714,6 +2710,8 @@ static void clear_right_panel_ui_state(void) {
     g_state.inspector_scroll_offset = 0;
     g_state.debug_scroll_max = 0;
     g_state.debug_scroll_offset = 0;
+    g_state.debug_focused_row = 0;
+    g_state.keyboard_focus_area = 1;
     for (i = 0; i < 3; i++) {
         g_dbg_row_rect[i] = rc(0, 0, 0, 0);
         g_dbg_minus_rect[i] = rc(0, 0, 0, 0);
@@ -2739,6 +2737,7 @@ static D2D1_RECT_F render_right_inspector_section(D2D1_RECT_F right_rect) {
     float inspector_content_h;
     float inspector_view_h;
     float inspector_offset_y;
+    float inspector_content_right;
 
     if (panel_h < 120.0f) panel_h = 120.0f;
     inspector_h = (panel_h - section_gap) * 0.56f;
@@ -2758,15 +2757,13 @@ static D2D1_RECT_F render_right_inspector_section(D2D1_RECT_F right_rect) {
     draw_panel_header_band(inspector, 38.0f, 12.0f);
     draw_text_vcenter(L"属性", rc(inspector.left + 16.0f, inspector.top + 4.0f, inspector.right - 12.0f, inspector.top + 40.0f),
                       g_ui.fmt_ui, rgba(0.88f, 0.92f, 0.97f, 1.0f));
-    swprintf(line, 128, L"约束调试:%s", g_state.draw_constraints ? L"开" : L"关");
-    draw_text_vcenter(line, rc(inspector.right - 150.0f, inspector.top + 4.0f, inspector.right - 12.0f, inspector.top + 40.0f), g_ui.fmt_info,
-                      rgba(0.66f, 0.74f, 0.85f, 1.0f));
     step = 32.0f;
     lx0 = inspector.left + 12.0f;
     lx1 = inspector.left + 110.0f;
     vx0 = inspector.left + 116.0f;
     vx1 = inspector.right - 12.0f;
     g_inspector_viewport_rect = rc(inspector.left + 8.0f, inspector.top + 44.0f, inspector.right - 14.0f, inspector.bottom - 8.0f);
+    inspector_content_right = g_inspector_viewport_rect.right - 2.0f;
     inspector_view_h = g_inspector_viewport_rect.bottom - g_inspector_viewport_rect.top;
     g_ins_row_count = inspector_row_count();
     if (g_state.inspector_focused_row >= g_ins_row_count) g_state.inspector_focused_row = g_ins_row_count - 1;
@@ -2787,12 +2784,10 @@ static D2D1_RECT_F render_right_inspector_section(D2D1_RECT_F right_rect) {
         int ri;
         for (ri = 0; ri < g_ins_row_count && ri < INSPECTOR_MAX_ROWS; ri++) {
             const wchar_t* label = L"--";
-            D2D1_RECT_F rr = rc(inspector.left + 10.0f, inspector_offset_y + ri * step, inspector.right - 10.0f, inspector_offset_y + ri * step + 26.0f);
-            D2D1_RECT_F minus_btn = rc(rr.right - 56.0f, rr.top + 1.0f, rr.right - 30.0f, rr.bottom - 1.0f);
-            D2D1_RECT_F plus_btn = rc(rr.right - 28.0f, rr.top + 1.0f, rr.right - 2.0f, rr.bottom - 1.0f);
+            D2D1_RECT_F rr = rc(inspector.left + 10.0f, inspector_offset_y + ri * step, inspector_content_right, inspector_offset_y + ri * step + 26.0f);
             g_ins_row_rect[ri] = rr;
-            g_ins_minus_rect[ri] = minus_btn;
-            g_ins_plus_rect[ri] = plus_btn;
+            g_ins_minus_rect[ri] = rc(0, 0, 0, 0);
+            g_ins_plus_rect[ri] = rc(0, 0, 0, 0);
             draw_card_round(rr, 5.0f,
                             (ri == g_state.inspector_focused_row) ? rgba(0.24f, 0.30f, 0.40f, 1.0f) : rgba(0.19f, 0.22f, 0.28f, 1.0f),
                             rgba(0.31f, 0.37f, 0.46f, 1.0f));
@@ -2822,13 +2817,11 @@ static D2D1_RECT_F render_right_inspector_section(D2D1_RECT_F right_rect) {
                 }
             }
             draw_text(label, rc(rr.left + 6.0f, rr.top + 1.0f, lx1, rr.bottom - 1.0f), g_ui.fmt_info, rgba(0.70f, 0.77f, 0.86f, 1.0f));
-            draw_text(line, rc(vx0, rr.top + 1.0f, rr.right - 60.0f, rr.bottom - 1.0f), g_ui.fmt_info, rgba(0.89f, 0.93f, 0.97f, 1.0f));
-            ui_draw_icon_minus(g_ui.target, g_ui.brush, minus_btn, rgba(0.84f, 0.89f, 0.95f, 1.0f), 1.4f);
-            ui_draw_icon_plus(g_ui.target, g_ui.brush, plus_btn, rgba(0.84f, 0.89f, 0.95f, 1.0f), 1.4f);
+            draw_text(line, rc(vx0, rr.top + 1.0f, rr.right - 8.0f, rr.bottom - 1.0f), g_ui.fmt_info, rgba(0.89f, 0.93f, 0.97f, 1.0f));
         }
         {
             const wchar_t* ih = inspector_row_hint_text();
-            draw_text(L"提示: Enter输入  +/-微调  双击快速输入",
+            draw_text(L"提示: Enter输入  双击快速输入  ↑↓切换",
                       rc(lx0, inspector_offset_y + g_ins_row_count * step + 8.0f, vx1, inspector_offset_y + g_ins_row_count * step + 28.0f),
                       g_ui.fmt_info, rgba(0.62f, 0.70f, 0.80f, 1.0f));
             draw_text(ih, rc(lx0, inspector_offset_y + g_ins_row_count * step + 34.0f, vx1, inspector_offset_y + g_ins_row_count * step + 56.0f),
@@ -2870,11 +2863,13 @@ static void render_right_debug_section(D2D1_RECT_F debug_rect) {
     float debug_content_h;
     float debug_view_h;
     float debug_offset_y;
+    float debug_content_right;
     draw_card_round(debug_rect, 10.0f, rgba(0.16f, 0.18f, 0.22f, 1.0f), rgba(0.29f, 0.33f, 0.40f, 1.0f));
     draw_panel_header_band(debug_rect, 34.0f, 10.0f);
     draw_text_vcenter(L"物理调试", rc(debug_rect.left + 16.0f, debug_rect.top + 4.0f, debug_rect.right - 12.0f, debug_rect.top + 36.0f),
                       g_ui.fmt_ui, rgba(0.78f, 0.86f, 0.96f, 1.0f));
     g_debug_viewport_rect = rc(debug_rect.left + 8.0f, debug_rect.top + 40.0f, debug_rect.right - 14.0f, debug_rect.bottom - 8.0f);
+    debug_content_right = g_debug_viewport_rect.right - 2.0f;
     debug_view_h = g_debug_viewport_rect.bottom - g_debug_viewport_rect.top;
     debug_content_h = 148.0f;
     g_state.debug_scroll_max = 0;
@@ -2890,21 +2885,21 @@ static void render_right_debug_section(D2D1_RECT_F debug_rect) {
     {
         int di;
         const wchar_t* labels[3] = {L"重力Y", L"时间步长", L"迭代"};
+        if (g_state.debug_focused_row < 0) g_state.debug_focused_row = 0;
+        if (g_state.debug_focused_row > 2) g_state.debug_focused_row = 2;
         for (di = 0; di < 3; di++) {
-            D2D1_RECT_F rr = rc(debug_rect.left + 10.0f, debug_offset_y + 32.0f + di * 32.0f, debug_rect.right - 10.0f, debug_offset_y + 58.0f + di * 32.0f);
-            D2D1_RECT_F minus_btn = rc(rr.right - 56.0f, rr.top + 1.0f, rr.right - 30.0f, rr.bottom - 1.0f);
-            D2D1_RECT_F plus_btn = rc(rr.right - 28.0f, rr.top + 1.0f, rr.right - 2.0f, rr.bottom - 1.0f);
+            D2D1_RECT_F rr = rc(debug_rect.left + 10.0f, debug_offset_y + 32.0f + di * 32.0f, debug_content_right, debug_offset_y + 58.0f + di * 32.0f);
             g_dbg_row_rect[di] = rr;
-            g_dbg_minus_rect[di] = minus_btn;
-            g_dbg_plus_rect[di] = plus_btn;
-            draw_card_round(rr, 5.0f, rgba(0.20f, 0.25f, 0.33f, 1.0f), rgba(0.33f, 0.40f, 0.52f, 1.0f));
+            g_dbg_minus_rect[di] = rc(0, 0, 0, 0);
+            g_dbg_plus_rect[di] = rc(0, 0, 0, 0);
+            draw_card_round(rr, 5.0f,
+                            (di == g_state.debug_focused_row) ? rgba(0.24f, 0.30f, 0.40f, 1.0f) : rgba(0.20f, 0.25f, 0.33f, 1.0f),
+                            (di == g_state.debug_focused_row) ? rgba(0.41f, 0.50f, 0.64f, 1.0f) : rgba(0.33f, 0.40f, 0.52f, 1.0f));
             if (di == 0) swprintf(line, 128, L"%.2f", g_state.engine ? physics_engine_get_gravity(g_state.engine).y : 0.0f);
             if (di == 1) swprintf(line, 128, L"%.4f", g_state.engine ? physics_engine_get_time_step(g_state.engine) : 0.0f);
             if (di == 2) swprintf(line, 128, L"%d", g_state.engine ? physics_engine_get_iterations(g_state.engine) : 0);
             draw_text(labels[di], rc(rr.left + 6.0f, rr.top + 1.0f, rr.left + 110.0f, rr.bottom - 1.0f), g_ui.fmt_info, rgba(0.74f, 0.81f, 0.91f, 1.0f));
-            draw_text(line, rc(rr.left + 116.0f, rr.top + 1.0f, rr.right - 60.0f, rr.bottom - 1.0f), g_ui.fmt_info, rgba(0.92f, 0.95f, 0.99f, 1.0f));
-            ui_draw_icon_minus(g_ui.target, g_ui.brush, minus_btn, rgba(0.88f, 0.93f, 0.99f, 1.0f), 1.4f);
-            ui_draw_icon_plus(g_ui.target, g_ui.brush, plus_btn, rgba(0.88f, 0.93f, 0.99f, 1.0f), 1.4f);
+            draw_text(line, rc(rr.left + 116.0f, rr.top + 1.0f, rr.right - 8.0f, rr.bottom - 1.0f), g_ui.fmt_info, rgba(0.92f, 0.95f, 0.99f, 1.0f));
         }
     }
     ID2D1HwndRenderTarget_PopAxisAlignedClip(g_ui.target);
@@ -3071,11 +3066,11 @@ static void render_bottom_console_tab(D2D1_RECT_F bottom_rect) {
     float viewport_top;
     float viewport_bottom;
     float viewport_h;
+    g_state.log_search_buf[0] = L'\0';
+    g_state.log_search_len = 0;
     x0 = controls_right;
-    g_log_search_clear_rect = rc(x0 - 60.0f, bottom_rect.top + 6.0f, x0, bottom_rect.top + 28.0f);
-    x0 = g_log_search_clear_rect.left - gap;
-    g_log_search_rect = rc(x0 - 150.0f, bottom_rect.top + 6.0f, x0, bottom_rect.top + 28.0f);
-    x0 = g_log_search_rect.left - gap;
+    g_log_search_clear_rect = rc(0, 0, 0, 0);
+    g_log_search_rect = rc(0, 0, 0, 0);
     g_log_clear_rect = rc(x0 - 58.0f, bottom_rect.top + 6.0f, x0, bottom_rect.top + 28.0f);
     x0 = g_log_clear_rect.left - gap;
     g_log_filter_warn_rect = rc(x0 - 60.0f, bottom_rect.top + 6.0f, x0, bottom_rect.top + 28.0f);
@@ -3087,16 +3082,12 @@ static void render_bottom_console_tab(D2D1_RECT_F bottom_rect) {
     g_log_filter_state_rect = rc(x0 - 60.0f, bottom_rect.top + 6.0f, x0, bottom_rect.top + 28.0f);
     x0 = g_log_filter_state_rect.left - gap;
     g_log_filter_all_rect = rc(x0 - 46.0f, bottom_rect.top + 6.0f, x0, bottom_rect.top + 28.0f);
-    draw_card_round(g_log_search_rect, 6.0f, rgba(0.19f, 0.24f, 0.32f, 1.0f), rgba(0.35f, 0.44f, 0.58f, 1.0f));
-    draw_text(g_state.log_search_len > 0 ? g_state.log_search_buf : L"搜索... (Ctrl+F)", g_log_search_rect, g_ui.fmt_info,
-              g_state.log_search_len > 0 ? rgba(0.90f, 0.94f, 0.99f, 1.0f) : rgba(0.64f, 0.72f, 0.84f, 1.0f));
-    draw_action_button(g_log_filter_all_rect, L"全部", g_state.log_filter_mode == 0, point_in_rect(g_state.mouse_screen, g_log_filter_all_rect));
-    draw_action_button(g_log_filter_state_rect, L"状态", g_state.log_filter_mode == 1, point_in_rect(g_state.mouse_screen, g_log_filter_state_rect));
-    draw_action_button(g_log_filter_physics_rect, L"物理", g_state.log_filter_mode == 2, point_in_rect(g_state.mouse_screen, g_log_filter_physics_rect));
-    draw_action_button(g_log_filter_collision_rect, L"碰撞", g_state.log_filter_mode == 4, point_in_rect(g_state.mouse_screen, g_log_filter_collision_rect));
-    draw_action_button(g_log_filter_warn_rect, L"警告", g_state.log_filter_mode == 3, point_in_rect(g_state.mouse_screen, g_log_filter_warn_rect));
-    draw_action_button(g_log_clear_rect, L"清空", 0, point_in_rect(g_state.mouse_screen, g_log_clear_rect));
-    draw_action_button(g_log_search_clear_rect, L"清词", 0, point_in_rect(g_state.mouse_screen, g_log_search_clear_rect));
+    draw_text_tab_button(g_log_filter_all_rect, L"全部", g_state.log_filter_mode == 0, point_in_rect(g_state.mouse_screen, g_log_filter_all_rect));
+    draw_text_tab_button(g_log_filter_state_rect, L"状态", g_state.log_filter_mode == 1, point_in_rect(g_state.mouse_screen, g_log_filter_state_rect));
+    draw_text_tab_button(g_log_filter_physics_rect, L"物理", g_state.log_filter_mode == 2, point_in_rect(g_state.mouse_screen, g_log_filter_physics_rect));
+    draw_text_tab_button(g_log_filter_collision_rect, L"碰撞", g_state.log_filter_mode == 4, point_in_rect(g_state.mouse_screen, g_log_filter_collision_rect));
+    draw_text_tab_button(g_log_filter_warn_rect, L"警告", g_state.log_filter_mode == 3, point_in_rect(g_state.mouse_screen, g_log_filter_warn_rect));
+    draw_text_tab_button(g_log_clear_rect, L"清空", 0, point_in_rect(g_state.mouse_screen, g_log_clear_rect));
     viewport_top = bottom_rect.top + 38.0f;
     viewport_bottom = bottom_rect.bottom - 10.0f;
     if (g_state.log_filter_mode == 4) {
@@ -3266,12 +3257,6 @@ static void init_left_panel_headers_and_search(D2D1_RECT_F hierarchy_rect, D2D1_
                       g_ui.fmt_ui, rgba(0.76f, 0.82f, 0.90f, 1.0f));
     draw_text_vcenter(L"项目", rc(project_rect.left + 16.0f, project_rect.top + 4.0f, project_rect.right - 12.0f, project_rect.top + 36.0f),
                       g_ui.fmt_ui, rgba(0.76f, 0.82f, 0.90f, 1.0f));
-    g_hierarchy_search_rect = rc(hierarchy_rect.left + 10.0f, hierarchy_rect.top + 40.0f, hierarchy_rect.right - 44.0f, hierarchy_rect.top + 64.0f);
-    g_hierarchy_search_clear_rect = rc(hierarchy_rect.right - 40.0f, hierarchy_rect.top + 40.0f, hierarchy_rect.right - 10.0f, hierarchy_rect.top + 64.0f);
-    draw_card_round(g_hierarchy_search_rect, 5.0f, rgba(0.18f, 0.20f, 0.25f, 1.0f), rgba(0.27f, 0.31f, 0.38f, 1.0f));
-    draw_text(g_state.hierarchy_filter_len > 0 ? g_state.hierarchy_filter_buf : L"过滤对象... (Ctrl+L)", g_hierarchy_search_rect, g_ui.fmt_info,
-              g_state.hierarchy_filter_len > 0 ? rgba(0.88f, 0.92f, 0.97f, 1.0f) : rgba(0.61f, 0.68f, 0.78f, 1.0f));
-    draw_action_button(g_hierarchy_search_clear_rect, L"清", 0, point_in_rect(g_state.mouse_screen, g_hierarchy_search_clear_rect));
     g_tree_scene_header_rect = rc(0, 0, 0, 0);
     g_tree_bodies_header_rect = rc(0, 0, 0, 0);
     g_tree_constraints_header_rect = rc(0, 0, 0, 0);
@@ -3577,6 +3562,7 @@ static void render_hierarchy_scrollbar(D2D1_RECT_F hierarchy_rect, D2D1_RECT_F h
 }
 
 static float render_hierarchy_scene_section(D2D1_RECT_F hierarchy_rect, float y, float row_h) {
+    float content_right = g_hierarchy_viewport_rect.right - 2.0f;
     g_tree_scene_header_rect = rc(hierarchy_rect.left + 10.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
     ui_draw_tree_disclosure_icon(g_ui.target, g_ui.brush, rc(g_tree_scene_header_rect.left + 2.0f, g_tree_scene_header_rect.top + 3.0f,
                                  g_tree_scene_header_rect.left + 14.0f, g_tree_scene_header_rect.bottom - 3.0f),
@@ -3586,7 +3572,7 @@ static float render_hierarchy_scene_section(D2D1_RECT_F hierarchy_rect, float y,
               g_ui.fmt_mono, rgba(0.82f, 0.87f, 0.94f, 1.0f));
     y += row_h;
     if (g_state.tree_scene_expanded) {
-        g_explorer_scene_rect = rc(hierarchy_rect.left + 24.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
+        g_explorer_scene_rect = rc(hierarchy_rect.left + 24.0f, y, content_right, y + row_h);
         draw_text(scene_catalog_name(g_state.scene_index), g_explorer_scene_rect, g_ui.fmt_mono, rgba(0.88f, 0.92f, 0.97f, 1.0f));
         y += row_h + 4.0f;
     }
@@ -3600,6 +3586,7 @@ static float render_hierarchy_bodies_section(D2D1_RECT_F hierarchy_rect, float y
     wchar_t line[128];
     int bi = *io_bi;
     int bidx = *io_bidx;
+    float content_right = g_hierarchy_viewport_rect.right - 2.0f;
     g_tree_bodies_header_rect = rc(hierarchy_rect.left + 10.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
     swprintf(line, 128, L"物体 (%d)", body_visible_count);
     ui_draw_tree_disclosure_icon(g_ui.target, g_ui.brush, rc(g_tree_bodies_header_rect.left + 2.0f, g_tree_bodies_header_rect.top + 3.0f,
@@ -3614,7 +3601,7 @@ static float render_hierarchy_bodies_section(D2D1_RECT_F hierarchy_rect, float y
     if (g_state.tree_bodies_expanded && g_state.engine != NULL) {
         if (body_circle_visible_count > 0) {
             int circle_idx = 0;
-            g_tree_body_circle_header_rect = rc(hierarchy_rect.left + 24.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
+            g_tree_body_circle_header_rect = rc(hierarchy_rect.left + 24.0f, y, content_right, y + row_h);
             swprintf(line, 128, L"圆 (%d)", body_circle_visible_count);
             ui_draw_tree_disclosure_icon(g_ui.target, g_ui.brush, rc(g_tree_body_circle_header_rect.left + 2.0f, g_tree_body_circle_header_rect.top + 3.0f,
                                          g_tree_body_circle_header_rect.left + 14.0f, g_tree_body_circle_header_rect.bottom - 3.0f),
@@ -3630,7 +3617,7 @@ static float render_hierarchy_bodies_section(D2D1_RECT_F hierarchy_rect, float y
                     if (b == NULL || b->type != BODY_DYNAMIC || b->shape == NULL || b->shape->type != SHAPE_CIRCLE) continue;
                     swprintf(line, 128, L"#%d %s/%s", bi + 1, body_kind_name(b), body_shape_name(b));
                     if (g_state.hierarchy_filter_len > 0 && wcsstr(line, g_state.hierarchy_filter_buf) == NULL) continue;
-                    row = rc(hierarchy_rect.left + 38.0f, y + circle_idx * (row_h + 4.0f), hierarchy_rect.right - 10.0f, y + circle_idx * (row_h + 4.0f) + row_h);
+                    row = rc(hierarchy_rect.left + 38.0f, y + circle_idx * (row_h + 4.0f), content_right, y + circle_idx * (row_h + 4.0f) + row_h);
                     g_explorer_body_rect[bidx] = row;
                     g_explorer_body_ptr[bidx] = b;
                     draw_text(line, row, g_ui.fmt_info,
@@ -3644,7 +3631,7 @@ static float render_hierarchy_bodies_section(D2D1_RECT_F hierarchy_rect, float y
         }
         if (body_polygon_visible_count > 0) {
             int poly_idx = 0;
-            g_tree_body_polygon_header_rect = rc(hierarchy_rect.left + 24.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
+            g_tree_body_polygon_header_rect = rc(hierarchy_rect.left + 24.0f, y, content_right, y + row_h);
             swprintf(line, 128, L"多边形 (%d)", body_polygon_visible_count);
             ui_draw_tree_disclosure_icon(g_ui.target, g_ui.brush, rc(g_tree_body_polygon_header_rect.left + 2.0f, g_tree_body_polygon_header_rect.top + 3.0f,
                                          g_tree_body_polygon_header_rect.left + 14.0f, g_tree_body_polygon_header_rect.bottom - 3.0f),
@@ -3660,7 +3647,7 @@ static float render_hierarchy_bodies_section(D2D1_RECT_F hierarchy_rect, float y
                     if (b == NULL || b->type != BODY_DYNAMIC || b->shape == NULL || b->shape->type != SHAPE_POLYGON) continue;
                     swprintf(line, 128, L"#%d %s/%s", bi + 1, body_kind_name(b), body_shape_name(b));
                     if (g_state.hierarchy_filter_len > 0 && wcsstr(line, g_state.hierarchy_filter_buf) == NULL) continue;
-                    row = rc(hierarchy_rect.left + 38.0f, y + poly_idx * (row_h + 4.0f), hierarchy_rect.right - 10.0f, y + poly_idx * (row_h + 4.0f) + row_h);
+                    row = rc(hierarchy_rect.left + 38.0f, y + poly_idx * (row_h + 4.0f), content_right, y + poly_idx * (row_h + 4.0f) + row_h);
                     g_explorer_body_rect[bidx] = row;
                     g_explorer_body_ptr[bidx] = b;
                     draw_text(line, row, g_ui.fmt_info,
@@ -3685,6 +3672,7 @@ static float render_hierarchy_constraints_section(D2D1_RECT_F hierarchy_rect, fl
     wchar_t line[128];
     int ci = *io_ci;
     int cidx = *io_cidx;
+    float content_right = g_hierarchy_viewport_rect.right - 2.0f;
     g_tree_constraints_header_rect = rc(hierarchy_rect.left + 10.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
     swprintf(line, 128, L"约束 (%d)", constraint_visible_count);
     ui_draw_tree_disclosure_icon(g_ui.target, g_ui.brush, rc(g_tree_constraints_header_rect.left + 2.0f, g_tree_constraints_header_rect.top + 3.0f,
@@ -3699,7 +3687,7 @@ static float render_hierarchy_constraints_section(D2D1_RECT_F hierarchy_rect, fl
     if (g_state.tree_constraints_expanded && g_state.engine != NULL) {
         if (constraint_distance_visible_count > 0) {
             int dist_idx = 0;
-            g_tree_constraint_distance_header_rect = rc(hierarchy_rect.left + 24.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
+            g_tree_constraint_distance_header_rect = rc(hierarchy_rect.left + 24.0f, y, content_right, y + row_h);
             swprintf(line, 128, L"距离约束 (%d)", constraint_distance_visible_count);
             ui_draw_tree_disclosure_icon(g_ui.target, g_ui.brush, rc(g_tree_constraint_distance_header_rect.left + 2.0f, g_tree_constraint_distance_header_rect.top + 3.0f,
                                          g_tree_constraint_distance_header_rect.left + 14.0f, g_tree_constraint_distance_header_rect.bottom - 3.0f),
@@ -3715,7 +3703,7 @@ static float render_hierarchy_constraints_section(D2D1_RECT_F hierarchy_rect, fl
                     if (c == NULL || !c->active || c->type != CONSTRAINT_DISTANCE) continue;
                     swprintf(line, 128, L"#%d 距离", ci + 1);
                     if (g_state.hierarchy_filter_len > 0 && wcsstr(line, g_state.hierarchy_filter_buf) == NULL) continue;
-                    row = rc(hierarchy_rect.left + 38.0f, y + dist_idx * (row_h + 4.0f), hierarchy_rect.right - 10.0f, y + dist_idx * (row_h + 4.0f) + row_h);
+                    row = rc(hierarchy_rect.left + 38.0f, y + dist_idx * (row_h + 4.0f), content_right, y + dist_idx * (row_h + 4.0f) + row_h);
                     g_explorer_constraint_rect[cidx] = row;
                     g_explorer_constraint_index[cidx] = i;
                     draw_text(line, row, g_ui.fmt_info,
@@ -3729,7 +3717,7 @@ static float render_hierarchy_constraints_section(D2D1_RECT_F hierarchy_rect, fl
         }
         if (constraint_spring_visible_count > 0) {
             int spring_idx = 0;
-            g_tree_constraint_spring_header_rect = rc(hierarchy_rect.left + 24.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
+            g_tree_constraint_spring_header_rect = rc(hierarchy_rect.left + 24.0f, y, content_right, y + row_h);
             swprintf(line, 128, L"弹簧约束 (%d)", constraint_spring_visible_count);
             ui_draw_tree_disclosure_icon(g_ui.target, g_ui.brush, rc(g_tree_constraint_spring_header_rect.left + 2.0f, g_tree_constraint_spring_header_rect.top + 3.0f,
                                          g_tree_constraint_spring_header_rect.left + 14.0f, g_tree_constraint_spring_header_rect.bottom - 3.0f),
@@ -3745,7 +3733,7 @@ static float render_hierarchy_constraints_section(D2D1_RECT_F hierarchy_rect, fl
                     if (c == NULL || !c->active || c->type != CONSTRAINT_SPRING) continue;
                     swprintf(line, 128, L"#%d 弹簧", ci + 1);
                     if (g_state.hierarchy_filter_len > 0 && wcsstr(line, g_state.hierarchy_filter_buf) == NULL) continue;
-                    row = rc(hierarchy_rect.left + 38.0f, y + spring_idx * (row_h + 4.0f), hierarchy_rect.right - 10.0f, y + spring_idx * (row_h + 4.0f) + row_h);
+                    row = rc(hierarchy_rect.left + 38.0f, y + spring_idx * (row_h + 4.0f), content_right, y + spring_idx * (row_h + 4.0f) + row_h);
                     g_explorer_constraint_rect[cidx] = row;
                     g_explorer_constraint_index[cidx] = i;
                     draw_text(line, row, g_ui.fmt_info,
@@ -3769,7 +3757,7 @@ static void render_left_hierarchy_content(D2D1_RECT_F left_rect) {
     float split_y = left_rect.top + (left_rect.bottom - left_rect.top) * 0.58f;
     D2D1_RECT_F hierarchy_rect = rc(left_rect.left + 8.0f, left_rect.top + 8.0f, left_rect.right - 8.0f, split_y - 4.0f);
     D2D1_RECT_F project_rect = rc(left_rect.left + 8.0f, split_y + 4.0f, left_rect.right - 8.0f, left_rect.bottom - 8.0f);
-    D2D1_RECT_F hierarchy_viewport = rc(hierarchy_rect.left + 10.0f, hierarchy_rect.top + 68.0f, hierarchy_rect.right - 18.0f, hierarchy_rect.bottom - 10.0f);
+    D2D1_RECT_F hierarchy_viewport = rc(hierarchy_rect.left + 10.0f, hierarchy_rect.top + 40.0f, hierarchy_rect.right - 18.0f, hierarchy_rect.bottom - 10.0f);
     float viewport_h = hierarchy_viewport.bottom - hierarchy_viewport.top;
     float content_h;
     int bi = 0;
@@ -3800,7 +3788,7 @@ static void render_left_hierarchy_content(D2D1_RECT_F left_rect) {
     if (g_state.hierarchy_scroll_offset < 0) g_state.hierarchy_scroll_offset = 0;
     if (g_state.hierarchy_scroll_offset > g_state.hierarchy_scroll_max) g_state.hierarchy_scroll_offset = g_state.hierarchy_scroll_max;
 
-    y = hierarchy_rect.top + 68.0f - (float)g_state.hierarchy_scroll_offset;
+    y = hierarchy_rect.top + 40.0f - (float)g_state.hierarchy_scroll_offset;
     ID2D1HwndRenderTarget_PushAxisAlignedClip(g_ui.target, &hierarchy_viewport, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
 
     g_explorer_scene_rect = rc(0, 0, 0, 0);
@@ -4036,7 +4024,7 @@ static void update_stage_bounds_and_fit(D2D1_RECT_F stage_rect) {
     g_state.stage_right = stage_rect.right;
     g_state.stage_bottom = stage_rect.bottom;
     if (g_state.scene_needs_stage_fit) {
-        fit_dynamic_bodies_into_stage();
+        fit_scene_bodies_into_stage();
         g_state.scene_needs_stage_fit = 0;
     }
 }
@@ -4051,6 +4039,23 @@ static void finalize_render_pass(void) {
     if (hr == D2DERR_RECREATE_TARGET) {
         discard_device_resources();
     }
+}
+
+static void draw_menu_check_mark(D2D1_RECT_F row_rect, int enabled) {
+    D2D1_RECT_F icon_rect;
+    float icon_w = 12.0f;
+    float icon_h = 12.0f;
+    float cy = (row_rect.top + row_rect.bottom) * 0.5f;
+    icon_rect = rc(row_rect.left + 8.0f, cy - icon_h * 0.5f, row_rect.left + 8.0f + icon_w, cy + icon_h * 0.5f);
+    set_brush_color(enabled ? 0.86f : 0.56f, enabled ? 0.92f : 0.63f, enabled ? 0.99f : 0.72f, 1.0f);
+    ID2D1HwndRenderTarget_DrawLine(g_ui.target,
+                                   pt(icon_rect.left + 2.3f, icon_rect.top + 6.4f),
+                                   pt(icon_rect.left + 5.0f, icon_rect.top + 9.0f),
+                                   (ID2D1Brush*)g_ui.brush, 1.8f, NULL);
+    ID2D1HwndRenderTarget_DrawLine(g_ui.target,
+                                   pt(icon_rect.left + 5.0f, icon_rect.top + 9.0f),
+                                   pt(icon_rect.right - 2.0f, icon_rect.top + 3.1f),
+                                   (ID2D1Brush*)g_ui.brush, 1.8f, NULL);
 }
 
 static void render_workspace_content(D2D1_RECT_F top_rect, float work_bottom,
@@ -4092,9 +4097,10 @@ static void render_open_menu_dropdown(void) {
             const wchar_t* sk = menu_shortcut_text(g_state.open_menu_id, ri);
             float iw;
             float sw;
-            swprintf(measure_row, 96, L"? %s", rows[ri]);
+            swprintf(measure_row, 96, L"%s", rows[ri]);
             iw = measure_text_width(measure_row, g_ui.fmt_info);
             sw = measure_text_width(sk, g_ui.fmt_info);
+            iw += 20.0f;
             if (iw > max_item_w) max_item_w = iw;
             if (sw > max_short_w) max_short_w = sw;
         }
@@ -4107,19 +4113,20 @@ static void render_open_menu_dropdown(void) {
         for (ri = 0; ri < row_n; ri++) {
             D2D1_RECT_F rr = rc(g_menu_dropdown_rect.left + 4.0f, g_menu_dropdown_rect.top + 3.0f + ri * 28.0f,
                                 g_menu_dropdown_rect.right - 4.0f, g_menu_dropdown_rect.top + 3.0f + ri * 28.0f + 24.0f);
-            wchar_t row_text[96];
             int enabled = 1;
             int checked = menu_model_item_checked_state(g_state.open_menu_id, ri, &menu_state);
             g_menu_item_rect[ri] = rr;
             enabled = menu_model_item_enabled_state(g_state.open_menu_id, ri, &menu_state);
             g_menu_item_enabled[ri] = enabled;
-            swprintf(row_text, 96, L"%s%s", checked ? L"? " : L"  ", rows[ri]);
             draw_card_round(rr, 5.0f,
                             (enabled && (point_in_rect(g_state.mouse_screen, rr) || ri == g_state.open_menu_focus_index))
                                 ? rgba(0.25f, 0.33f, 0.45f, 1.0f)
                                 : rgba(0.18f, 0.20f, 0.25f, 1.0f),
                             rgba(0.30f, 0.33f, 0.40f, 1.0f));
-            draw_text(row_text, rc(rr.left + 4.0f, rr.top, rr.right - (shortcut_slot > 0.0f ? (shortcut_slot + 10.0f) : 6.0f), rr.bottom), g_ui.fmt_info,
+            if (checked) {
+                draw_menu_check_mark(rr, enabled);
+            }
+            draw_text(rows[ri], rc(rr.left + 24.0f, rr.top, rr.right - (shortcut_slot > 0.0f ? (shortcut_slot + 10.0f) : 6.0f), rr.bottom), g_ui.fmt_info,
                       enabled ? rgba(0.87f, 0.91f, 0.97f, 1.0f) : rgba(0.53f, 0.59f, 0.68f, 1.0f));
             {
                 const wchar_t* sk = menu_shortcut_text(g_state.open_menu_id, ri);
@@ -4137,6 +4144,7 @@ static void render_open_menu_dropdown(void) {
 
 static void render_status_bar(D2D1_RECT_F status_rect) {
     wchar_t line[128];
+    wchar_t line_right[128];
     swprintf(line, 128, L"对象:%d  约束:%d  接触:%d  回收:%d",
              count_dynamic_bodies(g_state.engine),
              g_state.engine ? physics_engine_get_constraint_count(g_state.engine) : 0,
@@ -4171,6 +4179,9 @@ static void render_status_bar(D2D1_RECT_F status_rect) {
     swprintf(line, 128, L"用户:%s | v0.3", g_status_user[0] ? g_status_user : L"unknown");
     g_status_meta_rect = rc(status_rect.right - 620.0f, status_rect.top + 6.0f, status_rect.right - 392.0f, status_rect.bottom - 4.0f);
     draw_text(line, g_status_meta_rect, g_ui.fmt_info, rgba(0.55f, 0.65f, 0.79f, 1.0f));
+    swprintf(line_right, 128, L"约束调试:%s", g_state.draw_constraints ? L"开" : L"关");
+    draw_text(line_right, rc(status_rect.right - 360.0f, status_rect.top + 6.0f, status_rect.right - 220.0f, status_rect.bottom - 4.0f),
+              g_ui.fmt_info, rgba(0.66f, 0.74f, 0.85f, 1.0f));
 }
 
 static void render_help_modal_content(D2D1_RECT_F modal) {
@@ -4291,7 +4302,16 @@ static void render_modals(float w, float h) {
             draw_text(g_state.value_input_buf, rc(vm.left + 22.0f, vm.top + 50.0f, vm.right - 22.0f, vm.top + 72.0f), g_ui.fmt_mono,
                       rgba(0.90f, 0.94f, 0.99f, 1.0f));
             {
-                float cx = vm.left + 22.0f + g_state.value_input_caret * 8.0f;
+                wchar_t prefix[64];
+                int i;
+                int caret = g_state.value_input_caret;
+                if (caret < 0) caret = 0;
+                if (caret > g_state.value_input_len) caret = g_state.value_input_len;
+                for (i = 0; i < caret && i < 63; i++) {
+                    prefix[i] = g_state.value_input_buf[i];
+                }
+                prefix[i] = L'\0';
+                float cx = vm.left + 22.0f + measure_text_width(prefix, g_ui.fmt_mono);
                 if (cx > vm.right - 24.0f) cx = vm.right - 24.0f;
                 set_brush_color(0.45f, 0.62f, 0.84f, 1.0f);
                 ID2D1HwndRenderTarget_DrawLine(g_ui.target, pt(cx, vm.top + 50.0f), pt(cx, vm.top + 72.0f), (ID2D1Brush*)g_ui.brush, 1.2f, NULL);
@@ -4572,11 +4592,6 @@ static int handle_ctrl_shortcuts_keydown(HWND hwnd, WPARAM wparam) {
         return 1;
     }
     if (wparam == 'F') {
-        if (g_state.ui_show_bottom_panel && !g_state.bottom_panel_collapsed && g_state.bottom_active_tab == 0) {
-            begin_value_input_for_log_search();
-            InvalidateRect(hwnd, NULL, FALSE);
-            return 1;
-        }
         return 0;
     }
     if (wparam == 'L') {
@@ -4997,18 +5012,6 @@ static int handle_bottom_console_lbuttondown(HWND hwnd) {
             InvalidateRect(hwnd, NULL, FALSE);
             return 1;
         }
-        if (point_in_rect(g_state.mouse_screen, g_log_search_rect)) {
-            begin_value_input_for_log_search();
-            InvalidateRect(hwnd, NULL, FALSE);
-            return 1;
-        }
-        if (point_in_rect(g_state.mouse_screen, g_log_search_clear_rect)) {
-            g_state.log_search_buf[0] = L'\0';
-            g_state.log_search_len = 0;
-            g_state.log_scroll_offset = 0;
-            InvalidateRect(hwnd, NULL, FALSE);
-            return 1;
-        }
     }
     if (!g_state.bottom_panel_collapsed && g_state.bottom_active_tab == 1) {
         if (point_in_rect(g_state.mouse_screen, g_perf_export_rect)) {
@@ -5045,30 +5048,15 @@ static int handle_inspector_debug_lbuttondown(HWND hwnd) {
     for (idx = 0; point_in_rect(g_state.mouse_screen, g_inspector_viewport_rect) && idx < g_ins_row_count && idx < INSPECTOR_MAX_ROWS; idx++) {
         if (point_in_rect(g_state.mouse_screen, g_ins_row_rect[idx])) {
             g_state.inspector_focused_row = idx;
-            InvalidateRect(hwnd, NULL, FALSE);
-            return 1;
-        }
-        if (point_in_rect(g_state.mouse_screen, g_ins_minus_rect[idx])) {
-            g_state.inspector_focused_row = idx;
-            inspector_adjust_row(idx, -1);
-            InvalidateRect(hwnd, NULL, FALSE);
-            return 1;
-        }
-        if (point_in_rect(g_state.mouse_screen, g_ins_plus_rect[idx])) {
-            g_state.inspector_focused_row = idx;
-            inspector_adjust_row(idx, 1);
+            g_state.keyboard_focus_area = 1;
             InvalidateRect(hwnd, NULL, FALSE);
             return 1;
         }
     }
     for (idx = 0; point_in_rect(g_state.mouse_screen, g_debug_viewport_rect) && idx < 3; idx++) {
-        if (point_in_rect(g_state.mouse_screen, g_dbg_minus_rect[idx])) {
-            debug_adjust_runtime_param(idx, -1);
-            InvalidateRect(hwnd, NULL, FALSE);
-            return 1;
-        }
-        if (point_in_rect(g_state.mouse_screen, g_dbg_plus_rect[idx])) {
-            debug_adjust_runtime_param(idx, 1);
+        if (point_in_rect(g_state.mouse_screen, g_dbg_row_rect[idx])) {
+            g_state.debug_focused_row = idx;
+            g_state.keyboard_focus_area = 2;
             InvalidateRect(hwnd, NULL, FALSE);
             return 1;
         }
@@ -5140,6 +5128,7 @@ static int handle_tree_and_search_lbuttondown(HWND hwnd) {
             g_state.selected_constraint_index = -1;
             g_state.dragging = 0;
             g_state.inspector_focused_row = 0;
+            g_state.keyboard_focus_area = 1;
             push_console_log(L"[选中] 物体已选中");
             InvalidateRect(hwnd, NULL, FALSE);
             return 1;
@@ -5151,6 +5140,7 @@ static int handle_tree_and_search_lbuttondown(HWND hwnd) {
             g_state.selected = NULL;
             g_state.dragging = 0;
             g_state.inspector_focused_row = 0;
+            g_state.keyboard_focus_area = 1;
             push_console_log(L"[选中] 约束已选中");
             InvalidateRect(hwnd, NULL, FALSE);
             return 1;
@@ -5173,10 +5163,12 @@ static int handle_stage_pick_lbuttondown(HWND hwnd) {
         if (!g_state.dragging) {
             g_state.selected_constraint_index = pick_constraint_at_point(g_state.engine, p);
             g_state.inspector_focused_row = 0;
+            g_state.keyboard_focus_area = 1;
             if (g_state.selected_constraint_index >= 0) push_console_log(L"[选中] 舞台约束选中");
         } else {
             g_state.selected_constraint_index = -1;
             g_state.inspector_focused_row = 0;
+            g_state.keyboard_focus_area = 1;
             push_console_log(L"[选中] 舞台物体选中");
         }
         return 1;
@@ -5264,12 +5256,16 @@ static int handle_keydown_runtime_controls(WPARAM wparam) {
 
 static int handle_keydown_inspector_controls(WPARAM wparam) {
     int changed = 0;
+    if (g_state.keyboard_focus_area == 2) {
+        if (wparam == VK_UP) { g_state.debug_focused_row = (g_state.debug_focused_row + 2) % 3; changed = 1; }
+        if (wparam == VK_DOWN) { g_state.debug_focused_row = (g_state.debug_focused_row + 1) % 3; changed = 1; }
+        if (wparam == VK_RETURN) { begin_value_input_for_debug_param(g_state.debug_focused_row); changed = 1; }
+        return changed;
+    }
     if (inspector_row_count() > 0) {
         int rcnt = inspector_row_count();
         if (wparam == VK_UP) { g_state.inspector_focused_row = (g_state.inspector_focused_row + rcnt - 1) % rcnt; changed = 1; }
         if (wparam == VK_DOWN) { g_state.inspector_focused_row = (g_state.inspector_focused_row + 1) % rcnt; changed = 1; }
-        if (wparam == VK_LEFT) { inspector_adjust_row(g_state.inspector_focused_row, -1); changed = 1; }
-        if (wparam == VK_RIGHT) { inspector_adjust_row(g_state.inspector_focused_row, 1); changed = 1; }
         if (wparam == VK_RETURN) { begin_value_input_for_inspector_row(g_state.inspector_focused_row); changed = 1; }
     }
     return changed;
@@ -5507,7 +5503,17 @@ static int handle_lbuttondblclk(HWND hwnd) {
     for (idx = 0; point_in_rect(g_state.mouse_screen, g_inspector_viewport_rect) && idx < g_ins_row_count && idx < INSPECTOR_MAX_ROWS; idx++) {
         if (point_in_rect(g_state.mouse_screen, g_ins_row_rect[idx])) {
             g_state.inspector_focused_row = idx;
+            g_state.keyboard_focus_area = 1;
             begin_value_input_for_inspector_row(idx);
+            InvalidateRect(hwnd, NULL, FALSE);
+            return 1;
+        }
+    }
+    for (idx = 0; point_in_rect(g_state.mouse_screen, g_debug_viewport_rect) && idx < 3; idx++) {
+        if (point_in_rect(g_state.mouse_screen, g_dbg_row_rect[idx])) {
+            g_state.debug_focused_row = idx;
+            g_state.keyboard_focus_area = 2;
+            begin_value_input_for_debug_param(idx);
             InvalidateRect(hwnd, NULL, FALSE);
             return 1;
         }
@@ -5855,6 +5861,8 @@ static void init_state_defaults(void) {
     g_state.history_replaying = 0;
     g_state.constraint_break_force_default = 250.0f;
     g_state.spring_preset_mode = 1;
+    g_state.debug_focused_row = 0;
+    g_state.keyboard_focus_area = 1;
 }
 
 static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {

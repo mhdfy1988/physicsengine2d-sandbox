@@ -13,7 +13,6 @@
 #define MAX_BROADPHASE_PAIRS 16384
 
 typedef struct PhysicsEngine PhysicsEngine;
-
 PhysicsEngine* physics_engine_create(void);
 void physics_engine_free(PhysicsEngine* engine);
 
@@ -75,5 +74,9 @@ void physics_engine_clear_forces(PhysicsEngine* engine);
 
 RigidBody* physics_engine_raycast(PhysicsEngine* engine, Vec2 start, Vec2 end);
 int physics_engine_get_bodies_in_area(PhysicsEngine* engine, Vec2 center, float radius, RigidBody** out_bodies, int max_bodies);
+
+#ifndef PHYSICS_NO_EXTENSIONS
+#include "physics_ext.h"
+#endif
 
 #endif

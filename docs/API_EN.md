@@ -103,6 +103,16 @@ For diagnostics you may call staged APIs:
 - `physics_engine_resolve_collisions`
 - `physics_engine_clear_forces`
 
+### 5.3 Callback/Event Hooks (Recommended for instrumentation)
+
+Register unified hooks with `physics_engine_set_callbacks`:
+
+- `on_pre_step`: frame start
+- `on_post_broadphase`: broadphase completed (with pair_count)
+- `on_post_narrowphase`: narrowphase completed (with contact_count)
+- `on_contact_created`: fired per generated contact
+- `on_post_step`: frame end with `PhysicsStepProfile`
+
 ## 6. Tuning Tips
 
 ### 6.1 Stability Basics
@@ -115,6 +125,21 @@ For diagnostics you may call staged APIs:
 
 - Enable grid: `physics_engine_set_broadphase_use_grid(engine, 1)`
 - Cell size: usually 1x to 2x common object diameter.
+
+### 6.3 Custom Pipeline (Advanced)
+
+You can register custom stage builders:
+
+- `physics_engine_set_broadphase_builder(engine, builder, user)`
+- `physics_engine_set_narrowphase_builder(engine, builder, user)`
+- `physics_engine_reset_pipeline(engine)` to restore defaults
+
+Custom builders can write results using:
+
+- `physics_engine_clear_broadphase_pairs`
+- `physics_engine_add_broadphase_pair`
+- `physics_engine_clear_contacts`
+- `physics_engine_add_contact`
 
 ## 7. Reading Runtime Data
 

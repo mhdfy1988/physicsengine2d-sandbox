@@ -18,11 +18,17 @@ set(PHYSICS2D_SOURCES
     src/constraint.c
     src/collision.c
     src/physics.c
+    src/physics_world.c
+    src/physics_memory.c
+    src/physics_ids.c
+    src/physics_parallel.c
     src/physics_broadphase.c
+    src/physics_contact_manager.c
     src/physics_raycast.c
     src/physics_step.c
     src/physics_collision_pipeline.c
     src/physics_resolve.c
+    src/physics_solver.c
     src/physics_integrate.c
 )
 

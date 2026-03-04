@@ -86,42 +86,41 @@ AABB physics_internal_body_compute_aabb(const RigidBody* body) {
     return box;
 }
 
-void physics_internal_detect_collisions(PhysicsEngine* engine) {
-    AABB aabbs[MAX_BODIES];
+void physics_internal_bind_default_pipeline(PhysicsEngine* engine) {
+    if (engine == NULL) return;
+    engine->broadphase_ops.build_pairs = physics_internal_default_build_pairs;
+    engine->broadphase_ops.user = NULL;
+    engine->narrowphase_ops.build_contacts = physics_internal_default_build_contacts;
+    engine->narrowphase_ops.user = NULL;
+}
+
+void physics_internal_prepare_collision_inputs(PhysicsEngine* engine) {
     int i;
     if (engine == NULL) {
         return;
     }
 
-    engine->contact_count = 0;
     engine->broadphase_pair_count = 0;
-
     for (i = 0; i < engine->body_count; i++) {
         RigidBody* body = engine->bodies[i];
         if (body == NULL || !body->active || body->shape == NULL || !physics_internal_body_has_finite_state(body)) {
             if (body != NULL) body->active = 0;
-            aabbs[i].min = vec2(0.0f, 0.0f);
-            aabbs[i].max = vec2(0.0f, 0.0f);
+            engine->aabbs[i].min = vec2(0.0f, 0.0f);
+            engine->aabbs[i].max = vec2(0.0f, 0.0f);
             continue;
         }
-        aabbs[i] = physics_internal_body_compute_aabb(body);
+        engine->aabbs[i] = physics_internal_body_compute_aabb(body);
     }
+}
 
-    physics_internal_build_broadphase_pairs(engine, aabbs);
-
-    for (i = 0; i < engine->broadphase_pair_count; i++) {
-        RigidBody* a = engine->broadphase_pairs[i].a;
-        RigidBody* b = engine->broadphase_pairs[i].b;
-        CollisionInfo info = {0};
-        if (!collision_detect(a, b, &info)) {
-            continue;
-        }
-        if (engine->contact_count >= MAX_CONTACTS) {
-            break;
-        }
-        engine->contacts[engine->contact_count].bodyA = a;
-        engine->contacts[engine->contact_count].bodyB = b;
-        engine->contacts[engine->contact_count].info = info;
-        engine->contact_count++;
+void physics_internal_detect_collisions(PhysicsEngine* engine) {
+    if (engine == NULL) return;
+    engine->contact_count = 0;
+    physics_internal_prepare_collision_inputs(engine);
+    if (engine->broadphase_ops.build_pairs != NULL) {
+        engine->broadphase_ops.build_pairs(engine, engine->broadphase_ops.user);
+    }
+    if (engine->narrowphase_ops.build_contacts != NULL) {
+        engine->narrowphase_ops.build_contacts(engine, engine->narrowphase_ops.user);
     }
 }
