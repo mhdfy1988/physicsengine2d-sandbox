@@ -2555,7 +2555,7 @@ static void project_tree_add_entry_line(int depth, int is_dir, const wchar_t* na
     if (name == NULL || name[0] == L'\0') return;
     project_tree_make_indent(depth, indent, 64);
     if (is_dir) {
-        swprintf(line, PROJECT_TREE_LINE_MAX, L"%ls? %ls/", indent, name);
+        swprintf(line, PROJECT_TREE_LINE_MAX, L"%ls[D] %ls/", indent, name);
         g_project_tree_dir_count++;
     } else {
         swprintf(line, PROJECT_TREE_LINE_MAX, L"%ls%ls", indent, name);
@@ -3284,6 +3284,11 @@ static void draw_icon_chevron_lr(D2D1_RECT_F r, int left, D2D1_COLOR_F color, fl
     }
 }
 
+static void draw_tree_disclosure_icon(D2D1_RECT_F r, int expanded, D2D1_COLOR_F color, float thickness) {
+    if (expanded) draw_icon_chevron(r, 0, color, thickness);
+    else draw_icon_chevron_lr(r, 0, color, thickness);
+}
+
 static const wchar_t* body_kind_name(const RigidBody* b) {
     if (b == NULL) return L"--";
     if (b->type == BODY_STATIC) return L"静态";
@@ -3951,7 +3956,12 @@ static void render(HWND hwnd) {
         g_explorer_constraint_count = 0;
 
         g_tree_scene_header_rect = rc(hierarchy_rect.left + 10.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
-        draw_text(g_state.tree_scene_expanded ? L"? 场景" : L"? 场景", g_tree_scene_header_rect, g_ui.fmt_mono, rgba(0.82f, 0.87f, 0.94f, 1.0f));
+        draw_tree_disclosure_icon(rc(g_tree_scene_header_rect.left + 2.0f, g_tree_scene_header_rect.top + 3.0f,
+                                     g_tree_scene_header_rect.left + 14.0f, g_tree_scene_header_rect.bottom - 3.0f),
+                                  g_state.tree_scene_expanded, rgba(0.82f, 0.87f, 0.94f, 1.0f), 1.4f);
+        draw_text(L"场景", rc(g_tree_scene_header_rect.left + 16.0f, g_tree_scene_header_rect.top,
+                             g_tree_scene_header_rect.right, g_tree_scene_header_rect.bottom),
+                  g_ui.fmt_mono, rgba(0.82f, 0.87f, 0.94f, 1.0f));
         y += row_h;
         if (g_state.tree_scene_expanded) {
             g_explorer_scene_rect = rc(hierarchy_rect.left + 24.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
@@ -3960,8 +3970,13 @@ static void render(HWND hwnd) {
         }
 
         g_tree_bodies_header_rect = rc(hierarchy_rect.left + 10.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
-        swprintf(line, 128, L"%s 物体 (%d)", g_state.tree_bodies_expanded ? L"?" : L"?", body_visible_count);
-        draw_text(line, g_tree_bodies_header_rect, g_ui.fmt_mono, rgba(0.82f, 0.87f, 0.94f, 1.0f));
+        swprintf(line, 128, L"物体 (%d)", body_visible_count);
+        draw_tree_disclosure_icon(rc(g_tree_bodies_header_rect.left + 2.0f, g_tree_bodies_header_rect.top + 3.0f,
+                                     g_tree_bodies_header_rect.left + 14.0f, g_tree_bodies_header_rect.bottom - 3.0f),
+                                  g_state.tree_bodies_expanded, rgba(0.82f, 0.87f, 0.94f, 1.0f), 1.4f);
+        draw_text(line, rc(g_tree_bodies_header_rect.left + 16.0f, g_tree_bodies_header_rect.top,
+                           g_tree_bodies_header_rect.right, g_tree_bodies_header_rect.bottom),
+                  g_ui.fmt_mono, rgba(0.82f, 0.87f, 0.94f, 1.0f));
         y += row_h;
         g_tree_body_circle_header_rect = rc(0, 0, 0, 0);
         g_tree_body_polygon_header_rect = rc(0, 0, 0, 0);
@@ -3969,8 +3984,13 @@ static void render(HWND hwnd) {
             if (body_circle_visible_count > 0) {
                 int circle_idx = 0;
                 g_tree_body_circle_header_rect = rc(hierarchy_rect.left + 24.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
-                swprintf(line, 128, L"%s 圆 (%d)", g_state.tree_body_circle_expanded ? L"?" : L"?", body_circle_visible_count);
-                draw_text(line, g_tree_body_circle_header_rect, g_ui.fmt_info, rgba(0.74f, 0.82f, 0.92f, 1.0f));
+                swprintf(line, 128, L"圆 (%d)", body_circle_visible_count);
+                draw_tree_disclosure_icon(rc(g_tree_body_circle_header_rect.left + 2.0f, g_tree_body_circle_header_rect.top + 3.0f,
+                                             g_tree_body_circle_header_rect.left + 14.0f, g_tree_body_circle_header_rect.bottom - 3.0f),
+                                          g_state.tree_body_circle_expanded, rgba(0.74f, 0.82f, 0.92f, 1.0f), 1.3f);
+                draw_text(line, rc(g_tree_body_circle_header_rect.left + 16.0f, g_tree_body_circle_header_rect.top,
+                                   g_tree_body_circle_header_rect.right, g_tree_body_circle_header_rect.bottom),
+                          g_ui.fmt_info, rgba(0.74f, 0.82f, 0.92f, 1.0f));
                 y += row_h;
                 if (g_state.tree_body_circle_expanded) {
                     for (i = 0; i < physics_engine_get_body_count(g_state.engine) && bidx < EXPLORER_MAX_ITEMS; i++) {
@@ -3994,8 +4014,13 @@ static void render(HWND hwnd) {
             if (body_polygon_visible_count > 0) {
                 int poly_idx = 0;
                 g_tree_body_polygon_header_rect = rc(hierarchy_rect.left + 24.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
-                swprintf(line, 128, L"%s 多边形 (%d)", g_state.tree_body_polygon_expanded ? L"?" : L"?", body_polygon_visible_count);
-                draw_text(line, g_tree_body_polygon_header_rect, g_ui.fmt_info, rgba(0.74f, 0.82f, 0.92f, 1.0f));
+                swprintf(line, 128, L"多边形 (%d)", body_polygon_visible_count);
+                draw_tree_disclosure_icon(rc(g_tree_body_polygon_header_rect.left + 2.0f, g_tree_body_polygon_header_rect.top + 3.0f,
+                                             g_tree_body_polygon_header_rect.left + 14.0f, g_tree_body_polygon_header_rect.bottom - 3.0f),
+                                          g_state.tree_body_polygon_expanded, rgba(0.74f, 0.82f, 0.92f, 1.0f), 1.3f);
+                draw_text(line, rc(g_tree_body_polygon_header_rect.left + 16.0f, g_tree_body_polygon_header_rect.top,
+                                   g_tree_body_polygon_header_rect.right, g_tree_body_polygon_header_rect.bottom),
+                          g_ui.fmt_info, rgba(0.74f, 0.82f, 0.92f, 1.0f));
                 y += row_h;
                 if (g_state.tree_body_polygon_expanded) {
                     for (i = 0; i < physics_engine_get_body_count(g_state.engine) && bidx < EXPLORER_MAX_ITEMS; i++) {
@@ -4020,8 +4045,13 @@ static void render(HWND hwnd) {
         g_explorer_body_count = bidx;
 
         g_tree_constraints_header_rect = rc(hierarchy_rect.left + 10.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
-        swprintf(line, 128, L"%s 约束 (%d)", g_state.tree_constraints_expanded ? L"?" : L"?", constraint_visible_count);
-        draw_text(line, g_tree_constraints_header_rect, g_ui.fmt_mono, rgba(0.82f, 0.87f, 0.94f, 1.0f));
+        swprintf(line, 128, L"约束 (%d)", constraint_visible_count);
+        draw_tree_disclosure_icon(rc(g_tree_constraints_header_rect.left + 2.0f, g_tree_constraints_header_rect.top + 3.0f,
+                                     g_tree_constraints_header_rect.left + 14.0f, g_tree_constraints_header_rect.bottom - 3.0f),
+                                  g_state.tree_constraints_expanded, rgba(0.82f, 0.87f, 0.94f, 1.0f), 1.4f);
+        draw_text(line, rc(g_tree_constraints_header_rect.left + 16.0f, g_tree_constraints_header_rect.top,
+                           g_tree_constraints_header_rect.right, g_tree_constraints_header_rect.bottom),
+                  g_ui.fmt_mono, rgba(0.82f, 0.87f, 0.94f, 1.0f));
         y += row_h;
         g_tree_constraint_distance_header_rect = rc(0, 0, 0, 0);
         g_tree_constraint_spring_header_rect = rc(0, 0, 0, 0);
@@ -4029,8 +4059,13 @@ static void render(HWND hwnd) {
             if (constraint_distance_visible_count > 0) {
                 int dist_idx = 0;
                 g_tree_constraint_distance_header_rect = rc(hierarchy_rect.left + 24.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
-                swprintf(line, 128, L"%s 距离约束 (%d)", g_state.tree_constraint_distance_expanded ? L"?" : L"?", constraint_distance_visible_count);
-                draw_text(line, g_tree_constraint_distance_header_rect, g_ui.fmt_info, rgba(0.74f, 0.82f, 0.92f, 1.0f));
+                swprintf(line, 128, L"距离约束 (%d)", constraint_distance_visible_count);
+                draw_tree_disclosure_icon(rc(g_tree_constraint_distance_header_rect.left + 2.0f, g_tree_constraint_distance_header_rect.top + 3.0f,
+                                             g_tree_constraint_distance_header_rect.left + 14.0f, g_tree_constraint_distance_header_rect.bottom - 3.0f),
+                                          g_state.tree_constraint_distance_expanded, rgba(0.74f, 0.82f, 0.92f, 1.0f), 1.3f);
+                draw_text(line, rc(g_tree_constraint_distance_header_rect.left + 16.0f, g_tree_constraint_distance_header_rect.top,
+                                   g_tree_constraint_distance_header_rect.right, g_tree_constraint_distance_header_rect.bottom),
+                          g_ui.fmt_info, rgba(0.74f, 0.82f, 0.92f, 1.0f));
                 y += row_h;
                 if (g_state.tree_constraint_distance_expanded) {
                     for (i = 0; i < physics_engine_get_constraint_count(g_state.engine) && cidx < EXPLORER_MAX_ITEMS; i++) {
@@ -4054,8 +4089,13 @@ static void render(HWND hwnd) {
             if (constraint_spring_visible_count > 0) {
                 int spring_idx = 0;
                 g_tree_constraint_spring_header_rect = rc(hierarchy_rect.left + 24.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
-                swprintf(line, 128, L"%s 弹簧约束 (%d)", g_state.tree_constraint_spring_expanded ? L"?" : L"?", constraint_spring_visible_count);
-                draw_text(line, g_tree_constraint_spring_header_rect, g_ui.fmt_info, rgba(0.74f, 0.82f, 0.92f, 1.0f));
+                swprintf(line, 128, L"弹簧约束 (%d)", constraint_spring_visible_count);
+                draw_tree_disclosure_icon(rc(g_tree_constraint_spring_header_rect.left + 2.0f, g_tree_constraint_spring_header_rect.top + 3.0f,
+                                             g_tree_constraint_spring_header_rect.left + 14.0f, g_tree_constraint_spring_header_rect.bottom - 3.0f),
+                                          g_state.tree_constraint_spring_expanded, rgba(0.74f, 0.82f, 0.92f, 1.0f), 1.3f);
+                draw_text(line, rc(g_tree_constraint_spring_header_rect.left + 16.0f, g_tree_constraint_spring_header_rect.top,
+                                   g_tree_constraint_spring_header_rect.right, g_tree_constraint_spring_header_rect.bottom),
+                          g_ui.fmt_info, rgba(0.74f, 0.82f, 0.92f, 1.0f));
                 y += row_h;
                 if (g_state.tree_constraint_spring_expanded) {
                     for (i = 0; i < physics_engine_get_constraint_count(g_state.engine) && cidx < EXPLORER_MAX_ITEMS; i++) {
@@ -4129,8 +4169,12 @@ static void render(HWND hwnd) {
             py = project_viewport.top - (float)g_state.project_scroll_offset;
             ID2D1HwndRenderTarget_PushAxisAlignedClip(g_ui.target, &project_viewport, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
             g_tree_project_root_rect = rc(project_rect.left + 10.0f, py, project_rect.right - 18.0f, py + row_h);
-            draw_text(g_state.tree_project_expanded ? L"? 项目根目录" : L"? 项目根目录", g_tree_project_root_rect, g_ui.fmt_mono,
-                      rgba(0.82f, 0.87f, 0.94f, 1.0f));
+            draw_tree_disclosure_icon(rc(g_tree_project_root_rect.left + 2.0f, g_tree_project_root_rect.top + 3.0f,
+                                         g_tree_project_root_rect.left + 14.0f, g_tree_project_root_rect.bottom - 3.0f),
+                                      g_state.tree_project_expanded, rgba(0.82f, 0.87f, 0.94f, 1.0f), 1.4f);
+            draw_text(L"项目根目录", rc(g_tree_project_root_rect.left + 16.0f, g_tree_project_root_rect.top,
+                                       g_tree_project_root_rect.right, g_tree_project_root_rect.bottom),
+                      g_ui.fmt_mono, rgba(0.82f, 0.87f, 0.94f, 1.0f));
             if (g_state.tree_project_expanded) {
                 for (pi = 0; pi < g_project_tree_count; pi++) {
                     D2D1_RECT_F pr = rc(project_rect.left + 24.0f, py + row_h + pi * 24.0f, project_rect.right - 18.0f, py + row_h + pi * 24.0f + 20.0f);
@@ -4293,7 +4337,7 @@ static void render(HWND hwnd) {
         swprintf(line, 128, L"约束调试:%s", g_state.draw_constraints ? L"开" : L"关");
         draw_text_vcenter(line, rc(inspector.right - 150.0f, inspector.top + 4.0f, inspector.right - 12.0f, inspector.top + 40.0f), g_ui.fmt_info,
                           rgba(0.66f, 0.74f, 0.85f, 1.0f));
-        step = 24.0f;
+        step = 32.0f;
         lx0 = inspector.left + 12.0f;
         lx1 = inspector.left + 110.0f;
         vx0 = inspector.left + 116.0f;
@@ -4319,7 +4363,7 @@ static void render(HWND hwnd) {
             int ri;
             for (ri = 0; ri < g_ins_row_count && ri < INSPECTOR_MAX_ROWS; ri++) {
                 const wchar_t* label = L"--";
-                D2D1_RECT_F rr = rc(inspector.left + 10.0f, inspector_offset_y + ri * step, inspector.right - 10.0f, inspector_offset_y + ri * step + 22.0f);
+                D2D1_RECT_F rr = rc(inspector.left + 10.0f, inspector_offset_y + ri * step, inspector.right - 10.0f, inspector_offset_y + ri * step + 26.0f);
                 D2D1_RECT_F minus_btn = rc(rr.right - 56.0f, rr.top + 1.0f, rr.right - 30.0f, rr.bottom - 1.0f);
                 D2D1_RECT_F plus_btn = rc(rr.right - 28.0f, rr.top + 1.0f, rr.right - 2.0f, rr.bottom - 1.0f);
                 g_ins_row_rect[ri] = rr;
@@ -4361,9 +4405,9 @@ static void render(HWND hwnd) {
             {
                 const wchar_t* ih = inspector_row_hint_text();
                 draw_text(L"提示: Enter输入  +/-微调  双击快速输入",
-                          rc(lx0, inspector_offset_y + g_ins_row_count * step + 2.0f, vx1, inspector_offset_y + g_ins_row_count * step + 20.0f),
+                          rc(lx0, inspector_offset_y + g_ins_row_count * step + 8.0f, vx1, inspector_offset_y + g_ins_row_count * step + 28.0f),
                           g_ui.fmt_info, rgba(0.62f, 0.70f, 0.80f, 1.0f));
-                draw_text(ih, rc(lx0, inspector_offset_y + g_ins_row_count * step + 20.0f, vx1, inspector_offset_y + g_ins_row_count * step + 38.0f),
+                draw_text(ih, rc(lx0, inspector_offset_y + g_ins_row_count * step + 34.0f, vx1, inspector_offset_y + g_ins_row_count * step + 56.0f),
                           g_ui.fmt_info, rgba(0.69f, 0.76f, 0.86f, 1.0f));
             }
         }
@@ -4400,7 +4444,7 @@ static void render(HWND hwnd) {
                           g_ui.fmt_ui, rgba(0.78f, 0.86f, 0.96f, 1.0f));
         g_debug_viewport_rect = rc(debug_rect.left + 8.0f, debug_rect.top + 40.0f, debug_rect.right - 14.0f, debug_rect.bottom - 8.0f);
         debug_view_h = g_debug_viewport_rect.bottom - g_debug_viewport_rect.top;
-        debug_content_h = 110.0f;
+        debug_content_h = 148.0f;
         g_state.debug_scroll_max = 0;
         if (debug_content_h > debug_view_h) {
             g_state.debug_scroll_max = (int)(debug_content_h - debug_view_h + 0.5f);
@@ -4415,7 +4459,7 @@ static void render(HWND hwnd) {
             int di;
             const wchar_t* labels[3] = {L"重力Y", L"时间步长", L"迭代"};
             for (di = 0; di < 3; di++) {
-                D2D1_RECT_F rr = rc(debug_rect.left + 10.0f, debug_offset_y + 24.0f + di * 24.0f, debug_rect.right - 10.0f, debug_offset_y + 44.0f + di * 24.0f);
+                D2D1_RECT_F rr = rc(debug_rect.left + 10.0f, debug_offset_y + 32.0f + di * 32.0f, debug_rect.right - 10.0f, debug_offset_y + 58.0f + di * 32.0f);
                 D2D1_RECT_F minus_btn = rc(rr.right - 56.0f, rr.top + 1.0f, rr.right - 30.0f, rr.bottom - 1.0f);
                 D2D1_RECT_F plus_btn = rc(rr.right - 28.0f, rr.top + 1.0f, rr.right - 2.0f, rr.bottom - 1.0f);
                 g_dbg_row_rect[di] = rr;
