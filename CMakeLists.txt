@@ -18,6 +18,12 @@ set(PHYSICS2D_SOURCES
     src/constraint.c
     src/collision.c
     src/physics.c
+    src/physics_broadphase.c
+    src/physics_raycast.c
+    src/physics_step.c
+    src/physics_collision_pipeline.c
+    src/physics_resolve.c
+    src/physics_integrate.c
 )
 
 add_library(physics2d STATIC ${PHYSICS2D_SOURCES})
@@ -36,6 +42,26 @@ endif()
 if(BUILD_EDITOR)
     set(SANDBOX_SOURCES
         apps/sandbox_dwrite/main.c
+        apps/sandbox_dwrite/infrastructure/project_tree.c
+        apps/sandbox_dwrite/infrastructure/snapshot_repo.c
+        apps/sandbox_dwrite/infrastructure/ui_layout_repo.c
+        apps/sandbox_dwrite/presentation/render/ui_icons.c
+        apps/sandbox_dwrite/presentation/render/ui_text.c
+        apps/sandbox_dwrite/presentation/render/ui_primitives.c
+        apps/sandbox_dwrite/presentation/render/ui_widgets.c
+        apps/sandbox_dwrite/domain/app_command.c
+        apps/sandbox_dwrite/infrastructure/app_event_bus.c
+        apps/sandbox_dwrite/application/app_controller.c
+        apps/sandbox_dwrite/application/app_runtime.c
+        apps/sandbox_dwrite/application/scene_catalog.c
+        apps/sandbox_dwrite/application/scene_builder.c
+        apps/sandbox_dwrite/application/history_service.c
+        apps/sandbox_dwrite/application/runtime_param_service.c
+        apps/sandbox_dwrite/presentation/input/input_mapping.c
+        apps/sandbox_dwrite/presentation/input/menu_file_edit_actions.c
+        apps/sandbox_dwrite/presentation/input/menu_view_physics_window_actions.c
+        apps/sandbox_dwrite/presentation/input/menu_help_actions.c
+        apps/sandbox_dwrite/presentation/input/menu_model.c
     )
     if(WIN32)
         list(APPEND SANDBOX_SOURCES apps/sandbox_dwrite/app_icon.rc)
