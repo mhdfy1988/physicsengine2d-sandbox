@@ -1,0 +1,72 @@
+CC = gcc
+AR = ar
+CFLAGS = -Wall -Wextra -Wpedantic -std=c99 -finput-charset=UTF-8 -fexec-charset=UTF-8 -Iinclude
+LDFLAGS = -lm
+SRCDIR = src
+APPDIR_DWRITE = apps/sandbox_dwrite
+TESTDIR = tests
+BINDIR = bin
+OBJDIR = obj
+LIBDIR = lib
+
+SOURCES = $(SRCDIR)/math.c $(SRCDIR)/shape.c $(SRCDIR)/body.c $(SRCDIR)/constraint.c $(SRCDIR)/collision.c $(SRCDIR)/physics.c
+OBJECTS = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(SOURCES))
+
+SANDBOX_SRCS = $(APPDIR_DWRITE)/main.c
+SANDBOX_ICON_RC = $(APPDIR_DWRITE)/app_icon.rc
+SANDBOX_ICON_ICO = assets/icons/physics_sandbox.ico
+SANDBOX_ICON_OBJ = $(OBJDIR)/app_icon.res.o
+TEST_SRC = $(TESTDIR)/regression_tests.c
+
+CORE_LIB = $(LIBDIR)/libphysics2d.a
+SANDBOX_EXECUTABLE = $(BINDIR)/physics_sandbox
+TEST_EXECUTABLE = $(BINDIR)/physics_tests
+
+WIN_DWRITE_LIBS = -ld2d1 -ldwrite -lwindowscodecs -lole32 -luuid -lshcore -lgdi32 -luser32
+WIN_GUI_FLAGS = -mwindows
+
+all: sandbox
+
+$(BINDIR):
+	if not exist $(BINDIR) mkdir $(BINDIR)
+
+$(OBJDIR):
+	if not exist $(OBJDIR) mkdir $(OBJDIR)
+
+$(LIBDIR):
+	if not exist $(LIBDIR) mkdir $(LIBDIR)
+
+$(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(CORE_LIB): $(OBJECTS) | $(LIBDIR)
+	$(AR) rcs $@ $^
+
+$(SANDBOX_ICON_OBJ): $(SANDBOX_ICON_RC) $(SANDBOX_ICON_ICO) | $(OBJDIR)
+	windres $< -O coff -o $@
+
+$(SANDBOX_EXECUTABLE): $(CORE_LIB) $(SANDBOX_SRCS) $(SANDBOX_ICON_OBJ) | $(BINDIR)
+	$(CC) $(CFLAGS) $(SANDBOX_SRCS) $(SANDBOX_ICON_OBJ) $(CORE_LIB) -o $@ $(LDFLAGS) $(WIN_DWRITE_LIBS) $(WIN_GUI_FLAGS)
+
+$(TEST_EXECUTABLE): $(CORE_LIB) $(TEST_SRC) | $(BINDIR)
+	$(CC) $(CFLAGS) $(TEST_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+
+core: $(CORE_LIB)
+
+sandbox: $(SANDBOX_EXECUTABLE)
+
+run: $(SANDBOX_EXECUTABLE)
+	./$(SANDBOX_EXECUTABLE)
+
+test: $(TEST_EXECUTABLE)
+	./$(TEST_EXECUTABLE)
+
+check-core:
+	powershell -ExecutionPolicy Bypass -File .\scripts\check_core_change.ps1
+
+clean:
+	if exist $(BINDIR) rmdir /S /Q $(BINDIR)
+	if exist $(OBJDIR) rmdir /S /Q $(OBJDIR)
+	if exist $(LIBDIR) rmdir /S /Q $(LIBDIR)
+
+.PHONY: all core sandbox run test check-core clean

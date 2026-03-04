@@ -1,0 +1,60 @@
+﻿# Quickstart
+
+## 1. Install dependency
+
+MSYS2 UCRT64:
+
+```bash
+pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-make
+```
+
+## 2. Build and run the visual sandbox
+
+Using CMake:
+
+```bash
+cmake -S . -B build -DBUILD_SANDBOX=ON -DBUILD_TESTS=OFF
+cmake --build build
+./build/bin/physics_sandbox
+```
+
+Using Make:
+
+```bash
+make core
+make
+make run
+```
+
+## 3. Controls
+
+- `Space`: play/pause
+- `N`: single step
+- `R`: reset current scene
+- `F1-F9`: load preset scenes
+- `[` / `]`: previous/next scene
+- `1`: spawn circle at mouse
+- `2`: spawn box at mouse
+- `Delete`: remove selected body
+- `C`: toggle contact points/normals
+- `V`: toggle velocity vectors
+- `X`: toggle body centers
+- Left mouse: select and drag dynamic body
+- In config modal: `Up/Down` select parameter, `Left/Right` adjust value
+- Right panel buttons:
+- Click `配置` to open config popup
+- Click `使用说明` to open help popup
+
+## 4. Configure Chinese font (optional)
+
+Edit `sandbox_ui.ini`:
+
+```ini
+font_path=assets/fonts/ui.ttf
+```
+
+You can also set a system font path, for example:
+
+```ini
+font_path=C:/Windows/Fonts/msyh.ttc
+```

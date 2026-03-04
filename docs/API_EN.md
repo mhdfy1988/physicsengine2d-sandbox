@@ -1,0 +1,347 @@
+﻿# PhysicsEngine2D Kernel Usage Guide (English API)
+
+This document is for developers who need to integrate and run the engine in real projects. It explains usage flow, ownership rules, common pitfalls, and provides a full API reference.
+
+## 1. What To Copy
+
+When reusing the kernel in another project, ship these files from the same version:
+
+- `include/*.h` (public declarations)
+- `lib/libphysics2d.a` (static library)
+
+Do not copy only `lib` without `include`, and do not copy only headers without the matching library.
+
+## 2. Quick Integration
+
+### 2.1 Minimal Compile Command
+
+```bash
+gcc your_app.c -I path/to/include path/to/lib/libphysics2d.a -lm
+```
+
+### 2.2 Minimal Runtime Example
+
+```c
+#include "physics.h"
+#include <stdio.h>
+
+int main(void) {
+    PhysicsEngine* engine = physics_engine_create();
+    if (!engine) return 1;
+
+    Shape* ground_shape = shape_create_box(20.0f, 1.0f);
+    RigidBody* ground = body_create(0.0f, -5.0f, 0.0f, ground_shape);
+    body_set_type(ground, BODY_STATIC);
+
+    Shape* ball_shape = shape_create_circle(0.5f);
+    RigidBody* ball = body_create(0.0f, 5.0f, 1.0f, ball_shape);
+
+    physics_engine_add_body(engine, ground);
+    physics_engine_add_body(engine, ball);
+
+    for (int i = 0; i < 120; ++i) {
+        physics_engine_step(engine);
+        printf("frame=%d, ball=(%.2f, %.2f)\\n", i, ball->position.x, ball->position.y);
+    }
+
+    physics_engine_free(engine);
+    return 0;
+}
+```
+
+## 3. Correct Lifecycle (Important)
+
+Recommended order:
+
+1. Create engine: `physics_engine_create`
+2. Create shapes: `shape_create_*`
+3. Create bodies: `body_create`
+4. Set body properties: `body_set_type / body_set_friction / body_set_restitution ...`
+5. Add bodies: `physics_engine_add_body`
+6. (Optional) Add constraints: `physics_engine_add_distance_constraint / physics_engine_add_spring_constraint`
+7. Step each frame: `physics_engine_step`
+8. Release engine: `physics_engine_free`
+
+## 4. Ownership and Memory
+
+### 4.1 `PhysicsEngine` Is Opaque
+
+You cannot access internal engine fields directly. Use only APIs exposed in `physics.h`.
+
+### 4.2 Body/Shape Ownership
+
+`RigidBody` includes:
+
+- `Shape* shape`
+- `int owns_shape`
+
+If multiple bodies share one shape, manage ownership explicitly to avoid double free.
+
+### 4.3 `remove` vs `detach`
+
+- `physics_engine_remove_body(engine, body)`: remove and free.
+- `physics_engine_detach_body(engine, body)`: remove only, return pointer for caller-managed lifecycle.
+
+## 5. Per-Frame Loop
+
+### 5.1 Recommended
+
+Call this each frame:
+
+- `physics_engine_step(engine)`
+
+### 5.2 Debug by Stages
+
+For diagnostics you may call staged APIs:
+
+- `physics_engine_update_velocities`
+- `physics_engine_update_positions`
+- `physics_engine_detect_collisions`
+- `physics_engine_resolve_collisions`
+- `physics_engine_clear_forces`
+
+## 6. Tuning Tips
+
+### 6.1 Stability Basics
+
+- `dt = 1.0f / 60.0f`
+- `iterations = 8~12`
+- `damping = 0.98f~1.0f`
+
+### 6.2 Broadphase Grid
+
+- Enable grid: `physics_engine_set_broadphase_use_grid(engine, 1)`
+- Cell size: usually 1x to 2x common object diameter.
+
+## 7. Reading Runtime Data
+
+### 7.1 Contacts (Read Only)
+
+```c
+int n = physics_engine_get_contact_count(engine);
+for (int i = 0; i < n; ++i) {
+    const CollisionManifold* m = physics_engine_get_contact(engine, i);
+    if (!m) continue;
+}
+```
+
+### 7.2 Constraints (Edit via Index APIs)
+
+```c
+int count = physics_engine_get_constraint_count(engine);
+for (int i = 0; i < count; ++i) {
+    if (!physics_engine_constraint_is_active(engine, i)) continue;
+    float k = physics_engine_constraint_get_stiffness(engine, i);
+    physics_engine_constraint_set_stiffness(engine, i, k * 1.05f);
+}
+```
+
+## 8. Integration Template
+
+```c
+#include "physics.h"
+
+static PhysicsEngine* g_engine = NULL;
+
+int physics_init(void) {
+    g_engine = physics_engine_create();
+    if (!g_engine) return 0;
+
+    physics_engine_set_gravity(g_engine, vec2(0.0f, 9.8f));
+    physics_engine_set_time_step(g_engine, 1.0f / 60.0f);
+    physics_engine_set_iterations(g_engine, 10);
+    physics_engine_set_damping(g_engine, 0.995f);
+
+    Shape* floor_shape = shape_create_box(50.0f, 1.0f);
+    RigidBody* floor_body = body_create(0.0f, 20.0f, 0.0f, floor_shape);
+    body_set_type(floor_body, BODY_STATIC);
+    physics_engine_add_body(g_engine, floor_body);
+
+    return 1;
+}
+
+void physics_tick(void) {
+    if (!g_engine) return;
+    physics_engine_step(g_engine);
+}
+
+void physics_shutdown(void) {
+    if (!g_engine) return;
+    physics_engine_free(g_engine);
+    g_engine = NULL;
+}
+```
+
+## 9. Common Mistakes
+
+### 9.1 Copying only `lib` or only `include`
+
+Always ship both from the same release.
+
+### 9.2 Header/library version mismatch
+
+May compile but fail at runtime.
+
+### 9.3 Writing through `get_constraint` pointer
+
+`physics_engine_get_constraint` returns `const Constraint*`. Use `physics_engine_constraint_set_*`.
+
+### 9.4 Adding same `RigidBody*` twice
+
+Leads to lifecycle bugs. Add each body once.
+
+### 9.5 Accessing internal `PhysicsEngine` fields
+
+Not supported. Use `physics_engine_get_* / set_*` APIs.
+
+## 11. Kernel Maintenance Rules
+
+- Implementation changes: `src/*.c`
+- Public API changes: update both `include/*.h` and `src/*.c`
+- Regression checks: `make test`
+- Core checklist: `make check-core`
+
+## 13. Full API List (Grouped, with Types and Examples)
+
+Field format:
+
+- Parameters are listed as `name(type): example`
+- Return Result is the function return type
+- Result Notes include success/failure/boundary behavior
+
+### 13.1 Engine APIs (`physics.h`)
+
+| Name | Description | Parameters (type + example) | Return Result | Result Notes |
+|---|---|---|---|---|
+| `physics_engine_create` | Create engine instance | None | `PhysicsEngine*` | Non-null on success, `NULL` on failure |
+| `physics_engine_free` | Free engine and managed objects | `engine(PhysicsEngine*): engine` | `void` | Safe if `engine==NULL` |
+| `physics_engine_set_gravity` | Set global gravity | `engine(PhysicsEngine*): engine`<br>`gravity(Vec2): vec2(0,9.8f)` | `void` | Ignored if engine is null |
+| `physics_engine_set_time_step` | Set simulation step time | `engine(PhysicsEngine*): engine`<br>`dt(float): 1.0f/60.0f` | `void` | Ignored if `dt<=0` |
+| `physics_engine_set_iterations` | Set solver iterations | `engine(PhysicsEngine*): engine`<br>`iterations(int): 10` | `void` | Ignored if `<1` |
+| `physics_engine_set_damping` | Set global damping | `engine(PhysicsEngine*): engine`<br>`damping(float): 0.99f` | `void` | Clamped to `[0,1]` |
+| `physics_engine_set_broadphase_cell_size` | Set grid cell size | `engine(PhysicsEngine*): engine`<br>`cell_size(float): 8.0f` | `void` | Ignored if `<=0` |
+| `physics_engine_set_broadphase_use_grid` | Enable/disable grid broadphase | `engine(PhysicsEngine*): engine`<br>`enable(int): 1` | `void` | Non-zero means enabled |
+| `physics_engine_get_gravity` | Get gravity | `engine(const PhysicsEngine*): engine` | `Vec2` | `vec2(0,0)` if null |
+| `physics_engine_get_time_step` | Get time step | `engine(const PhysicsEngine*): engine` | `float` | `0` if null |
+| `physics_engine_get_iterations` | Get iterations | `engine(const PhysicsEngine*): engine` | `int` | `0` if null |
+| `physics_engine_get_damping` | Get damping | `engine(const PhysicsEngine*): engine` | `float` | `0` if null |
+| `physics_engine_get_broadphase_cell_size` | Get cell size | `engine(const PhysicsEngine*): engine` | `float` | `0` if null |
+| `physics_engine_get_broadphase_use_grid` | Get grid toggle | `engine(const PhysicsEngine*): engine` | `int` | `0` if null |
+| `physics_engine_get_body_count` | Get body count | `engine(const PhysicsEngine*): engine` | `int` | `0` if null |
+| `physics_engine_get_body` | Get body by index | `engine(const PhysicsEngine*): engine`<br>`index(int): 0` | `RigidBody*` | `NULL` if out of range |
+| `physics_engine_get_contact_count` | Get contact count | `engine(const PhysicsEngine*): engine` | `int` | `0` if null |
+| `physics_engine_get_contact` | Get contact by index | `engine(const PhysicsEngine*): engine`<br>`index(int): 0` | `const CollisionManifold*` | `NULL` if out of range |
+| `physics_engine_get_constraint_count` | Get constraint count | `engine(const PhysicsEngine*): engine` | `int` | `0` if null |
+| `physics_engine_get_constraint` | Get constraint by index | `engine(const PhysicsEngine*): engine`<br>`index(int): 0` | `const Constraint*` | `NULL` if out of range |
+| `physics_engine_find_constraint_index` | Find index from constraint pointer | `engine(const PhysicsEngine*): engine`<br>`constraint(const Constraint*): cptr` | `int` | `>=0` found, `-1` not found |
+| `physics_engine_constraint_is_active` | Read active flag | `engine(const PhysicsEngine*): engine`<br>`index(int): 0` | `int` | `0` if invalid index |
+| `physics_engine_constraint_get_type` | Read constraint type | `engine(const PhysicsEngine*): engine`<br>`index(int): 0` | `ConstraintType` | Default value if invalid index |
+| `physics_engine_constraint_get_rest_length` | Read rest length | `engine(const PhysicsEngine*): engine`<br>`index(int): 0` | `float` | `0` if invalid index |
+| `physics_engine_constraint_get_stiffness` | Read stiffness | `engine(const PhysicsEngine*): engine`<br>`index(int): 0` | `float` | `0` if invalid index |
+| `physics_engine_constraint_get_damping` | Read damping | `engine(const PhysicsEngine*): engine`<br>`index(int): 0` | `float` | `0` if invalid index |
+| `physics_engine_constraint_get_break_force` | Read break force | `engine(const PhysicsEngine*): engine`<br>`index(int): 0` | `float` | `0` if invalid index |
+| `physics_engine_constraint_get_last_force` | Read last force | `engine(const PhysicsEngine*): engine`<br>`index(int): 0` | `float` | `0` if invalid index |
+| `physics_engine_constraint_get_collide_connected` | Read connected-collision toggle | `engine(const PhysicsEngine*): engine`<br>`index(int): 0` | `int` | `0` if invalid index |
+| `physics_engine_constraint_set_active` | Set active flag | `engine(PhysicsEngine*): engine`<br>`index(int): 0`<br>`active(int): 1` | `void` | Ignored if invalid index; normalized to `0/1` |
+| `physics_engine_constraint_set_rest_length` | Set rest length | `engine(PhysicsEngine*): engine`<br>`index(int): 0`<br>`rest_length(float): 2.0f` | `void` | Clamped to `>=0` |
+| `physics_engine_constraint_set_stiffness` | Set stiffness | `engine(PhysicsEngine*): engine`<br>`index(int): 0`<br>`stiffness(float): 30.0f` | `void` | Clamped to `>=0` |
+| `physics_engine_constraint_set_damping` | Set damping | `engine(PhysicsEngine*): engine`<br>`index(int): 0`<br>`damping(float): 2.0f` | `void` | Clamped to `>=0` |
+| `physics_engine_constraint_set_break_force` | Set break force | `engine(PhysicsEngine*): engine`<br>`index(int): 0`<br>`break_force(float): 100.0f` | `void` | Clamped to `>=0` |
+| `physics_engine_constraint_set_collide_connected` | Set connected-collision toggle | `engine(PhysicsEngine*): engine`<br>`index(int): 0`<br>`collide_connected(int): 0` | `void` | Normalized to `0/1` |
+| `physics_engine_get_broadphase_pair_count` | Get broadphase pair count | `engine(const PhysicsEngine*): engine` | `int` | `0` if null |
+| `physics_engine_add_body` | Add body to engine | `engine(PhysicsEngine*): engine`<br>`body(RigidBody*): body` | `void` | Null/duplicate/full-capacity are ignored |
+| `physics_engine_remove_body` | Remove and free body | `engine(PhysicsEngine*): engine`<br>`body(RigidBody*): body` | `void` | Internally detach then free |
+| `physics_engine_detach_body` | Remove without freeing body | `engine(PhysicsEngine*): engine`<br>`body(RigidBody*): body` | `RigidBody*` | Returns body on success, else `NULL` |
+| `physics_engine_add_distance_constraint` | Add distance constraint | `engine(PhysicsEngine*): engine`<br>`a(RigidBody*): a`<br>`b(RigidBody*): b`<br>`world_anchor_a(Vec2): vec2(0,0)`<br>`world_anchor_b(Vec2): vec2(1,0)`<br>`stiffness(float): 0.5f`<br>`collide_connected(int): 1` | `Constraint*` | `NULL` on failure |
+| `physics_engine_add_spring_constraint` | Add spring constraint | `engine(PhysicsEngine*): engine`<br>`a(RigidBody*): a`<br>`b(RigidBody*): b`<br>`world_anchor_a(Vec2): vec2(0,0)`<br>`world_anchor_b(Vec2): vec2(1,0)`<br>`rest_length(float): 2.0f`<br>`stiffness(float): 30.0f`<br>`damping(float): 2.0f`<br>`collide_connected(int): 0` | `Constraint*` | `NULL` on failure |
+| `physics_engine_clear_constraints` | Clear all constraints | `engine(PhysicsEngine*): engine` | `void` | Safe on null engine |
+| `physics_engine_step` | Run one full simulation frame | `engine(PhysicsEngine*): engine` | `void` | Recommended per-frame API |
+| `physics_engine_update_positions` | Position-only stage | `engine(PhysicsEngine*): engine` | `void` | Mainly for staged debugging |
+| `physics_engine_update_velocities` | Velocity-only stage | `engine(PhysicsEngine*): engine` | `void` | Mainly for staged debugging |
+| `physics_engine_detect_collisions` | Collision detection stage | `engine(PhysicsEngine*): engine` | `void` | Refreshes contact cache |
+| `physics_engine_resolve_collisions` | Collision/constraint solving stage | `engine(PhysicsEngine*): engine` | `void` | Uses existing contacts |
+| `physics_engine_clear_forces` | Clear force/torque buffers | `engine(PhysicsEngine*): engine` | `void` | Usually called at frame end |
+| `physics_engine_raycast` | Raycast and return nearest hit body | `engine(PhysicsEngine*): engine`<br>`start(Vec2): vec2(0,0)`<br>`end(Vec2): vec2(10,0)` | `RigidBody*` | `NULL` if no hit |
+| `physics_engine_get_bodies_in_area` | Query bodies in circular area | `engine(PhysicsEngine*): engine`<br>`center(Vec2): vec2(0,0)`<br>`radius(float): 5.0f`<br>`out_bodies(RigidBody**): list`<br>`max_bodies(int): 32` | `int` | Number written; `0` if invalid args |
+
+### 13.2 Body APIs (`body.h`)
+
+| Name | Description | Parameters (type + example) | Return Result | Result Notes |
+|---|---|---|---|---|
+| `body_create` | Create rigid body | `x(float): 0.0f`<br>`y(float): 5.0f`<br>`mass(float): 1.0f`<br>`shape(Shape*): shape_create_circle(0.5f)` | `RigidBody*` | `NULL` if `shape==NULL` or allocation fails |
+| `body_free` | Free rigid body | `body(RigidBody*): body` | `void` | Frees shape if `owns_shape==1` |
+| `body_set_type` | Set body type | `body(RigidBody*): body`<br>`type(BodyType): BODY_STATIC` | `void` | Ignored if body is null |
+| `body_set_gravity` | Set custom gravity | `body(RigidBody*): body`<br>`g(Vec2): vec2(0,15)` | `void` | Enables `use_custom_gravity` |
+| `body_set_friction` | Set friction | `body(RigidBody*): body`<br>`friction(float): 0.4f` | `void` | Ignored if body is null |
+| `body_set_restitution` | Set restitution | `body(RigidBody*): body`<br>`restitution(float): 0.6f` | `void` | Ignored if body is null |
+| `body_set_shape_ownership` | Set shape ownership flag | `body(RigidBody*): body`<br>`owns_shape(int): 0` | `void` | Normalized to `0/1` |
+| `body_apply_force` | Apply continuous force | `body(RigidBody*): body`<br>`force(Vec2): vec2(10,0)` | `void` | Force accumulates |
+| `body_apply_force_at` | Apply force at world point | `body(RigidBody*): body`<br>`force(Vec2): vec2(10,0)`<br>`point(Vec2): vec2(1,1)` | `void` | Also adds torque |
+| `body_apply_impulse` | Apply linear impulse | `body(RigidBody*): body`<br>`impulse(Vec2): vec2(3,0)` | `void` | Immediate velocity change |
+| `body_apply_angular_impulse` | Apply angular impulse | `body(RigidBody*): body`<br>`impulse(float): 0.2f` | `void` | Immediate angular velocity change |
+| `body_apply_torque` | Apply torque | `body(RigidBody*): body`<br>`torque(float): 1.5f` | `void` | Torque accumulates |
+| `body_get_velocity_at` | Velocity at point on body | `body(RigidBody*): body`<br>`point(Vec2): vec2(2,2)` | `Vec2` | Returns zero vector if body is null |
+| `body_get_world_point` | Local-to-world transform | `body(RigidBody*): body`<br>`local_point(Vec2): vec2(0.5f,0)` | `Vec2` | Returns input point if body is null |
+| `body_get_local_point` | World-to-local transform | `body(RigidBody*): body`<br>`world_point(Vec2): vec2(3,4)` | `Vec2` | Returns input point if body is null |
+
+### 13.3 Shape APIs (`shape.h`)
+
+| Name | Description | Parameters (type + example) | Return Result | Result Notes |
+|---|---|---|---|---|
+| `shape_create_circle` | Create circle shape | `radius(float): 0.5f` | `Shape*` | `NULL` on allocation failure |
+| `shape_create_box` | Create box shape (polygon) | `width(float): 2.0f`<br>`height(float): 1.0f` | `Shape*` | `NULL` on allocation failure |
+| `shape_free` | Free shape | `shape(Shape*): shape` | `void` | Safe if `shape==NULL` |
+| `shape_get_area` | Compute area | `shape(Shape*): shape` | `float` | Returns `0` for invalid input |
+| `shape_get_moment_of_inertia` | Compute moment of inertia | `shape(Shape*): shape`<br>`mass(float): 1.0f` | `float` | Returns `0` for invalid input |
+| `shape_get_center_of_mass` | Compute center of mass | `shape(Shape*): shape` | `Vec2` | Returns `vec2(0,0)` for invalid input |
+
+### 13.4 Collision APIs (`collision.h`)
+
+| Name | Description | Parameters (type + example) | Return Result | Result Notes |
+|---|---|---|---|---|
+| `collision_circle_circle` | Circle-vs-circle narrowphase | `a(RigidBody*): a`<br>`b(RigidBody*): b`<br>`info(CollisionInfo*): &info` | `int` | `1` collision, `0` no collision |
+| `collision_circle_polygon` | Circle-vs-polygon narrowphase | `a(RigidBody*): circleBody`<br>`b(RigidBody*): polyBody`<br>`info(CollisionInfo*): &info` | `int` | `1/0` hit result |
+| `collision_polygon_polygon` | Polygon-vs-polygon narrowphase | `a(RigidBody*): a`<br>`b(RigidBody*): b`<br>`info(CollisionInfo*): &info` | `int` | `1/0` hit result |
+| `collision_detect` | Generic collision entry point | `a(RigidBody*): a`<br>`b(RigidBody*): b`<br>`info(CollisionInfo*): &info` | `int` | Returns `0` for invalid input |
+| `sat_test_circle` | SAT helper for circle cases | `a(RigidBody*): a`<br>`b(RigidBody*): b`<br>`info(CollisionInfo*): &info` | `int` | `1/0` |
+| `sat_test_polygon` | SAT helper for polygon cases | `a(RigidBody*): a`<br>`b(RigidBody*): b`<br>`info(CollisionInfo*): &info` | `int` | `1/0` |
+| `collision_resolve` | Combined collision response API | `manifold(CollisionManifold*): &m` | `void` | Currently focused on velocity response |
+| `collision_resolve_velocity` | Velocity-level collision solve | `manifold(CollisionManifold*): &m` | `void` | Updates velocity and angular velocity |
+| `collision_resolve_position` | Position penetration correction | `manifold(CollisionManifold*): &m` | `void` | Resolves overlap in position space |
+
+### 13.5 Constraint APIs (`constraint.h`)
+
+| Name | Description | Parameters (type + example) | Return Result | Result Notes |
+|---|---|---|---|---|
+| `constraint_init_distance` | Initialize distance constraint | `c(Constraint*): &c`<br>`a(RigidBody*): a`<br>`b(RigidBody*): b`<br>`world_anchor_a(Vec2): vec2(0,0)`<br>`world_anchor_b(Vec2): vec2(1,0)`<br>`stiffness(float): 0.5f`<br>`collide_connected(int): 1` | `void` | Null input is ignored |
+| `constraint_init_spring` | Initialize spring constraint | `c(Constraint*): &c`<br>`a(RigidBody*): a`<br>`b(RigidBody*): b`<br>`world_anchor_a(Vec2): vec2(0,0)`<br>`world_anchor_b(Vec2): vec2(1,0)`<br>`rest_length(float): 2.0f`<br>`stiffness(float): 30.0f`<br>`damping(float): 2.0f`<br>`collide_connected(int): 0` | `void` | Null input is ignored |
+| `constraint_warm_start` | Apply cached impulse from previous step | `c(Constraint*): &c` | `void` | Ignored if inactive/invalid |
+| `constraint_solve_velocity` | Velocity-level constraint solve | `c(Constraint*): &c`<br>`dt(float): 1.0f/60.0f` | `void` | Can update `last_force` and `active` |
+| `constraint_solve_position` | Position-level constraint correction | `c(Constraint*): &c` | `void` | Mainly reduces positional drift |
+
+### 13.6 Math APIs (`physics_math.h`)
+
+| Name | Description | Parameters (type + example) | Return Result | Result Notes |
+|---|---|---|---|---|
+| `vec2` | Construct 2D vector | `x(float): 1.0f`<br>`y(float): 2.0f` | `Vec2` | Returns `{x,y}` |
+| `vec2_add` | Vector add | `a(Vec2): vec2(1,2)`<br>`b(Vec2): vec2(3,4)` | `Vec2` | Returns `a+b` |
+| `vec2_sub` | Vector subtract | `a(Vec2): vec2(3,4)`<br>`b(Vec2): vec2(1,2)` | `Vec2` | Returns `a-b` |
+| `vec2_scale` | Vector scale | `v(Vec2): vec2(1,2)`<br>`s(float): 2.0f` | `Vec2` | Returns `v*s` |
+| `vec2_negate` | Vector negate | `v(Vec2): vec2(1,-2)` | `Vec2` | Returns `-v` |
+| `vec2_dot` | Dot product | `a(Vec2): vec2(1,0)`<br>`b(Vec2): vec2(0,1)` | `float` | Scalar dot product |
+| `vec2_cross` | 2D cross scalar | `a(Vec2): vec2(1,0)`<br>`b(Vec2): vec2(0,1)` | `float` | Scalar cross product |
+| `vec2_length_sq` | Squared length | `v(Vec2): vec2(3,4)` | `float` | Returns `25` |
+| `vec2_length` | Vector length | `v(Vec2): vec2(3,4)` | `float` | Returns `5` |
+| `vec2_normalize` | Normalize vector | `v(Vec2): vec2(3,4)` | `Vec2` | Unit vector output |
+| `vec2_rotate` | Rotate vector (radians) | `v(Vec2): vec2(1,0)`<br>`angle(float): PI*0.5f` | `Vec2` | Rotated vector |
+| `mat2` | Construct 2x2 matrix | `a(float): 1`<br>`b(float): 0`<br>`c(float): 0`<br>`d(float): 1` | `Mat2` | Matrix object |
+| `mat2_identity` | Identity matrix | None | `Mat2` | Returns `I` |
+| `mat2_rotation` | Rotation matrix | `angle(float): PI/4` | `Mat2` | Rotation matrix |
+| `mat2_mul_vec2` | Matrix-vector multiply | `m(Mat2): mat2_identity()`<br>`v(Vec2): vec2(1,2)` | `Vec2` | Returns `m*v` |
+| `mat2_mul` | Matrix-matrix multiply | `a(Mat2): ma`<br>`b(Mat2): mb` | `Mat2` | Returns `a*b` |
+| `mat2_transpose` | Matrix transpose | `m(Mat2): m` | `Mat2` | Returns `m^T` |
+| `mat2_invert` | Matrix inverse | `m(Mat2): m` | `Mat2` | Singular case handled by implementation |
+| `clamp` | Clamp scalar | `value(float): 1.2f`<br>`min(float): 0.0f`<br>`max(float): 1.0f` | `float` | Value within range |
+| `min_f` | Float min | `a(float): 1.0f`<br>`b(float): 2.0f` | `float` | Smaller value |
+| `max_f` | Float max | `a(float): 1.0f`<br>`b(float): 2.0f` | `float` | Larger value |
+| `is_equal` | Float epsilon compare | `a(float): 0.1f+0.2f`<br>`b(float): 0.3f`<br>`epsilon(float): 1e-6f` | `int` | Non-zero if equal within epsilon |

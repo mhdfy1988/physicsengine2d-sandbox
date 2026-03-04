@@ -1,0 +1,18 @@
+# Changelog
+
+All notable core-library changes should be recorded here.
+
+Format guideline:
+- Date: `YYYY-MM-DD`
+- Scope: `core`, `api`, `tests`, `editor`, `build`
+- Type: `added`, `changed`, `fixed`, `removed`
+
+## 2026-03-04
+
+- `api/changed`: `PhysicsEngine` is now an opaque handle in `include/physics.h`.
+- `api/added`: Added engine query APIs (`physics_engine_get_*`) for bodies/contacts/constraints/runtime params.
+- `api/changed`: Removed public mutable accessors for contact/constraint arrays.
+- `api/added`: Added constraint index-based read/write APIs (`physics_engine_constraint_get_*`, `physics_engine_constraint_set_*`).
+- `editor/changed`: Editor constraint selection migrated from raw pointer to constraint index.
+- `build/changed`: `Makefile` now outputs reusable core archive `lib/libphysics2d.a` via `make core`.
+- `tests/changed`: Regression tests migrated to public API usage and kept green (`PASS 13/13`).

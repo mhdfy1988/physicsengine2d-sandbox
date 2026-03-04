@@ -1,0 +1,2 @@
+#define IDI_APP_MAIN 1001
+IDI_APP_MAIN ICON "../../assets/icons/physics_sandbox.ico"

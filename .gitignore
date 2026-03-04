@@ -1,0 +1,12 @@
+build/
+bin/
+obj/
+dist/
+backups/
+.vscode/
+*.exe
+*.o
+*.obj
+*.a
+*.lib
+*.dll
