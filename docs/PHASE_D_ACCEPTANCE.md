@@ -17,7 +17,9 @@
 
 ## B. D2 编辑器核心工作流
 
-- [ ] Scene Tree 支持基础层级编辑（选择、重命名、排序）
+- [x] Scene Tree 支持场景项选择同步（层级点击切换到指定场景）
+- [x] Scene Tree 支持场景重命名（双击或 `F2`）
+- [ ] Scene Tree 支持场景排序
 - [ ] Inspector 支持核心组件字段编辑与约束校验
 - [ ] 统一命令总线驱动编辑操作
 - [ ] Undo/Redo 覆盖核心编辑行为并有回归
@@ -62,3 +64,11 @@
 - [x] runtime smoke 增补 taxonomy 断言：`tests/app_runtime_tick_smoke.c`
 - [x] 验证通过：`mingw32-make test`, `mingw32-make sandbox`, `mingw32-make benchmark`, `scripts/hot_reload_smoke.ps1`, `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`, `scripts/check_arch_deps.ps1`, `scripts/check_api_surface.ps1`
 - [x] 门禁摘要：`artifacts/phase_d_gate_suite_20260306_010737/summary.md`
+
+## 2026-03-06 D2 Kickoff Snapshot (Scene Tree)
+
+- [x] Scene Tree 从“单行当前场景”升级为“全场景列表”并支持逐项点击切换
+- [x] 场景重命名能力接入：层级双击或 `F2` 打开名称输入
+- [x] 层级过滤已对场景列表生效（无匹配时显示占位提示）
+- [x] 验证通过：`mingw32-make test`, `mingw32-make sandbox`, `mingw32-make benchmark`, `scripts/check_arch_deps.ps1`, `scripts/check_api_surface.ps1`, `scripts/hot_reload_smoke.ps1`, `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
+- [x] 门禁摘要：`artifacts/phase_d_gate_suite_20260306_012203/summary.md`

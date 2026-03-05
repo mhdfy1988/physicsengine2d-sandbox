@@ -17,9 +17,11 @@ typedef struct {
 } SceneConfig;
 
 enum { SCENE_COUNT = 9 };
+enum { SCENE_NAME_MAX = 32 };
 
 const wchar_t* scene_catalog_name(int scene_index);
 const SceneConfig* scene_catalog_default(int scene_index);
 void scene_catalog_copy_defaults(SceneConfig* out_configs, int max_count);
+void scene_catalog_copy_default_names(wchar_t out_names[SCENE_COUNT][SCENE_NAME_MAX], int max_count);
 
 #endif

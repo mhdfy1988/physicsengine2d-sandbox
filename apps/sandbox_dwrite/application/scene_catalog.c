@@ -1,5 +1,7 @@
 #include "scene_catalog.h"
 
+#include <wchar.h>
+
 static const wchar_t* SCENE_NAMES[SCENE_COUNT] = {
     L"默认", L"高速", L"质量比", L"高堆叠", L"斜坡摩擦", L"弹性矩阵",
     L"拖拽压测", L"边界", L"性能"
@@ -38,5 +40,16 @@ void scene_catalog_copy_defaults(SceneConfig* out_configs, int max_count) {
     }
     for (i = 0; i < SCENE_COUNT && i < max_count; i++) {
         out_configs[i] = SCENE_DEFAULTS[i];
+    }
+}
+
+void scene_catalog_copy_default_names(wchar_t out_names[SCENE_COUNT][SCENE_NAME_MAX], int max_count) {
+    int i;
+    if (out_names == 0 || max_count <= 0) {
+        return;
+    }
+    for (i = 0; i < SCENE_COUNT && i < max_count; i++) {
+        wcsncpy(out_names[i], SCENE_NAMES[i], SCENE_NAME_MAX - 1);
+        out_names[i][SCENE_NAME_MAX - 1] = L'\0';
     }
 }

@@ -18,7 +18,7 @@
 
 ## 进行中
 
-1. D2 第一条可交付路径选型（Scene Tree vs Inspector 先行）。
+1. D2 Scene Tree 排序能力与 Inspector 第一条闭环选型。
 
 ## 待完成（按里程碑）
 
@@ -31,7 +31,9 @@
 
 ### D2：编辑器核心工作流
 
-- [ ] Scene Tree 基础编辑能力（选择/重命名/排序）
+- [x] Scene Tree 选择能力（层级点击切换）
+- [x] Scene Tree 重命名能力（双击/F2）
+- [ ] Scene Tree 排序能力
 - [ ] Inspector 核心组件字段编辑闭环
 - [ ] 统一 command bus + Undo/Redo 主路径
 - [ ] GUID 安全资产引用编辑
@@ -63,7 +65,7 @@
 
 ## 下一次更新触发条件
 
-1. D2 第一条可用编辑链路（Scene Tree 或 Inspector）完成。
+1. D2 Scene Tree 排序能力完成。
 2. D2 对应验收条目首次进入可执行回归。
 3. D2 相关门禁新增项进入稳定执行。
 
@@ -88,3 +90,27 @@
   - `scripts/hot_reload_smoke.ps1`
   - `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
   - `scripts/run_phase_d_gate_suite.ps1` (PASS, summary: `artifacts/phase_d_gate_suite_20260306_010737/summary.md`)
+
+## 2026-03-06 D2 Kickoff (Scene Tree Select + Rename)
+
+- Upgraded hierarchy scene section from single current-scene row to full scene list with per-row selection.
+- Added scene rename entry:
+  - double-click a scene row in hierarchy
+  - press `F2` while hierarchy area is focused
+- Added runtime editable scene names (initialized from catalog defaults) and preserved fallback semantics.
+- Updated value-input flow:
+  - text targets now bypass numeric-only validation path
+  - new scene-name target and modal title mapping added
+- Touched files:
+  - `apps/sandbox_dwrite/main.c`
+  - `apps/sandbox_dwrite/application/scene_catalog.h`
+  - `apps/sandbox_dwrite/application/scene_catalog.c`
+- Verification:
+  - `mingw32-make test`
+  - `mingw32-make sandbox`
+  - `mingw32-make benchmark`
+  - `scripts/check_arch_deps.ps1`
+  - `scripts/check_api_surface.ps1`
+  - `scripts/hot_reload_smoke.ps1`
+  - `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
+  - `scripts/run_phase_d_gate_suite.ps1` (PASS, summary: `artifacts/phase_d_gate_suite_20260306_012203/summary.md`)

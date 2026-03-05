@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+#include <wctype.h>
 
 #include "physics.h"
 #include "infrastructure/project_tree.h"
@@ -132,6 +133,7 @@ typedef struct {
 typedef struct {
     PhysicsEngine* engine;
     SceneConfig scenes[SCENE_COUNT];
+    wchar_t scene_names[SCENE_COUNT][SCENE_NAME_MAX];
     int scene_index;
     int running;
     int draw_contacts;
@@ -275,12 +277,21 @@ static const float WORLD_SCALE = 12.0f;
 static const float WORLD_ORIGIN_X = 20.0f;
 static const float WORLD_ORIGIN_Y = 20.0f;
 enum { EXPLORER_MAX_ITEMS = 512 };
+enum { EXPLORER_SCENE_MAX_ITEMS = SCENE_COUNT };
 enum { DEBUG_EVENT_ROWS_MAX = 24 };
 enum { INSPECTOR_MAX_ROWS = 12 };
 enum { RUNTIME_HISTORY_ROWS_MAX = 3 };
 enum { HOT_RELOAD_SCAN_INTERVAL_MS = 250 };
 enum { HOT_RELOAD_DISCOVER_INTERVAL_MS = 3000 };
 enum { HOT_RELOAD_DEBOUNCE_MS = 180 };
+enum {
+    VALUE_INPUT_TARGET_NONE = 0,
+    VALUE_INPUT_TARGET_INSPECTOR = 1,
+    VALUE_INPUT_TARGET_LOG_SEARCH = 2,
+    VALUE_INPUT_TARGET_HIERARCHY_FILTER = 3,
+    VALUE_INPUT_TARGET_DEBUG_PARAM = 4,
+    VALUE_INPUT_TARGET_SCENE_NAME = 5
+};
 static const char* HOT_RELOAD_CACHE_ROOT = "Cache/imported";
 
 typedef struct {
@@ -320,7 +331,9 @@ typedef struct {
     D2D1_RECT_F menu_item_rect[8];
     int menu_item_enabled[8];
     int menu_item_count;
-    D2D1_RECT_F explorer_scene_rect;
+    D2D1_RECT_F explorer_scene_rect[EXPLORER_SCENE_MAX_ITEMS];
+    int explorer_scene_index[EXPLORER_SCENE_MAX_ITEMS];
+    int explorer_scene_count;
     D2D1_RECT_F tree_scene_header_rect;
     D2D1_RECT_F tree_bodies_header_rect;
     D2D1_RECT_F tree_constraints_header_rect;
@@ -428,6 +441,8 @@ static UiLayoutState g_layout = {0};
 #define g_menu_item_enabled g_layout.menu_item_enabled
 #define g_menu_item_count g_layout.menu_item_count
 #define g_explorer_scene_rect g_layout.explorer_scene_rect
+#define g_explorer_scene_index g_layout.explorer_scene_index
+#define g_explorer_scene_count g_layout.explorer_scene_count
 #define g_tree_scene_header_rect g_layout.tree_scene_header_rect
 #define g_tree_bodies_header_rect g_layout.tree_bodies_header_rect
 #define g_tree_constraints_header_rect g_layout.tree_constraints_header_rect
@@ -514,6 +529,7 @@ static HICON g_app_icon_large = NULL;
 static HICON g_app_icon_small = NULL;
 static const float BREAK_FORCE_PRESETS[] = {0.0f, 60.0f, 120.0f, 250.0f, 500.0f, 1000.0f};
 static const int BREAK_FORCE_PRESET_COUNT = 6;
+static const wchar_t* scene_display_name(int scene_index);
 static void apply_layout_preset(int preset);
 static void apply_scene(int scene_index);
 static void spawn_circle_at_cursor(void);
@@ -550,6 +566,8 @@ static int hot_reload_register_source_path(const char* source_path);
 static void hot_reload_register_tree_recursive(const char* root_dir, int depth);
 static void init_hot_reload_pipeline(void);
 static void hot_reload_tick_runtime(void);
+static void begin_value_input_for_scene_name(int scene_index);
+static const wchar_t* value_input_title(void);
 
 static D2D1_RECT_F rc(float l, float t, float r, float b) {
     D2D1_RECT_F v = {l, t, r, b};
@@ -589,6 +607,16 @@ static void set_brush_color(float r, float g, float b, float a) {
 
 static int point_in_rect(ScreenPt p, D2D1_RECT_F r) {
     return (p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom);
+}
+
+static const wchar_t* scene_display_name(int scene_index) {
+    if (scene_index < 0 || scene_index >= SCENE_COUNT) {
+        scene_index = 0;
+    }
+    if (g_state.scene_names[scene_index][0] == L'\0') {
+        return scene_catalog_name(scene_index);
+    }
+    return g_state.scene_names[scene_index];
 }
 
 static void push_console_log(const wchar_t* fmt, ...) {
@@ -2117,7 +2145,7 @@ static void apply_scene(int scene_index) {
     g_state.last_collision_capture_ms = 0;
     clear_collision_events();
     g_state.scene_needs_stage_fit = 1;
-    push_console_log(L"[场景] 切换到: %s", scene_catalog_name(g_state.scene_index));
+    push_console_log(L"[场景] 切换到: %s", scene_display_name(g_state.scene_index));
     if (!g_state.history_replaying) {
         history_reset_and_capture();
     }
@@ -2865,7 +2893,7 @@ static int inspector_row_count(void) {
 static void begin_value_input_for_inspector_row(int row) {
     const Constraint* c = selected_constraint_ref();
     g_state.show_value_input = 1;
-    g_state.value_input_target = 1;
+    g_state.value_input_target = VALUE_INPUT_TARGET_INSPECTOR;
     g_state.value_input_row = row;
     g_state.value_input_len = 0;
     g_state.value_input_caret = 0;
@@ -2898,8 +2926,18 @@ static void begin_value_input_for_inspector_row(int row) {
 
 static void begin_value_input_for_hierarchy_filter(void) {
     lstrcpynW(g_state.value_input_buf, g_state.hierarchy_filter_buf, 64);
-    g_state.value_input_target = 3;
+    g_state.value_input_target = VALUE_INPUT_TARGET_HIERARCHY_FILTER;
     g_state.value_input_row = 0;
+    g_state.show_value_input = 1;
+    g_state.value_input_len = (int)lstrlenW(g_state.value_input_buf);
+    g_state.value_input_caret = g_state.value_input_len;
+}
+
+static void begin_value_input_for_scene_name(int scene_index) {
+    if (scene_index < 0 || scene_index >= SCENE_COUNT) return;
+    lstrcpynW(g_state.value_input_buf, scene_display_name(scene_index), 64);
+    g_state.value_input_target = VALUE_INPUT_TARGET_SCENE_NAME;
+    g_state.value_input_row = scene_index;
     g_state.show_value_input = 1;
     g_state.value_input_len = (int)lstrlenW(g_state.value_input_buf);
     g_state.value_input_caret = g_state.value_input_len;
@@ -2907,7 +2945,7 @@ static void begin_value_input_for_hierarchy_filter(void) {
 
 static void begin_value_input_for_debug_param(int row) {
     SceneConfig* cfg = &g_state.scenes[g_state.scene_index];
-    g_state.value_input_target = 4;
+    g_state.value_input_target = VALUE_INPUT_TARGET_DEBUG_PARAM;
     g_state.value_input_row = row;
     g_state.show_value_input = 1;
     g_state.value_input_len = 0;
@@ -2922,89 +2960,127 @@ static void begin_value_input_for_debug_param(int row) {
 
 static void apply_value_input(void) {
     const Constraint* csel = selected_constraint_ref();
-    double v = 0.0;
-    int has_digit = 0;
-    int i;
-    for (i = 0; g_state.value_input_buf[i] != L'\0'; i++) {
-        if (g_state.value_input_buf[i] >= L'0' && g_state.value_input_buf[i] <= L'9') {
-            has_digit = 1;
-            break;
-        }
-    }
-    if (!has_digit) {
-        push_console_log(L"[警告] 输入无效");
-        return;
-    }
-    v = _wtof(g_state.value_input_buf);
-    if (g_state.value_input_target == 2) {
+    if (g_state.value_input_target == VALUE_INPUT_TARGET_LOG_SEARCH) {
         lstrcpynW(g_state.log_search_buf, g_state.value_input_buf, 48);
         g_state.log_search_len = (int)lstrlenW(g_state.log_search_buf);
         g_state.log_scroll_offset = 0;
         push_console_log(L"[日志] 搜索关键字: %s", g_state.log_search_len > 0 ? g_state.log_search_buf : L"(空)");
         return;
     }
-    if (g_state.value_input_target == 3) {
+    if (g_state.value_input_target == VALUE_INPUT_TARGET_HIERARCHY_FILTER) {
         lstrcpynW(g_state.hierarchy_filter_buf, g_state.value_input_buf, 32);
         g_state.hierarchy_filter_len = (int)lstrlenW(g_state.hierarchy_filter_buf);
         push_console_log(L"[层级] 过滤关键字: %s", g_state.hierarchy_filter_len > 0 ? g_state.hierarchy_filter_buf : L"(空)");
         return;
     }
-    if (g_state.value_input_target == 4) {
-        SceneConfig* cfg = &g_state.scenes[g_state.scene_index];
+    if (g_state.value_input_target == VALUE_INPUT_TARGET_SCENE_NAME) {
         int row = g_state.value_input_row;
-        history_push_snapshot();
-        if (row == 0) {
-            cfg->gravity_y = clamp((float)v, 0.0f, 30.0f);
-        } else if (row == 1) {
-            cfg->time_step = clamp((float)v, 0.001f, 0.05f);
-        } else if (row == 2) {
-            int iv = (int)v;
-            if (iv < 1) iv = 1;
-            if (iv > 64) iv = 64;
-            cfg->iterations = iv;
+        int src_len;
+        int begin = 0;
+        int end;
+        int n = 0;
+        wchar_t name_buf[SCENE_NAME_MAX];
+        if (row < 0 || row >= SCENE_COUNT) return;
+        src_len = (int)lstrlenW(g_state.value_input_buf);
+        while (begin < src_len && iswspace(g_state.value_input_buf[begin])) begin++;
+        end = src_len;
+        while (end > begin && iswspace(g_state.value_input_buf[end - 1])) end--;
+        if (end <= begin) {
+            push_console_log(L"[警告] 场景名称不能为空");
+            return;
         }
-        sync_scene_runtime_params();
-        push_console_log(L"[调试] 已输入模拟参数");
+        while ((begin + n) < end && n < (SCENE_NAME_MAX - 1)) {
+            name_buf[n] = g_state.value_input_buf[begin + n];
+            n++;
+        }
+        name_buf[n] = L'\0';
+        lstrcpynW(g_state.scene_names[row], name_buf, SCENE_NAME_MAX);
+        push_console_log(L"[场景] 已重命名 #%d: %s", row + 1, scene_display_name(row));
         return;
     }
-    if (g_state.value_input_target != 1) return;
-    history_push_snapshot();
-    if (csel != NULL && csel->active) {
-        int row = g_state.value_input_row;
-        if (row == 0) physics_engine_constraint_set_rest_length(g_state.engine, g_state.selected_constraint_index, (float)v);
-        if (row == 1) {
-            float min_stiffness = (csel->type == CONSTRAINT_DISTANCE) ? 0.08f : 0.20f;
-            physics_engine_constraint_set_stiffness(g_state.engine, g_state.selected_constraint_index, max_f(min_stiffness, (float)v));
-        }
-        if (row == 2) physics_engine_constraint_set_damping(g_state.engine, g_state.selected_constraint_index, (float)v);
-        if (row == 3) physics_engine_constraint_set_break_force(g_state.engine, g_state.selected_constraint_index, (float)v);
-        if (row == 4) physics_engine_constraint_set_collide_connected(g_state.engine, g_state.selected_constraint_index, (((int)v) != 0) ? 1 : 0);
-        if (row == 5 && csel->type == CONSTRAINT_SPRING) {
-            int preset = (int)v;
-            if (preset < 0) preset = 0;
-            if (preset > 2) preset = 2;
-            apply_spring_preset_to_constraint_index(g_state.selected_constraint_index, preset);
-        }
-        push_console_log(L"[检查器] 已输入约束参数");
-    } else if (g_state.selected != NULL) {
-        RigidBody* b = g_state.selected;
-        int row = g_state.value_input_row;
-        if (row == 0) {
-            b->mass = max_f(0.1f, (float)v);
-            b->inv_mass = (b->mass > 0.0f) ? (1.0f / b->mass) : 0.0f;
-            if (b->shape != NULL) {
-                b->inertia = shape_get_moment_of_inertia(b->shape, b->mass);
-                b->inv_inertia = (b->inertia > 0.0f) ? (1.0f / b->inertia) : 0.0f;
+    if (g_state.value_input_target == VALUE_INPUT_TARGET_DEBUG_PARAM ||
+        g_state.value_input_target == VALUE_INPUT_TARGET_INSPECTOR) {
+        double v = 0.0;
+        int has_digit = 0;
+        int i;
+        for (i = 0; g_state.value_input_buf[i] != L'\0'; i++) {
+            if (g_state.value_input_buf[i] >= L'0' && g_state.value_input_buf[i] <= L'9') {
+                has_digit = 1;
+                break;
             }
         }
-        if (row == 1) b->position.x = (float)v;
-        if (row == 2) b->position.y = (float)v;
-        if (row == 3) b->velocity.x = (float)v;
-        if (row == 4) b->velocity.y = (float)v;
-        if (row == 5) b->angular_velocity = (float)v;
-        if (row == 6) b->damping = clamp((float)v, 0.0f, 1.0f);
-        if (row == 7 && b->shape != NULL) b->shape->restitution = clamp((float)v, 0.0f, 1.0f);
-        push_console_log(L"[检查器] 已输入物体参数");
+        if (!has_digit) {
+            push_console_log(L"[警告] 输入无效");
+            return;
+        }
+        v = _wtof(g_state.value_input_buf);
+        if (g_state.value_input_target == VALUE_INPUT_TARGET_DEBUG_PARAM) {
+            SceneConfig* cfg = &g_state.scenes[g_state.scene_index];
+            int row = g_state.value_input_row;
+            history_push_snapshot();
+            if (row == 0) {
+                cfg->gravity_y = clamp((float)v, 0.0f, 30.0f);
+            } else if (row == 1) {
+                cfg->time_step = clamp((float)v, 0.001f, 0.05f);
+            } else if (row == 2) {
+                int iv = (int)v;
+                if (iv < 1) iv = 1;
+                if (iv > 64) iv = 64;
+                cfg->iterations = iv;
+            }
+            sync_scene_runtime_params();
+            push_console_log(L"[调试] 已输入模拟参数");
+            return;
+        }
+        history_push_snapshot();
+        if (csel != NULL && csel->active) {
+            int row = g_state.value_input_row;
+            if (row == 0) physics_engine_constraint_set_rest_length(g_state.engine, g_state.selected_constraint_index, (float)v);
+            if (row == 1) {
+                float min_stiffness = (csel->type == CONSTRAINT_DISTANCE) ? 0.08f : 0.20f;
+                physics_engine_constraint_set_stiffness(g_state.engine, g_state.selected_constraint_index, max_f(min_stiffness, (float)v));
+            }
+            if (row == 2) physics_engine_constraint_set_damping(g_state.engine, g_state.selected_constraint_index, (float)v);
+            if (row == 3) physics_engine_constraint_set_break_force(g_state.engine, g_state.selected_constraint_index, (float)v);
+            if (row == 4) physics_engine_constraint_set_collide_connected(g_state.engine, g_state.selected_constraint_index, (((int)v) != 0) ? 1 : 0);
+            if (row == 5 && csel->type == CONSTRAINT_SPRING) {
+                int preset = (int)v;
+                if (preset < 0) preset = 0;
+                if (preset > 2) preset = 2;
+                apply_spring_preset_to_constraint_index(g_state.selected_constraint_index, preset);
+            }
+            push_console_log(L"[检查器] 已输入约束参数");
+        } else if (g_state.selected != NULL) {
+            RigidBody* b = g_state.selected;
+            int row = g_state.value_input_row;
+            if (row == 0) {
+                b->mass = max_f(0.1f, (float)v);
+                b->inv_mass = (b->mass > 0.0f) ? (1.0f / b->mass) : 0.0f;
+                if (b->shape != NULL) {
+                    b->inertia = shape_get_moment_of_inertia(b->shape, b->mass);
+                    b->inv_inertia = (b->inertia > 0.0f) ? (1.0f / b->inertia) : 0.0f;
+                }
+            }
+            if (row == 1) b->position.x = (float)v;
+            if (row == 2) b->position.y = (float)v;
+            if (row == 3) b->velocity.x = (float)v;
+            if (row == 4) b->velocity.y = (float)v;
+            if (row == 5) b->angular_velocity = (float)v;
+            if (row == 6) b->damping = clamp((float)v, 0.0f, 1.0f);
+            if (row == 7 && b->shape != NULL) b->shape->restitution = clamp((float)v, 0.0f, 1.0f);
+            push_console_log(L"[检查器] 已输入物体参数");
+        }
+    }
+}
+
+static const wchar_t* value_input_title(void) {
+    switch (g_state.value_input_target) {
+        case VALUE_INPUT_TARGET_LOG_SEARCH: return L"日志搜索关键字";
+        case VALUE_INPUT_TARGET_HIERARCHY_FILTER: return L"层级过滤关键字";
+        case VALUE_INPUT_TARGET_SCENE_NAME: return L"场景名称";
+        case VALUE_INPUT_TARGET_DEBUG_PARAM: return L"输入调试参数";
+        case VALUE_INPUT_TARGET_INSPECTOR: return L"输入数值";
+        default: return L"输入";
     }
 }
 
@@ -3654,9 +3730,14 @@ static void render_bottom_panel_content(D2D1_RECT_F bottom_rect) {
 }
 
 static void clear_left_panel_ui_state(void) {
+    int i;
     g_explorer_body_count = 0;
     g_explorer_constraint_count = 0;
-    g_explorer_scene_rect = rc(0, 0, 0, 0);
+    g_explorer_scene_count = 0;
+    for (i = 0; i < EXPLORER_SCENE_MAX_ITEMS; i++) {
+        g_explorer_scene_rect[i] = rc(0, 0, 0, 0);
+        g_explorer_scene_index[i] = -1;
+    }
     g_tree_scene_header_rect = rc(0, 0, 0, 0);
     g_tree_bodies_header_rect = rc(0, 0, 0, 0);
     g_tree_constraints_header_rect = rc(0, 0, 0, 0);
@@ -3689,6 +3770,7 @@ typedef struct {
 } HierarchyStats;
 
 static void init_left_panel_headers_and_search(D2D1_RECT_F hierarchy_rect, D2D1_RECT_F project_rect, D2D1_RECT_F hierarchy_viewport) {
+    g_explorer_scene_count = 0;
     g_explorer_body_count = 0;
     g_explorer_constraint_count = 0;
     g_hierarchy_viewport_rect = hierarchy_viewport;
@@ -3711,8 +3793,22 @@ static void init_left_panel_headers_and_search(D2D1_RECT_F hierarchy_rect, D2D1_
 
 static float compute_hierarchy_content_height(float row_h, const HierarchyStats* hs) {
     float content_h = 0.0f;
+    int scene_rows = 0;
+    int i;
+    wchar_t line[128];
+    for (i = 0; i < SCENE_COUNT; i++) {
+        swprintf(line, 128, L"#%d %s", i + 1, scene_display_name(i));
+        if (g_state.hierarchy_filter_len > 0 && wcsstr(line, g_state.hierarchy_filter_buf) == NULL) continue;
+        scene_rows++;
+    }
     content_h += row_h;
-    if (g_state.tree_scene_expanded) content_h += row_h + 4.0f;
+    if (g_state.tree_scene_expanded) {
+        if (scene_rows > 0) {
+            content_h += scene_rows * (row_h + 4.0f) + 4.0f;
+        } else {
+            content_h += row_h + 4.0f;
+        }
+    }
     content_h += row_h;
     if (g_state.tree_bodies_expanded) {
         content_h += hs->body_group_rows * row_h;
@@ -4018,6 +4114,8 @@ static void render_hierarchy_scrollbar(D2D1_RECT_F hierarchy_rect, D2D1_RECT_F h
 }
 
 static float render_hierarchy_scene_section(D2D1_RECT_F hierarchy_rect, float y, float row_h) {
+    int i;
+    wchar_t line[128];
     float content_right = g_hierarchy_viewport_rect.right - 2.0f;
     g_tree_scene_header_rect = rc(hierarchy_rect.left + 10.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
     ui_draw_tree_disclosure_icon(g_ui.target, g_ui.brush, rc(g_tree_scene_header_rect.left + 2.0f, g_tree_scene_header_rect.top + 3.0f,
@@ -4027,10 +4125,29 @@ static float render_hierarchy_scene_section(D2D1_RECT_F hierarchy_rect, float y,
                          g_tree_scene_header_rect.right, g_tree_scene_header_rect.bottom),
               g_ui.fmt_mono, rgba(0.82f, 0.87f, 0.94f, 1.0f));
     y += row_h;
+    g_explorer_scene_count = 0;
     if (g_state.tree_scene_expanded) {
-        g_explorer_scene_rect = rc(hierarchy_rect.left + 24.0f, y, content_right, y + row_h);
-        draw_text(scene_catalog_name(g_state.scene_index), g_explorer_scene_rect, g_ui.fmt_mono, rgba(0.88f, 0.92f, 0.97f, 1.0f));
-        y += row_h + 4.0f;
+        int row_count = 0;
+        for (i = 0; i < SCENE_COUNT && g_explorer_scene_count < EXPLORER_SCENE_MAX_ITEMS; i++) {
+            D2D1_RECT_F row;
+            swprintf(line, 128, L"#%d %s", i + 1, scene_display_name(i));
+            if (g_state.hierarchy_filter_len > 0 && wcsstr(line, g_state.hierarchy_filter_buf) == NULL) continue;
+            row = rc(hierarchy_rect.left + 24.0f, y + row_count * (row_h + 4.0f), content_right,
+                     y + row_count * (row_h + 4.0f) + row_h);
+            g_explorer_scene_rect[g_explorer_scene_count] = row;
+            g_explorer_scene_index[g_explorer_scene_count] = i;
+            draw_text(line, row, g_ui.fmt_mono,
+                      (i == g_state.scene_index) ? rgba(0.98f, 0.78f, 0.42f, 1.0f) : rgba(0.88f, 0.92f, 0.97f, 1.0f));
+            g_explorer_scene_count++;
+            row_count++;
+        }
+        if (row_count == 0) {
+            D2D1_RECT_F row = rc(hierarchy_rect.left + 24.0f, y, content_right, y + row_h);
+            draw_text(L"(无匹配场景)", row, g_ui.fmt_info, rgba(0.62f, 0.70f, 0.82f, 1.0f));
+            y += row_h + 4.0f;
+        } else {
+            y += row_count * (row_h + 4.0f) + 4.0f;
+        }
     }
     return y;
 }
@@ -4247,7 +4364,7 @@ static void render_left_hierarchy_content(D2D1_RECT_F left_rect) {
     y = hierarchy_rect.top + 40.0f - (float)g_state.hierarchy_scroll_offset;
     ID2D1HwndRenderTarget_PushAxisAlignedClip(g_ui.target, &hierarchy_viewport, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
 
-    g_explorer_scene_rect = rc(0, 0, 0, 0);
+    g_explorer_scene_count = 0;
     g_explorer_body_count = 0;
     g_explorer_constraint_count = 0;
 
@@ -4381,7 +4498,7 @@ static void render_center_header(D2D1_RECT_F center_rect) {
     draw_panel_header_band(center_rect, 38.0f, 10.0f);
     draw_text_vcenter(L"场景", rc(center_rect.left + 16.0f, center_rect.top + 4.0f, center_rect.right - 12.0f, center_rect.top + 40.0f),
                       g_ui.fmt_ui, rgba(0.90f, 0.93f, 0.98f, 1.0f));
-    swprintf(line, 128, L"%s丨%s", scene_catalog_name(g_state.scene_index), g_state.running ? L"运行中" : L"已暂停");
+    swprintf(line, 128, L"%s丨%s", scene_display_name(g_state.scene_index), g_state.running ? L"运行中" : L"已暂停");
     draw_text_right_vcenter(line, rc(center_rect.left + 130.0f, center_rect.top + 4.0f, center_rect.right - 36.0f, center_rect.top + 40.0f),
                             g_ui.fmt_info, rgba(0.67f, 0.75f, 0.88f, 1.0f));
 }
@@ -4708,7 +4825,7 @@ static void render_help_modal_content(D2D1_RECT_F modal) {
     } else {
         draw_text(L"使用说明", rc(modal.left + 18.0f, modal.top + 14.0f, modal.right - 60.0f, modal.top + 46.0f), g_ui.fmt_title,
                   rgba(0.88f, 0.92f, 0.97f, 1.0f));
-        draw_text(L"1) 场景切换: F1~F9直选，[ / ]循环切换", rc(modal.left + 22.0f, modal.top + 72.0f, modal.right - 24.0f, modal.top + 102.0f),
+        draw_text(L"1) 场景切换: F1~F9直选，层级列表点击切换；F2或双击可重命名", rc(modal.left + 22.0f, modal.top + 72.0f, modal.right - 24.0f, modal.top + 102.0f),
                   g_ui.fmt_mono, rgba(0.74f, 0.81f, 0.90f, 1.0f));
         draw_text(L"2) 运行控制: Space运行/暂停 N单步 R重置 F11切布局", rc(modal.left + 22.0f, modal.top + 102.0f, modal.right - 24.0f, modal.top + 132.0f),
                   g_ui.fmt_mono, rgba(0.74f, 0.81f, 0.90f, 1.0f));
@@ -4790,7 +4907,7 @@ static void render_modals(float w, float h) {
             D2D1_RECT_F vm = rc(w * 0.34f, h * 0.40f, w * 0.66f, h * 0.58f);
             g_value_modal_rect = vm;
             draw_card_round(vm, 10.0f, rgba(0.14f, 0.16f, 0.20f, 1.0f), rgba(0.30f, 0.34f, 0.41f, 1.0f));
-            draw_text(g_state.value_input_target == 2 ? L"日志搜索关键字" : L"输入数值",
+            draw_text(value_input_title(),
                       rc(vm.left + 14.0f, vm.top + 10.0f, vm.right - 14.0f, vm.top + 36.0f),
                       g_ui.fmt_ui, rgba(0.86f, 0.91f, 0.97f, 1.0f));
             draw_card_round(rc(vm.left + 14.0f, vm.top + 44.0f, vm.right - 14.0f, vm.top + 78.0f), 6.0f,
@@ -5798,10 +5915,13 @@ static int handle_tree_and_search_lbuttondown(HWND hwnd) {
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
-    if (point_in_rect(g_state.mouse_screen, g_hierarchy_viewport_rect) && point_in_rect(g_state.mouse_screen, g_explorer_scene_rect)) {
-        apply_scene((g_state.scene_index + 1) % SCENE_COUNT);
-        InvalidateRect(hwnd, NULL, FALSE);
-        return 1;
+    for (idx = 0; idx < g_explorer_scene_count && point_in_rect(g_state.mouse_screen, g_hierarchy_viewport_rect); idx++) {
+        if (point_in_rect(g_state.mouse_screen, g_explorer_scene_rect[idx])) {
+            apply_scene(g_explorer_scene_index[idx]);
+            g_state.keyboard_focus_area = 1;
+            InvalidateRect(hwnd, NULL, FALSE);
+            return 1;
+        }
     }
     for (idx = 0; idx < g_explorer_body_count && point_in_rect(g_state.mouse_screen, g_hierarchy_viewport_rect); idx++) {
         if (point_in_rect(g_state.mouse_screen, g_explorer_body_rect[idx])) {
@@ -6163,6 +6283,13 @@ static int handle_lbuttondblclk(HWND hwnd) {
         ShowWindow(hwnd, IsZoomed(hwnd) ? SW_RESTORE : SW_MAXIMIZE);
         return 1;
     }
+    for (idx = 0; idx < g_explorer_scene_count && point_in_rect(g_state.mouse_screen, g_hierarchy_viewport_rect); idx++) {
+        if (point_in_rect(g_state.mouse_screen, g_explorer_scene_rect[idx])) {
+            begin_value_input_for_scene_name(g_explorer_scene_index[idx]);
+            InvalidateRect(hwnd, NULL, FALSE);
+            return 1;
+        }
+    }
     for (idx = 0; point_in_rect(g_state.mouse_screen, g_inspector_viewport_rect) && idx < g_ins_row_count && idx < INSPECTOR_MAX_ROWS; idx++) {
         if (point_in_rect(g_state.mouse_screen, g_ins_row_rect[idx])) {
             g_state.inspector_focused_row = idx;
@@ -6189,6 +6316,11 @@ static int handle_keydown(HWND hwnd, WPARAM wparam) {
     if (handle_value_input_keydown(hwnd, wparam)) return 1;
     if (handle_open_menu_keydown(hwnd, wparam)) return 1;
     if (handle_modal_keydown(hwnd, wparam)) return 1;
+    if (wparam == VK_F2 && g_state.keyboard_focus_area == 1) {
+        begin_value_input_for_scene_name(g_state.scene_index);
+        InvalidateRect(hwnd, NULL, FALSE);
+        return 1;
+    }
     handle_keydown_log_paging(wparam);
     handle_keydown_runtime_controls(wparam);
     handle_keydown_inspector_controls(wparam);
@@ -6213,7 +6345,9 @@ static int handle_char(HWND hwnd, WPARAM wparam) {
     if (g_state.show_value_input) {
         wchar_t ch = (wchar_t)wparam;
         int allow = 0;
-        if (g_state.value_input_target == 2 || g_state.value_input_target == 3) {
+        if (g_state.value_input_target == VALUE_INPUT_TARGET_LOG_SEARCH ||
+            g_state.value_input_target == VALUE_INPUT_TARGET_HIERARCHY_FILTER ||
+            g_state.value_input_target == VALUE_INPUT_TARGET_SCENE_NAME) {
             allow = (ch >= 32 && ch != 127);
         } else {
             allow = ((ch >= L'0' && ch <= L'9') || ch == L'.' || ch == L'-' || ch == L'+');
@@ -6467,6 +6601,7 @@ static void init_app_runtime_callbacks(void) {
 
 static void init_state_defaults(void) {
     scene_catalog_copy_defaults(g_state.scenes, SCENE_COUNT);
+    scene_catalog_copy_default_names(g_state.scene_names, SCENE_COUNT);
     srand((unsigned int)time(NULL));
     g_state.running = 0;
     g_state.draw_contacts = 0;
@@ -6505,7 +6640,7 @@ static void init_state_defaults(void) {
     g_state.show_help_modal = 0;
     g_state.help_modal_page = 0;
     g_state.show_value_input = 0;
-    g_state.value_input_target = 0;
+    g_state.value_input_target = VALUE_INPUT_TARGET_NONE;
     g_state.value_input_row = 0;
     g_state.value_input_len = 0;
     g_state.value_input_caret = 0;
