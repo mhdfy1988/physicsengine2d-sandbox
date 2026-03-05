@@ -3,6 +3,9 @@
 更新时间：2026-03-05  
 分支：`cpp-migration-baseline`
 
+> 状态说明（2026-03-05）：本文件为阶段 B 收口过程中的历史快照。  
+> 阶段 B 最终结论请以 [RUNTIME_PHASE_B_ACCEPTANCE_V2.md](./RUNTIME_PHASE_B_ACCEPTANCE_V2.md) 与 [RUNTIME_PHASE_B_FINAL_REPORT.md](./RUNTIME_PHASE_B_FINAL_REPORT.md) 为准。
+
 ## 已完成
 
 1. Runtime Facade 已落地并稳定运行：

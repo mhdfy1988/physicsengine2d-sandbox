@@ -247,6 +247,7 @@
 1. 定义 Scene/Prefab 序列化格式。
 2. 资源导入与构建管线（纹理、字体、音频）。
 3. 运行时热重载基础能力。
+4. 详细设计见 [PHASE_C_DETAILED_DESIGN.md](./PHASE_C_DETAILED_DESIGN.md)。
 
 ### 阶段 D：编辑器化与工具链完善
 

@@ -2,6 +2,9 @@
 
 更新时间：2026-03-05
 
+> 状态说明（2026-03-05）：本文件为阶段 B 验收过程中的历史版本。  
+> 阶段 B 封板状态请以 [RUNTIME_PHASE_B_ACCEPTANCE_V2.md](./RUNTIME_PHASE_B_ACCEPTANCE_V2.md) 与 [RUNTIME_PHASE_B_FINAL_REPORT.md](./RUNTIME_PHASE_B_FINAL_REPORT.md) 为准。
+
 ## A. 边界与架构
 
 - [x] Runtime Facade 作为统一入口（Tick/Event/Error）
