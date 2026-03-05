@@ -247,6 +247,7 @@ static const float WORLD_ORIGIN_Y = 20.0f;
 enum { EXPLORER_MAX_ITEMS = 512 };
 enum { DEBUG_EVENT_ROWS_MAX = 24 };
 enum { INSPECTOR_MAX_ROWS = 12 };
+enum { RUNTIME_HISTORY_ROWS_MAX = 3 };
 
 typedef struct {
     D2D1_RECT_F modal_rect;
@@ -338,6 +339,12 @@ typedef struct {
     D2D1_RECT_F dbg_collision_row_rect[DEBUG_EVENT_ROWS_MAX];
     int dbg_collision_row_event_index[DEBUG_EVENT_ROWS_MAX];
     int dbg_collision_row_count;
+    D2D1_RECT_F dbg_runtime_tick_row_rect[RUNTIME_HISTORY_ROWS_MAX];
+    int dbg_runtime_tick_row_entry_index[RUNTIME_HISTORY_ROWS_MAX];
+    int dbg_runtime_tick_row_count;
+    D2D1_RECT_F dbg_runtime_state_row_rect[RUNTIME_HISTORY_ROWS_MAX];
+    int dbg_runtime_state_row_entry_index[RUNTIME_HISTORY_ROWS_MAX];
+    int dbg_runtime_state_row_count;
     int log_scroll_max;
     D2D1_RECT_F splitter_left_rect;
     D2D1_RECT_F splitter_right_rect;
@@ -439,6 +446,12 @@ static UiLayoutState g_layout = {0};
 #define g_dbg_collision_row_rect g_layout.dbg_collision_row_rect
 #define g_dbg_collision_row_event_index g_layout.dbg_collision_row_event_index
 #define g_dbg_collision_row_count g_layout.dbg_collision_row_count
+#define g_dbg_runtime_tick_row_rect g_layout.dbg_runtime_tick_row_rect
+#define g_dbg_runtime_tick_row_entry_index g_layout.dbg_runtime_tick_row_entry_index
+#define g_dbg_runtime_tick_row_count g_layout.dbg_runtime_tick_row_count
+#define g_dbg_runtime_state_row_rect g_layout.dbg_runtime_state_row_rect
+#define g_dbg_runtime_state_row_entry_index g_layout.dbg_runtime_state_row_entry_index
+#define g_dbg_runtime_state_row_count g_layout.dbg_runtime_state_row_count
 #define g_log_scroll_max g_layout.log_scroll_max
 #define g_splitter_left_rect g_layout.splitter_left_rect
 #define g_splitter_right_rect g_layout.splitter_right_rect
@@ -2733,6 +2746,8 @@ static void clear_right_panel_ui_state(void) {
     int i;
     g_ins_row_count = 0;
     g_dbg_collision_row_count = 0;
+    g_dbg_runtime_tick_row_count = 0;
+    g_dbg_runtime_state_row_count = 0;
     g_dbg_collision_filter_rect = rc(0, 0, 0, 0);
     g_inspector_viewport_rect = rc(0, 0, 0, 0);
     g_inspector_scroll_track_rect = rc(0, 0, 0, 0);
@@ -2750,6 +2765,10 @@ static void clear_right_panel_ui_state(void) {
         g_dbg_row_rect[i] = rc(0, 0, 0, 0);
         g_dbg_minus_rect[i] = rc(0, 0, 0, 0);
         g_dbg_plus_rect[i] = rc(0, 0, 0, 0);
+        g_dbg_runtime_tick_row_rect[i] = rc(0, 0, 0, 0);
+        g_dbg_runtime_tick_row_entry_index[i] = -1;
+        g_dbg_runtime_state_row_rect[i] = rc(0, 0, 0, 0);
+        g_dbg_runtime_state_row_entry_index[i] = -1;
     }
 }
 
@@ -2913,6 +2932,8 @@ static void render_right_debug_section(D2D1_RECT_F debug_rect) {
     if (g_state.debug_scroll_offset < 0) g_state.debug_scroll_offset = 0;
     if (g_state.debug_scroll_offset > g_state.debug_scroll_max) g_state.debug_scroll_offset = g_state.debug_scroll_max;
     debug_offset_y = g_debug_viewport_rect.top - (float)g_state.debug_scroll_offset;
+    g_dbg_runtime_tick_row_count = 0;
+    g_dbg_runtime_state_row_count = 0;
     ID2D1HwndRenderTarget_PushAxisAlignedClip(g_ui.target, &g_debug_viewport_rect, D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
     draw_text(L"模拟参数", rc(debug_rect.left + 12.0f, debug_offset_y, debug_rect.left + 120.0f, debug_offset_y + 22.0f),
               g_ui.fmt_info, rgba(0.70f, 0.78f, 0.90f, 1.0f));
@@ -2971,9 +2992,18 @@ static void render_right_debug_section(D2D1_RECT_F debug_rect) {
             for (i = 0; i < rows; i++) {
                 int idx = (g_state.runtime_tick_history_head + g_state.runtime_tick_history_count - 1 - i + 8) % 8;
                 RuntimeTickHistoryEntry entry = g_state.runtime_tick_history[idx];
+                D2D1_RECT_F row_rect = rc(hist_rect.left + 2.0f, hist_rect.top + 4.0f + i * 22.0f, hist_rect.right - 2.0f, hist_rect.top + 24.0f + i * 22.0f);
+                if (i < RUNTIME_HISTORY_ROWS_MAX) {
+                    g_dbg_runtime_tick_row_rect[i] = row_rect;
+                    g_dbg_runtime_tick_row_entry_index[i] = idx;
+                    g_dbg_runtime_tick_row_count = i + 1;
+                }
+                draw_card_round(row_rect, 3.0f,
+                                point_in_rect(g_state.mouse_screen, row_rect) ? rgba(0.26f, 0.32f, 0.42f, 1.0f) : rgba(0.20f, 0.25f, 0.33f, 0.0f),
+                                rgba(0.00f, 0.00f, 0.00f, 0.0f));
                 swprintf(line, 128, L"#%u 对象:%d 约束:%d 接触:%d %.2fms",
                          entry.frame_index, entry.body_count, entry.constraint_count, entry.contact_count, entry.step_ms);
-                draw_text(line, rc(hist_rect.left + 8.0f, hist_rect.top + 6.0f + i * 22.0f, hist_rect.right - 8.0f, hist_rect.top + 26.0f + i * 22.0f),
+                draw_text(line, rc(row_rect.left + 6.0f, row_rect.top + 1.0f, row_rect.right - 6.0f, row_rect.bottom - 1.0f),
                           g_ui.fmt_info, rgba(0.90f, 0.94f, 0.99f, 1.0f));
             }
         }
@@ -2994,8 +3024,17 @@ static void render_right_debug_section(D2D1_RECT_F debug_rect) {
                 int idx = (g_state.runtime_state_history_head + g_state.runtime_state_history_count - 1 - i + 8) % 8;
                 RuntimeStateHistoryEntry entry = g_state.runtime_state_history[idx];
                 unsigned int age_ms = now_ms - entry.tick_ms;
+                D2D1_RECT_F row_rect = rc(state_rect.left + 2.0f, state_rect.top + 4.0f + i * 22.0f, state_rect.right - 2.0f, state_rect.top + 24.0f + i * 22.0f);
+                if (i < RUNTIME_HISTORY_ROWS_MAX) {
+                    g_dbg_runtime_state_row_rect[i] = row_rect;
+                    g_dbg_runtime_state_row_entry_index[i] = idx;
+                    g_dbg_runtime_state_row_count = i + 1;
+                }
+                draw_card_round(row_rect, 3.0f,
+                                point_in_rect(g_state.mouse_screen, row_rect) ? rgba(0.26f, 0.32f, 0.42f, 1.0f) : rgba(0.20f, 0.25f, 0.33f, 0.0f),
+                                rgba(0.00f, 0.00f, 0.00f, 0.0f));
                 swprintf(line, 128, L"#%u -> %s (%ums前)", entry.frame_index, entry.running ? L"运行" : L"暂停", age_ms);
-                draw_text(line, rc(state_rect.left + 8.0f, state_rect.top + 6.0f + i * 22.0f, state_rect.right - 8.0f, state_rect.top + 26.0f + i * 22.0f),
+                draw_text(line, rc(row_rect.left + 6.0f, row_rect.top + 1.0f, row_rect.right - 6.0f, row_rect.bottom - 1.0f),
                           g_ui.fmt_info, rgba(0.90f, 0.94f, 0.99f, 1.0f));
             }
         }
@@ -5239,6 +5278,30 @@ static int handle_inspector_debug_lbuttondown(HWND hwnd) {
             g_state.keyboard_focus_area = 2;
             InvalidateRect(hwnd, NULL, FALSE);
             return 1;
+        }
+    }
+    for (idx = 0; point_in_rect(g_state.mouse_screen, g_debug_viewport_rect) && idx < g_dbg_runtime_tick_row_count; idx++) {
+        if (point_in_rect(g_state.mouse_screen, g_dbg_runtime_tick_row_rect[idx])) {
+            int entry_idx = g_dbg_runtime_tick_row_entry_index[idx];
+            if (entry_idx >= 0 && entry_idx < 8) {
+                RuntimeTickHistoryEntry entry = g_state.runtime_tick_history[entry_idx];
+                push_console_log(L"[运行时] 帧#%u 对象:%d 约束:%d 接触:%d %.2fms",
+                                 entry.frame_index, entry.body_count, entry.constraint_count, entry.contact_count, entry.step_ms);
+                InvalidateRect(hwnd, NULL, FALSE);
+                return 1;
+            }
+        }
+    }
+    for (idx = 0; point_in_rect(g_state.mouse_screen, g_debug_viewport_rect) && idx < g_dbg_runtime_state_row_count; idx++) {
+        if (point_in_rect(g_state.mouse_screen, g_dbg_runtime_state_row_rect[idx])) {
+            int entry_idx = g_dbg_runtime_state_row_entry_index[idx];
+            if (entry_idx >= 0 && entry_idx < 8) {
+                RuntimeStateHistoryEntry entry = g_state.runtime_state_history[entry_idx];
+                push_console_log(L"[运行时] 帧#%u 状态:%s 时间戳:%ums",
+                                 entry.frame_index, entry.running ? L"运行" : L"暂停", entry.tick_ms);
+                InvalidateRect(hwnd, NULL, FALSE);
+                return 1;
+            }
         }
     }
     return 0;
