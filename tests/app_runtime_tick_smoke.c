@@ -190,6 +190,42 @@ int main(void) {
             return 15;
         }
     }
+    {
+        AppRuntime runtime4;
+        AppCommandCallbacks callbacks4;
+        AppRuntimeErrorItem err;
+        AppEvent ev4;
+        int found_tick = 0;
+        callbacks4.toggle_run = cb_noop;
+        callbacks4.step_once = cb_noop;
+        callbacks4.reset_scene = cb_noop;
+        callbacks4.spawn_circle = cb_noop;
+        callbacks4.spawn_box = cb_noop;
+        callbacks4.user = 0;
+        app_runtime_init(&runtime4, callbacks4);
+        err.code = APP_RUNTIME_ERROR_CODE_HOT_RELOAD_IMPORT_FAILED;
+        err.severity = APP_RUNTIME_ERROR_ERROR;
+        err.count = 3;
+        app_runtime_set_runtime_errors(&runtime4, &err, 1);
+        app_runtime_report_tick(&runtime4, NULL, 0, 0.22f);
+        while (app_runtime_pop_event(&runtime4, &ev4)) {
+            if (ev4.type == APP_EVENT_RUNTIME_TICK) {
+                found_tick = 1;
+                if (ev4.runtime_snapshot.runtime_error_item_count != 1 ||
+                    ev4.runtime_snapshot.runtime_error_count != 1 ||
+                    ev4.runtime_snapshot.runtime_errors[0].code != APP_RUNTIME_ERROR_CODE_HOT_RELOAD_IMPORT_FAILED ||
+                    ev4.runtime_snapshot.runtime_errors[0].severity != APP_RUNTIME_ERROR_ERROR ||
+                    ev4.runtime_snapshot.runtime_errors[0].count != 3) {
+                    printf("[FAIL] hot-reload taxonomy runtime error not propagated\n");
+                    return 16;
+                }
+            }
+        }
+        if (!found_tick) {
+            printf("[FAIL] no runtime tick after hot-reload taxonomy error injection\n");
+            return 17;
+        }
+    }
 
     printf("[PASS] app runtime tick smoke\n");
     return 0;

@@ -848,6 +848,9 @@ static const wchar_t* runtime_error_label(int code) {
         case APP_RUNTIME_ERROR_CODE_BRIDGE_DUPLICATE_BODY: return L"bridge_duplicate_body";
         case APP_RUNTIME_ERROR_CODE_BRIDGE_REFCOUNT_MISMATCH: return L"bridge_ref_count_mismatch";
         case APP_RUNTIME_ERROR_CODE_PIPELINE_MAPPING_ERRORS: return L"pipeline_mapping_errors";
+        case APP_RUNTIME_ERROR_CODE_HOT_RELOAD_SCAN_FAILED: return L"hot_reload_scan_failed";
+        case APP_RUNTIME_ERROR_CODE_HOT_RELOAD_IMPORT_FAILED: return L"hot_reload_import_failed";
+        case APP_RUNTIME_ERROR_CODE_HOT_RELOAD_BATCH_FAILED: return L"hot_reload_batch_failed";
         default: return L"unknown";
     }
 }
@@ -2278,6 +2281,7 @@ static void hot_reload_tick_runtime(void) {
     }
     g_state.hot_reload_last_scan_ms = now_ms;
     if (!asset_fs_watch_scan(&g_asset_fs_watch, &g_hot_reload_service, (long long)now_ms, &change_count)) {
+        push_tick_runtime_error(APP_RUNTIME_ERROR_CODE_HOT_RELOAD_SCAN_FAILED, APP_RUNTIME_ERROR_WARNING, 1);
         if (g_state.hot_reload_last_warn_ms == 0 || (now_ms - g_state.hot_reload_last_warn_ms) >= 1000) {
             push_console_log(L"[警告] 热重载文件扫描失败");
             g_state.hot_reload_last_warn_ms = now_ms;
@@ -2289,6 +2293,8 @@ static void hot_reload_tick_runtime(void) {
     if (!asset_hot_reload_tick(&g_hot_reload_service, (long long)now_ms, HOT_RELOAD_CACHE_ROOT, &report)) {
         if (report.pipeline_ran) {
             app_runtime_report_hot_reload(&g_app_runtime, &report);
+        } else {
+            push_tick_runtime_error(APP_RUNTIME_ERROR_CODE_HOT_RELOAD_BATCH_FAILED, APP_RUNTIME_ERROR_ERROR, 1);
         }
         if (g_state.hot_reload_last_warn_ms == 0 || (now_ms - g_state.hot_reload_last_warn_ms) >= 1000) {
             push_console_log(L"[警告] 热重载导入流程失败");
@@ -5059,7 +5065,7 @@ static void process_app_events(void) {
             g_state.hot_reload_last_event_ms = now_ms;
             if (ev.hot_reload_snapshot.imported_count > 0 || ev.hot_reload_snapshot.failed_count > 0) {
                 if (ev.hot_reload_snapshot.failed_count > 0) {
-                    push_tick_runtime_error(APP_RUNTIME_ERROR_CODE_PIPELINE_MAPPING_ERRORS,
+                    push_tick_runtime_error(APP_RUNTIME_ERROR_CODE_HOT_RELOAD_IMPORT_FAILED,
                                             APP_RUNTIME_ERROR_ERROR,
                                             ev.hot_reload_snapshot.failed_count);
                     push_console_log(L"[热重载] 批次完成: 导入%d 失败%d 影响%d",

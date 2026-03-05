@@ -2,7 +2,7 @@
 
 更新时间：2026-03-06  
 分支：`cpp-migration-baseline`  
-状态：已启动（D1 进行中）
+状态：D1 已实现（证据归档收口中）
 
 > 跟踪基线：以 [PHASE_D_DETAILED_DESIGN.md](./PHASE_D_DETAILED_DESIGN.md) 和 [PHASE_D_ACCEPTANCE.md](./PHASE_D_ACCEPTANCE.md) 为准。
 
@@ -17,16 +17,15 @@
 
 ## 进行中
 
-1. D1 热重载错误分类升级（从共享错误码提升到细粒度 taxonomy）。
-2. D1 无界面 hot-reload smoke harness（CI 友好）设计与落地。
+1. D1 验收证据归档（日志与门禁快照整理）。
 
 ## 待完成（按里程碑）
 
 ### D1：热重载与开发体验基线强化
 
 - [x] 原生文件监听后端接入 + 轮询 fallback
-- [ ] 热重载错误分类升级（taxonomy）
-- [ ] 无界面 smoke harness 接入
+- [x] 热重载错误分类升级（taxonomy）
+- [x] 无界面 smoke harness 接入
 - [ ] D1 验收证据归档
 
 ### D2：编辑器核心工作流
@@ -53,16 +52,38 @@
 ## 当前门禁状态
 
 1. 继承门禁（`test/sandbox/benchmark/arch/api/hot_reload_smoke`）当前保持通过。
-2. D 阶段新增门禁尚未全部落地（`hot_reload_smoke_headless` 等待实现）。
+2. 新增门禁脚本 `scripts/hot_reload_smoke_headless.ps1` 已落地并通过本地执行。
 
 ## 风险与关注点
 
-1. D1 若不先完成 headless harness，CI 对热重载的覆盖仍受桌面环境限制。
+1. headless harness 当前基于 `physics_tests` 聚合输出，后续可继续细化为独立二进制 smoke 以缩短执行时间。
 2. D2-D3 若绕过 command bus，会导致 Undo/Redo 和 PIE 隔离成本失控。
 3. 子系统并行推进可能引入跨模块回归，需坚持小步合并和门禁前置。
 
 ## 下一次更新触发条件
 
-1. 完成 D1 错误 taxonomy 并通过回归。
-2. `scripts/hot_reload_smoke_headless.ps1` 首次通过并进入门禁。
-3. D2 第一条可用编辑链路（Scene Tree 或 Inspector）完成。
+1. D1 证据包归档完成并补齐文档链接。
+2. D2 第一条可用编辑链路（Scene Tree 或 Inspector）完成。
+3. D2 对应验收条目首次进入可执行回归。
+
+## 2026-03-06 D1 Taxonomy + Headless Smoke
+
+- Added hot-reload runtime error taxonomy codes:
+  - `APP_RUNTIME_ERROR_CODE_HOT_RELOAD_SCAN_FAILED`
+  - `APP_RUNTIME_ERROR_CODE_HOT_RELOAD_IMPORT_FAILED`
+  - `APP_RUNTIME_ERROR_CODE_HOT_RELOAD_BATCH_FAILED`
+- Updated sandbox hot-reload error reporting path to use taxonomy-specific codes instead of generic pipeline mapping code.
+- Added headless smoke script: `scripts/hot_reload_smoke_headless.ps1`.
+- Added runtime smoke assertion for taxonomy error propagation:
+  - `tests/app_runtime_tick_smoke.c`
+- Added one-click D gate runner:
+  - `scripts/run_phase_d_gate_suite.ps1`
+- Local verification:
+  - `mingw32-make test`
+  - `mingw32-make sandbox`
+  - `mingw32-make benchmark`
+  - `scripts/check_arch_deps.ps1`
+  - `scripts/check_api_surface.ps1`
+  - `scripts/hot_reload_smoke.ps1`
+  - `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
+  - `scripts/run_phase_d_gate_suite.ps1` (PASS, summary: `artifacts/phase_d_gate_suite_20260306_010737/summary.md`)

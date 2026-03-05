@@ -10,8 +10,8 @@
 
 - [x] 原生文件监听后端已接入（保留轮询 fallback）
 - [x] sandbox 热重载运行路径已切换到 watcher 抽象层
-- [ ] 热重载错误分类升级为细粒度 taxonomy
-- [ ] 无界面 hot-reload smoke harness 可在 CI 执行
+- [x] 热重载错误分类升级为细粒度 taxonomy
+- [x] 无界面 hot-reload smoke harness 可在 CI 执行
 - [ ] D1 证据包归档（命令、日志、关键产物）
 
 ## B. D2 编辑器核心工作流
@@ -39,13 +39,14 @@
 
 ## E. 阶段门禁与封板
 
-- [ ] `mingw32-make test` 持续通过
-- [ ] `mingw32-make sandbox` 持续通过
-- [ ] `mingw32-make benchmark` 持续通过
-- [ ] `scripts/check_arch_deps.ps1` 持续通过
-- [ ] `scripts/check_api_surface.ps1` 持续通过
-- [ ] `scripts/hot_reload_smoke.ps1` 持续通过
-- [ ] `scripts/hot_reload_smoke_headless.ps1` 通过并纳入门禁
+- [x] `mingw32-make test` 持续通过
+- [x] `mingw32-make sandbox` 持续通过
+- [x] `mingw32-make benchmark` 持续通过
+- [x] `scripts/check_arch_deps.ps1` 持续通过
+- [x] `scripts/check_api_surface.ps1` 持续通过
+- [x] `scripts/hot_reload_smoke.ps1` 持续通过
+- [x] `scripts/hot_reload_smoke_headless.ps1` 通过并纳入门禁
+- [x] `scripts/run_phase_d_gate_suite.ps1` 一键门禁通过并归档摘要
 - [ ] 阶段 D 证据归档完成
 - [ ] 阶段 D 封板报告输出
 
@@ -54,4 +55,9 @@
 - [x] 新增 watcher 抽象：`include/asset_fs_watch.h`, `src/content/asset_fs_watch.c`
 - [x] sandbox 接入 watcher 抽象：`apps/sandbox_dwrite/main.c`
 - [x] 构建接入：`Makefile`
-- [x] 验证通过：`mingw32-make test`, `mingw32-make sandbox`, `scripts/hot_reload_smoke.ps1`, `scripts/check_arch_deps.ps1`, `scripts/check_api_surface.ps1`
+- [x] 新增热重载错误 taxonomy：`apps/sandbox_dwrite/infrastructure/app_event_bus.h`, `apps/sandbox_dwrite/main.c`
+- [x] 新增 headless smoke：`scripts/hot_reload_smoke_headless.ps1`
+- [x] 新增 D 阶段一键门禁：`scripts/run_phase_d_gate_suite.ps1`
+- [x] runtime smoke 增补 taxonomy 断言：`tests/app_runtime_tick_smoke.c`
+- [x] 验证通过：`mingw32-make test`, `mingw32-make sandbox`, `mingw32-make benchmark`, `scripts/hot_reload_smoke.ps1`, `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`, `scripts/check_arch_deps.ps1`, `scripts/check_api_surface.ps1`
+- [x] 门禁摘要：`artifacts/phase_d_gate_suite_20260306_010737/summary.md`

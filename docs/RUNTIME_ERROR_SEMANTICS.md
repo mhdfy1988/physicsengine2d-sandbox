@@ -1,6 +1,6 @@
-# Runtime Error Semantics (Phase B)
+# Runtime Error Semantics (Phase B + Phase D Extensions)
 
-This document defines a stable mapping for runtime bridge errors in C++ facade and editor-facing logs.
+This document defines a stable mapping for runtime bridge errors in C++ facade and editor-facing logs, including Phase D hot-reload taxonomy extensions.
 
 ## Source
 
@@ -19,6 +19,16 @@ This document defines a stable mapping for runtime bridge errors in C++ facade a
 | `BridgeRefCountMismatch` | `bridge_ref_count_mismatch` | `warning` | Forward/reverse mapping counts do not match. |
 | `PipelineMappingErrors` | `pipeline_mapping_errors` | `warning` | Pipeline reports bridge mapping inconsistencies. |
 
+## App Runtime Hot-Reload Taxonomy (Phase D)
+
+The following codes are app-runtime error channel extensions (editor/sandbox side), used to avoid collapsing all hot-reload failures into a single generic pipeline code:
+
+| AppRuntimeErrorCode | Name | Severity | Trigger |
+|---|---|---|---|
+| `APP_RUNTIME_ERROR_CODE_HOT_RELOAD_SCAN_FAILED` | `hot_reload_scan_failed` | `warning` | Filesystem watch/scan stage failed. |
+| `APP_RUNTIME_ERROR_CODE_HOT_RELOAD_IMPORT_FAILED` | `hot_reload_import_failed` | `error` | Hot-reload batch finished with one or more failed imports. |
+| `APP_RUNTIME_ERROR_CODE_HOT_RELOAD_BATCH_FAILED` | `hot_reload_batch_failed` | `error` | Hot-reload batch pipeline failed before/without import-failure details. |
+
 ## Editor Snapshot Fields
 
 - `runtime_error_count`: currently `0/1` in C runtime path (no error / has error).
@@ -33,5 +43,5 @@ This document defines a stable mapping for runtime bridge errors in C++ facade a
 ## Notes
 
 - C++ facade emits detailed multi-item error list (`last_errors()`).
-- C editor path currently consumes C engine last-error (`0/1 + code`); this is an intentional incremental bridge in Phase B.
-- Next step in Phase C: unify editor event bus with facade-level multi-error payload.
+- C editor path supports pending multi-error injection via `app_runtime_set_runtime_errors(...)`.
+- Hot-reload taxonomy codes are app-side and currently do not alter C++ facade `RuntimeErrorCode` enumeration.
