@@ -799,6 +799,17 @@ static int log_match_filter(const wchar_t* s, int mode) {
     return 1;
 }
 
+static const wchar_t* runtime_error_label(int code) {
+    switch (code) {
+        case PHYSICS_ERROR_NONE: return L"none";
+        case PHYSICS_ERROR_INVALID_ARGUMENT: return L"invalid_argument";
+        case PHYSICS_ERROR_API_VERSION_MISMATCH: return L"api_version_mismatch";
+        case PHYSICS_ERROR_PLUGIN_INIT_FAILED: return L"plugin_init_failed";
+        case PHYSICS_ERROR_CAPACITY_EXCEEDED: return L"capacity_exceeded";
+        default: return L"unknown";
+    }
+}
+
 static void export_perf_report_csv(void) {
     FILE* fp = fopen("perf_report.csv", "w");
     int i;
@@ -3007,7 +3018,8 @@ static void render_right_debug_section(D2D1_RECT_F debug_rect) {
         swprintf(line, 128, L"状态变更事件: %d  错误: %d", g_state.runtime_state_change_count, g_state.runtime_error_count);
         draw_text(line, rc(rt_rect.left + 8.0f, rt_rect.top + 84.0f, rt_rect.right - 8.0f, rt_rect.top + 104.0f), g_ui.fmt_info,
                   rgba(0.90f, 0.94f, 0.99f, 1.0f));
-        swprintf(line, 128, L"错误码: %d  事件丢弃累计: %u", g_state.runtime_error_code, g_state.runtime_event_drop_count);
+        swprintf(line, 128, L"错误码: %d(%s)  事件丢弃累计: %u",
+                 g_state.runtime_error_code, runtime_error_label(g_state.runtime_error_code), g_state.runtime_event_drop_count);
         draw_text(line, rc(rt_rect.left + 8.0f, rt_rect.top + 104.0f, rt_rect.right - 8.0f, rt_rect.top + 118.0f), g_ui.fmt_info,
                   rgba(0.90f, 0.94f, 0.99f, 1.0f));
     }
@@ -4722,7 +4734,8 @@ static void process_app_events(void) {
                 if (g_state.runtime_error_count > 0) {
                     if (g_state.runtime_error_code != g_state.last_runtime_error_code ||
                         (now_ms - g_state.last_runtime_error_log_ms) >= 1000) {
-                        push_console_log(L"[警告] 运行时错误 code=%d", g_state.runtime_error_code);
+                        push_console_log(L"[警告] 运行时错误 code=%d (%s)",
+                                         g_state.runtime_error_code, runtime_error_label(g_state.runtime_error_code));
                         g_state.last_runtime_error_log_ms = now_ms;
                     }
                 } else if (g_state.last_runtime_error_code != PHYSICS_ERROR_NONE) {
