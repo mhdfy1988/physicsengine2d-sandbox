@@ -40,10 +40,10 @@ set(PHYSICS2D_SOURCES
     src/constraint.c
     src/collision.c
     src/collision_detect.c
-    src/physics.c
-    src/physics_lifecycle.c
-    src/physics_runtime_api.c
-    src/physics_config.c
+    src/physics.cpp
+    src/physics_lifecycle.cpp
+    src/physics_runtime_api.cpp
+    src/physics_config.cpp
     src/physics_query.cpp
     src/physics_mutation.cpp
     src/physics_pipeline_api.cpp
