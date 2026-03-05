@@ -2,7 +2,7 @@
 #define PHYSICS_WORLD_RAII_HPP
 
 #include <memory>
-#include "../include/physics_world.h"
+#include "physics_world.h"
 #include "physics_raii.hpp"
 
 namespace physics2d {
