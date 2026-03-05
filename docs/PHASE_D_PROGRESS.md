@@ -2,7 +2,7 @@
 
 更新时间：2026-03-06  
 分支：`cpp-migration-baseline`  
-状态：D2 进行中（Scene Tree + Inspector + command bus 主路径已落地）
+状态：D2 进行中（仅剩 GUID 资产引用编辑）
 
 > 跟踪基线：以 [PHASE_D_DETAILED_DESIGN.md](./PHASE_D_DETAILED_DESIGN.md) 和 [PHASE_D_ACCEPTANCE.md](./PHASE_D_ACCEPTANCE.md) 为准。  
 > D1 证据包：见 [PHASE_D_EVIDENCE.md](./PHASE_D_EVIDENCE.md)。
@@ -18,7 +18,7 @@
 
 ## 进行中
 
-1. D2 Undo/Redo 覆盖核心编辑行为扩展与回归加密。
+1. D2 GUID 安全资产引用编辑首轮实现与回归接入。
 
 ## 待完成（按里程碑）
 
@@ -36,6 +36,7 @@
 - [x] Scene Tree 排序能力
 - [x] Inspector 核心组件字段编辑闭环
 - [x] 统一 command bus + Undo/Redo 主路径
+- [x] Undo/Redo 覆盖核心编辑行为并有回归
 - [ ] GUID 安全资产引用编辑
 
 ### D3：PIE 与调试面板
@@ -65,9 +66,9 @@
 
 ## 下一次更新触发条件
 
-1. D2 Undo/Redo 覆盖范围扩展到 Scene Tree/Inspector 多字段批量编辑回放。
-2. `tests/editor_undo_redo_smoke.c` 增补多命令序列与边界场景断言。
-3. D2 GUID 资产引用编辑路径进入首轮可回归状态。
+1. D2 GUID 资产引用编辑路径进入首轮可回归状态。
+2. GUID 资产引用链路纳入 command bus 与 undo/redo 语义。
+3. D2 全量条目完成并进入收口检查。
 
 ## 2026-03-06 D1 Taxonomy + Headless Smoke
 
@@ -189,3 +190,27 @@
   - `scripts/hot_reload_smoke.ps1`
   - `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
   - `scripts/run_phase_d_gate_suite.ps1` (PASS, summary: `artifacts/phase_d_gate_suite_20260306_015548/summary.md`)
+
+## 2026-03-06 D2 Undo/Redo Core Coverage Expansion
+
+- Extended snapshot persistence to include editor metadata:
+  - scene active index
+  - scene order
+  - scene display names (UTF-8 hex encoded metadata lines)
+- Hooked scene rename and scene order commands into history stack:
+  - rename/order changes now generate undoable snapshots
+- Expanded `editor_undo_redo_smoke` to verify mixed command sequences:
+  - rename + order move/reset + inspector edits
+  - multi-step undo/redo replay assertions
+- Touched files:
+  - `apps/sandbox_dwrite/main.c`
+  - `tests/editor_undo_redo_smoke.c`
+- Verification:
+  - `mingw32-make test` (includes extended `editor_undo_redo_smoke`)
+  - `mingw32-make sandbox`
+  - `mingw32-make benchmark`
+  - `scripts/check_arch_deps.ps1`
+  - `scripts/check_api_surface.ps1`
+  - `scripts/hot_reload_smoke.ps1`
+  - `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
+  - `scripts/run_phase_d_gate_suite.ps1` (PASS, summary: `artifacts/phase_d_gate_suite_20260306_020552/summary.md`)

@@ -566,6 +566,8 @@ static float body_box_size_hint(const RigidBody* b);
 static int compute_stage_rect_from_layout(HWND hwnd, D2D1_RECT_F* out_stage_rect);
 static Vec2 clamp_spawn_inside_stage(Vec2 p, float bound_radius);
 static int finite_positive(float v, float min_v);
+static int snapshot_append_editor_metadata(const char* path);
+static int snapshot_restore_editor_metadata(const char* path);
 static void trace_spawn_step(const char* stage, const char* fmt, ...);
 static int hot_reload_is_supported_extension(const char* source_path);
 static void hot_reload_normalize_path(char* path);
@@ -2228,16 +2230,216 @@ static float body_box_size_hint(const RigidBody* b) {
     return max_f(2.0f, max_x - min_x);
 }
 
+static int snapshot_hex_encode(const unsigned char* src, int src_len, char* out, int out_cap) {
+    static const char HEX[] = "0123456789ABCDEF";
+    int i;
+    int oi = 0;
+    if (src == NULL || out == NULL || out_cap <= 0 || src_len < 0) return 0;
+    if (src_len == 0) {
+        if (out_cap < 2) return 0;
+        out[0] = '.';
+        out[1] = '\0';
+        return 1;
+    }
+    if ((src_len * 2 + 1) > out_cap) return 0;
+    for (i = 0; i < src_len; i++) {
+        unsigned char b = src[i];
+        out[oi++] = HEX[(b >> 4) & 0x0F];
+        out[oi++] = HEX[b & 0x0F];
+    }
+    out[oi] = '\0';
+    return 1;
+}
+
+static int snapshot_hex_decode(const char* src, unsigned char* out, int out_cap, int* out_len) {
+    int i;
+    int n;
+    if (out_len != NULL) *out_len = 0;
+    if (src == NULL || out == NULL || out_cap <= 0) return 0;
+    n = (int)strlen(src);
+    if (n == 1 && src[0] == '.') {
+        if (out_len != NULL) *out_len = 0;
+        return 1;
+    }
+    if ((n % 2) != 0) return 0;
+    if ((n / 2) > out_cap) return 0;
+    for (i = 0; i < n; i += 2) {
+        int h = src[i];
+        int l = src[i + 1];
+        int hv;
+        int lv;
+        if (h >= '0' && h <= '9') hv = h - '0';
+        else if (h >= 'A' && h <= 'F') hv = h - 'A' + 10;
+        else if (h >= 'a' && h <= 'f') hv = h - 'a' + 10;
+        else return 0;
+        if (l >= '0' && l <= '9') lv = l - '0';
+        else if (l >= 'A' && l <= 'F') lv = l - 'A' + 10;
+        else if (l >= 'a' && l <= 'f') lv = l - 'a' + 10;
+        else return 0;
+        out[i / 2] = (unsigned char)((hv << 4) | lv);
+    }
+    if (out_len != NULL) *out_len = n / 2;
+    return 1;
+}
+
+static int scene_order_is_valid(const int* order) {
+    int seen[SCENE_COUNT];
+    int i;
+    if (order == NULL) return 0;
+    for (i = 0; i < SCENE_COUNT; i++) seen[i] = 0;
+    for (i = 0; i < SCENE_COUNT; i++) {
+        int v = order[i];
+        if (v < 0 || v >= SCENE_COUNT) return 0;
+        if (seen[v]) return 0;
+        seen[v] = 1;
+    }
+    return 1;
+}
+
+static int snapshot_append_editor_metadata(const char* path) {
+    FILE* fp;
+    int i;
+    if (path == NULL) return 0;
+    fp = fopen(path, "a");
+    if (fp == NULL) return 0;
+    fprintf(fp, "EDITOR_META 1\n");
+    fprintf(fp, "SCENE_ACTIVE %d\n", g_state.scene_index);
+    fprintf(fp, "SCENE_ORDER");
+    for (i = 0; i < SCENE_COUNT; i++) {
+        fprintf(fp, " %d", g_state.scene_order[i]);
+    }
+    fprintf(fp, "\n");
+    for (i = 0; i < SCENE_COUNT; i++) {
+        char utf8[SCENE_NAME_MAX * 4];
+        int utf8_len;
+        char hex[SCENE_NAME_MAX * 8 + 8];
+        utf8_len = WideCharToMultiByte(CP_UTF8, 0, g_state.scene_names[i], -1, utf8, (int)sizeof(utf8), NULL, NULL);
+        if (utf8_len <= 0) {
+            utf8[0] = '\0';
+        }
+        if (!snapshot_hex_encode((const unsigned char*)utf8, (int)strlen(utf8), hex, (int)sizeof(hex))) {
+            fclose(fp);
+            return 0;
+        }
+        fprintf(fp, "SCENE_NAME %d %s\n", i, hex);
+    }
+    fclose(fp);
+    return 1;
+}
+
+static int snapshot_restore_editor_metadata(const char* path) {
+    FILE* fp;
+    char line[1024];
+    int has_meta = 0;
+    int got_active = 0;
+    int active_scene = 0;
+    int got_order = 0;
+    int parsed_order[SCENE_COUNT];
+    int got_name[SCENE_COUNT];
+    wchar_t parsed_name[SCENE_COUNT][SCENE_NAME_MAX];
+    int i;
+    if (path == NULL) return 0;
+    fp = fopen(path, "r");
+    if (fp == NULL) return 0;
+    for (i = 0; i < SCENE_COUNT; i++) {
+        got_name[i] = 0;
+        parsed_name[i][0] = L'\0';
+        parsed_order[i] = i;
+    }
+    while (fgets(line, (int)sizeof(line), fp) != NULL) {
+        if (strncmp(line, "EDITOR_META ", 12) == 0) {
+            has_meta = 1;
+            continue;
+        }
+        if (!has_meta) continue;
+        if (strncmp(line, "SCENE_ACTIVE ", 13) == 0) {
+            int v = 0;
+            if (sscanf(line + 13, "%d", &v) == 1) {
+                got_active = 1;
+                active_scene = v;
+            }
+            continue;
+        }
+        if (strncmp(line, "SCENE_ORDER ", 12) == 0) {
+            char* p = line + 12;
+            int ok = 1;
+            for (i = 0; i < SCENE_COUNT; i++) {
+                char* endp;
+                long v;
+                while (*p != '\0' && isspace((unsigned char)*p)) p++;
+                if (*p == '\0') {
+                    ok = 0;
+                    break;
+                }
+                v = strtol(p, &endp, 10);
+                if (p == endp) {
+                    ok = 0;
+                    break;
+                }
+                parsed_order[i] = (int)v;
+                p = endp;
+            }
+            if (ok && scene_order_is_valid(parsed_order)) {
+                got_order = 1;
+            }
+            continue;
+        }
+        if (strncmp(line, "SCENE_NAME ", 11) == 0) {
+            int idx = -1;
+            char hex[800];
+            if (sscanf(line + 11, "%d %799s", &idx, hex) == 2) {
+                if (idx >= 0 && idx < SCENE_COUNT) {
+                    unsigned char utf8[SCENE_NAME_MAX * 4];
+                    int utf8_len = 0;
+                    if (snapshot_hex_decode(hex, utf8, (int)sizeof(utf8), &utf8_len)) {
+                        wchar_t wbuf[SCENE_NAME_MAX];
+                        int wlen;
+                        if (utf8_len < (int)sizeof(utf8)) {
+                            utf8[utf8_len] = '\0';
+                            wlen = MultiByteToWideChar(CP_UTF8, 0, (const char*)utf8, -1, wbuf, SCENE_NAME_MAX);
+                            if (wlen > 0) {
+                                lstrcpynW(parsed_name[idx], wbuf, SCENE_NAME_MAX);
+                                got_name[idx] = 1;
+                            }
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+    }
+    fclose(fp);
+    if (!has_meta) return 0;
+    if (got_order) {
+        for (i = 0; i < SCENE_COUNT; i++) {
+            g_state.scene_order[i] = parsed_order[i];
+        }
+    }
+    if (got_active && active_scene >= 0 && active_scene < SCENE_COUNT) {
+        g_state.scene_index = active_scene;
+    }
+    for (i = 0; i < SCENE_COUNT; i++) {
+        if (got_name[i]) {
+            lstrcpynW(g_state.scene_names[i], parsed_name[i], SCENE_NAME_MAX);
+        }
+    }
+    return 1;
+}
+
 static int save_scene_snapshot(const char* path) {
     int ok;
     trace_spawn_step("snapshot.save.begin", "path=%s engine=%p", (path != NULL) ? path : "(null)", (void*)g_state.engine);
     ok = snapshot_repo_save(g_state.engine, path);
+    if (ok) {
+        ok = snapshot_append_editor_metadata(path);
+    }
     if (ok) trace_spawn_step("snapshot.save.end", "path=%s ok=1", path);
     return ok;
 }
 
 static int load_scene_snapshot(const char* path) {
     if (!snapshot_repo_load(g_state.engine, path)) return 0;
+    snapshot_restore_editor_metadata(path);
     g_state.selected = NULL;
     g_state.selected_constraint_index = -1;
     g_state.dragging = 0;
@@ -2470,17 +2672,23 @@ static int dispatch_editor_command(const EditorCommand* command) {
 
 static int editor_cb_scene_rename(int scene_index, const wchar_t* name, void* user) {
     (void)user;
-    return scene_rename_apply(scene_index, name);
+    if (!scene_rename_apply(scene_index, name)) return 0;
+    history_push_snapshot();
+    return 1;
 }
 
 static int editor_cb_scene_order_move(int direction, void* user) {
     (void)user;
-    return scene_order_move_selected(direction);
+    if (!scene_order_move_selected(direction)) return 0;
+    history_push_snapshot();
+    return 1;
 }
 
 static int editor_cb_scene_order_reset(void* user) {
     (void)user;
-    return scene_order_reset_default();
+    if (!scene_order_reset_default()) return 0;
+    history_push_snapshot();
+    return 1;
 }
 
 static int editor_cb_inspector_set_value(int row, double value, int emit_log, void* user) {

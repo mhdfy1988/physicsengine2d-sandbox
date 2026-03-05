@@ -22,7 +22,7 @@
 - [x] Scene Tree 支持场景排序
 - [x] Inspector 支持核心组件字段编辑与约束校验
 - [x] 统一命令总线驱动编辑操作
-- [ ] Undo/Redo 覆盖核心编辑行为并有回归
+- [x] Undo/Redo 覆盖核心编辑行为并有回归
 - [ ] 资产引用编辑默认走 GUID 安全路径
 
 ## C. D3 PIE 与调试面板
@@ -97,3 +97,11 @@
 - [x] 新增 `tests/editor_undo_redo_smoke.c` 并接入 `mingw32-make test`
 - [x] 验证通过：`mingw32-make test`, `mingw32-make sandbox`, `mingw32-make benchmark`, `scripts/check_arch_deps.ps1`, `scripts/check_api_surface.ps1`, `scripts/hot_reload_smoke.ps1`, `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
 - [x] 门禁摘要：`artifacts/phase_d_gate_suite_20260306_015548/summary.md`
+
+## 2026-03-06 D2 Undo/Redo Core Coverage Snapshot
+
+- [x] 历史快照已包含编辑器元数据（场景名/场景顺序/当前场景索引）
+- [x] Scene Rename 与 Scene Order 已接入可撤销路径
+- [x] `tests/editor_undo_redo_smoke.c` 已覆盖混合命令序列的多步 undo/redo 回放
+- [x] 验证通过：`mingw32-make test`, `mingw32-make sandbox`, `mingw32-make benchmark`, `scripts/check_arch_deps.ps1`, `scripts/check_api_surface.ps1`, `scripts/hot_reload_smoke.ps1`, `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
+- [x] 门禁摘要：`artifacts/phase_d_gate_suite_20260306_020552/summary.md`
