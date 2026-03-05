@@ -84,5 +84,6 @@ jobs:
       - name: Run Selected C++ Smoke
         run: |
           ./build/bin/physics_cpp_smoke
+          ./build/bin/physics_cpp_ecs_bridge_smoke
           ./build/bin/physics_cpp_ecs_pipeline_smoke
           ./build/bin/physics_cpp_runtime_facade_smoke

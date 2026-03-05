@@ -39,6 +39,23 @@ struct RuntimeBodyRef {
     RigidBody* body = nullptr;
 };
 
+struct BridgeValidationReport {
+    std::size_t runtime_refs = 0;
+    std::size_t reverse_refs = 0;
+    std::size_t missing_reverse = 0;
+    std::size_t stale_entities = 0;
+    std::size_t null_bodies = 0;
+    std::size_t duplicate_bodies = 0;
+
+    bool ok() const noexcept {
+        return missing_reverse == 0 &&
+               stale_entities == 0 &&
+               null_bodies == 0 &&
+               duplicate_bodies == 0 &&
+               runtime_refs == reverse_refs;
+    }
+};
+
 class Registry {
 public:
     Entity create() noexcept {
@@ -68,6 +85,7 @@ public:
 
         auto it = runtime_bodies_.find(e);
         if (it != runtime_bodies_.end() && it->second.body != nullptr) {
+            body_to_entity_.erase(it->second.body);
             engine.remove_body(it->second.body);
             runtime_bodies_.erase(it);
         }
@@ -134,6 +152,18 @@ public:
         return &it->second;
     }
 
+    Entity entity_of_body(const RigidBody* body) const noexcept {
+        auto it = body_to_entity_.find(body);
+        if (it == body_to_entity_.end()) {
+            return kInvalidEntity;
+        }
+        return it->second;
+    }
+
+    std::size_t runtime_body_count() const noexcept {
+        return runtime_bodies_.size();
+    }
+
     bool queue_destroy(Entity e) noexcept {
         if (!alive(e)) {
             return false;
@@ -197,7 +227,8 @@ public:
         }
     }
 
-    void spawn_rigid_bodies(EngineView engine) noexcept {
+    std::size_t spawn_rigid_bodies(EngineView engine) noexcept {
+        std::size_t spawned = 0;
         each_spawnable([&](Entity e, const Transform& tr, const Collider& co, const RigidBodySpec& spec) {
             Body body;
             if (co.kind == ColliderKind::Circle) {
@@ -216,10 +247,14 @@ public:
             RuntimeBodyRef rr;
             rr.body = raw;
             runtime_bodies_[e] = rr;
+            body_to_entity_[raw] = e;
+            spawned++;
         });
+        return spawned;
     }
 
-    void sync_transforms_from_physics() noexcept {
+    std::size_t sync_transforms_from_physics() noexcept {
+        std::size_t synced = 0;
         each_runtime_with_transform([](Entity, Transform& tr, const RuntimeBodyRef& rr) {
             if (rr.body == nullptr) {
                 return;
@@ -228,10 +263,47 @@ public:
             tr.position = rr.body->position;
             tr.angle = rr.body->angle;
         });
+        each_runtime_with_transform([&](Entity, Transform&, const RuntimeBodyRef& rr) {
+            if (rr.body != nullptr) {
+                synced++;
+            }
+        });
+        return synced;
+    }
+
+    BridgeValidationReport validate_bridge() const noexcept {
+        BridgeValidationReport report;
+        std::unordered_set<const RigidBody*> dedup;
+        report.runtime_refs = runtime_bodies_.size();
+        report.reverse_refs = body_to_entity_.size();
+
+        for (const auto& kv : runtime_bodies_) {
+            const Entity e = kv.first;
+            const RigidBody* body = kv.second.body;
+            if (!alive(e)) {
+                report.stale_entities++;
+            }
+            if (body == nullptr) {
+                report.null_bodies++;
+                continue;
+            }
+            if (!dedup.insert(body).second) {
+                report.duplicate_bodies++;
+            }
+            auto rev = body_to_entity_.find(body);
+            if (rev == body_to_entity_.end() || rev->second != e) {
+                report.missing_reverse++;
+            }
+        }
+        return report;
     }
 
 private:
     void erase_components(Entity e) noexcept {
+        auto rt = runtime_bodies_.find(e);
+        if (rt != runtime_bodies_.end() && rt->second.body != nullptr) {
+            body_to_entity_.erase(rt->second.body);
+        }
         transforms_.erase(e);
         colliders_.erase(e);
         body_specs_.erase(e);
@@ -244,13 +316,14 @@ private:
     std::unordered_map<Entity, Collider> colliders_;
     std::unordered_map<Entity, RigidBodySpec> body_specs_;
     std::unordered_map<Entity, RuntimeBodyRef> runtime_bodies_;
+    std::unordered_map<const RigidBody*, Entity> body_to_entity_;
     std::unordered_set<Entity> destroy_queue_;
 };
 
 class SpawnRigidBodySystem {
 public:
-    void run(Registry& registry, EngineView engine) const noexcept {
-        registry.spawn_rigid_bodies(engine);
+    std::size_t run(Registry& registry, EngineView engine) const noexcept {
+        return registry.spawn_rigid_bodies(engine);
     }
 };
 
@@ -263,8 +336,8 @@ public:
 
 class SyncTransformSystem {
 public:
-    void run(Registry& registry) const noexcept {
-        registry.sync_transforms_from_physics();
+    std::size_t run(Registry& registry) const noexcept {
+        return registry.sync_transforms_from_physics();
     }
 };
 
@@ -276,7 +349,10 @@ public:
 };
 
 struct PipelineStats {
+    std::size_t spawned_entities = 0;
+    std::size_t synced_entities = 0;
     std::size_t cleaned_entities = 0;
+    std::size_t mapping_errors = 0;
 };
 
 struct PipelineConfig {
@@ -297,14 +373,24 @@ public:
     }
 
     void tick(Registry& registry, EngineView engine) noexcept {
+        stats_.spawned_entities = 0;
         if (config_.run_spawn) {
-            spawn_system_.run(registry, engine);
+            stats_.spawned_entities = spawn_system_.run(registry, engine);
         }
         if (config_.run_step) {
             step_system_.run(engine);
         }
+        stats_.synced_entities = 0;
+        stats_.mapping_errors = 0;
         if (config_.run_sync) {
-            sync_system_.run(registry);
+            const BridgeValidationReport report = registry.validate_bridge();
+            if (!report.ok()) {
+                stats_.mapping_errors = report.missing_reverse +
+                                        report.stale_entities +
+                                        report.null_bodies +
+                                        report.duplicate_bodies;
+            }
+            stats_.synced_entities = sync_system_.run(registry);
         }
 
         stats_.cleaned_entities = 0;
