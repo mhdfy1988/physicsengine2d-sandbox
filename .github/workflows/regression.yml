@@ -1,14 +1,17 @@
-name: Regression Tests
+name: Runtime Guardrails
 
 on:
   push:
     branches:
       - main
       - master
+      - cpp-migration-baseline
     paths:
       - "src/**"
       - "include/**"
+      - "cpp/**"
       - "tests/**"
+      - "scripts/**"
       - "CMakeLists.txt"
       - "Makefile"
       - ".github/workflows/regression.yml"
@@ -16,33 +19,70 @@ on:
     paths:
       - "src/**"
       - "include/**"
+      - "cpp/**"
       - "tests/**"
+      - "scripts/**"
       - "CMakeLists.txt"
       - "Makefile"
       - ".github/workflows/regression.yml"
   workflow_dispatch:
 
 jobs:
-  cmake-regression:
+  windows-mingw-guardrails:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-make
+
+      - name: Regression Tests
+        shell: powershell
+        run: |
+          & "C:\msys64\ucrt64\bin\mingw32-make.exe" test
+
+      - name: Benchmark
+        shell: powershell
+        run: |
+          & "C:\msys64\ucrt64\bin\mingw32-make.exe" benchmark
+
+      - name: Architecture Guardrails
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass -File .\scripts\check_arch_deps.ps1
+
+      - name: API Surface Guardrails
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass -File .\scripts\check_api_surface.ps1
+
+  cmake-regression-smoke:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Configure
-        run: cmake -S . -B build -DBUILD_SANDBOX=OFF -DBUILD_TESTS=ON
+        run: cmake -S . -B build -DBUILD_EDITOR=OFF -DBUILD_TESTS=ON -DBUILD_CPP_COMPAT=ON -DBUILD_CPP_WRAPPER=ON
 
       - name: Build
         run: cmake --build build --parallel
 
-      - name: Run Regression Tests
+      - name: Run C Regression Tests
         run: ./build/bin/physics_tests
 
-  make-regression:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Run Benchmark
+        run: ./build/bin/physics_bench
 
-      - name: Build And Run Make Tests
-        run: make test
+      - name: Run Selected C++ Smoke
+        run: |
+          ./build/bin/physics_cpp_smoke
+          ./build/bin/physics_cpp_ecs_pipeline_smoke
+          ./build/bin/physics_cpp_runtime_facade_smoke

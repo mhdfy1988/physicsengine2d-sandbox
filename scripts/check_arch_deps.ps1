@@ -29,6 +29,12 @@ Assert-NoMatch -Pattern 'src/internal|physics_internal\.h' -Globs @('include\*.h
 # Internal headers must not depend on app layer.
 Assert-NoMatch -Pattern 'apps\/|apps\\' -Globs @('src\internal\*.h', 'src\*.h') -Message 'internal header depends on app layer'
 
+# Runtime source layers must not depend on app/editor layer.
+Assert-NoMatch -Pattern 'apps\/|apps\\' -Globs @('src\c_api\*.cpp', 'src\core\*.cpp', 'src\physics2d\*.cpp') -Message 'runtime layer depends on app layer'
+
+# Physics2D implementation must not include c_api implementation headers/paths.
+Assert-NoMatch -Pattern 'c_api\/|c_api\\' -Globs @('src\physics2d\*.cpp') -Message 'physics2d depends on c_api layer'
+
 if ($failed) {
     Write-Host "Architecture dependency checks failed."
     exit 1

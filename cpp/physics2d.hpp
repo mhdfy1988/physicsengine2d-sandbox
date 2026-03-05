@@ -7,5 +7,6 @@
 #include "physics_body_raii.hpp"
 #include "physics_snapshot.hpp"
 #include "physics_ecs.hpp"
+#include "physics_runtime_facade.hpp"
 
 #endif
