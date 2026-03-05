@@ -161,7 +161,8 @@ public:
         return removed;
     }
 
-    void spawn_rigid_bodies(EngineView engine) noexcept {
+    template <typename Fn>
+    void each_spawnable(Fn fn) const {
         for (Entity e : alive_) {
             if (runtime_bodies_.find(e) != runtime_bodies_.end()) {
                 continue;
@@ -174,10 +175,30 @@ public:
                 continue;
             }
 
-            const Transform& tr = tr_it->second;
-            const Collider& co = co_it->second;
-            const RigidBodySpec& spec = sp_it->second;
+            fn(e, tr_it->second, co_it->second, sp_it->second);
+        }
+    }
 
+    template <typename Fn>
+    void each_runtime(Fn fn) const {
+        for (const auto& kv : runtime_bodies_) {
+            fn(kv.first, kv.second);
+        }
+    }
+
+    template <typename Fn>
+    void each_runtime_with_transform(Fn fn) {
+        for (auto& kv : runtime_bodies_) {
+            auto tr_it = transforms_.find(kv.first);
+            if (tr_it == transforms_.end()) {
+                continue;
+            }
+            fn(kv.first, tr_it->second, kv.second);
+        }
+    }
+
+    void spawn_rigid_bodies(EngineView engine) noexcept {
+        each_spawnable([&](Entity e, const Transform& tr, const Collider& co, const RigidBodySpec& spec) {
             Body body;
             if (co.kind == ColliderKind::Circle) {
                 body = Body::create_circle(tr.position.x, tr.position.y, spec.mass, co.size_a);
@@ -185,7 +206,7 @@ public:
                 body = Body::create_box(tr.position.x, tr.position.y, spec.mass, co.size_a, co.size_b);
             }
             if (!body.valid()) {
-                continue;
+                return;
             }
 
             body.set_type(spec.type);
@@ -195,21 +216,18 @@ public:
             RuntimeBodyRef rr;
             rr.body = raw;
             runtime_bodies_[e] = rr;
-        }
+        });
     }
 
     void sync_transforms_from_physics() noexcept {
-        for (auto& kv : runtime_bodies_) {
-            Entity e = kv.first;
-            RigidBody* body = kv.second.body;
-            auto tr_it = transforms_.find(e);
-            if (tr_it == transforms_.end() || body == nullptr) {
-                continue;
+        each_runtime_with_transform([](Entity, Transform& tr, const RuntimeBodyRef& rr) {
+            if (rr.body == nullptr) {
+                return;
             }
 
-            tr_it->second.position = body->position;
-            tr_it->second.angle = body->angle;
-        }
+            tr.position = rr.body->position;
+            tr.angle = rr.body->angle;
+        });
     }
 
 private:
