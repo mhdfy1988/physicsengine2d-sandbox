@@ -52,12 +52,12 @@ set(PHYSICS2D_SOURCES
     src/physics_memory.cpp
     src/physics_ids.cpp
     src/physics_parallel.cpp
-    src/physics_broadphase.c
+    src/physics_broadphase.cpp
     src/physics_contact_manager.c
     src/physics_ccd.c
     src/physics_raycast.cpp
     src/physics_step.cpp
-    src/physics_collision_pipeline.c
+    src/physics_collision_pipeline.cpp
     src/physics_resolve.cpp
     src/physics_solver.c
     src/physics_integrate.cpp

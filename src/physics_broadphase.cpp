@@ -249,6 +249,8 @@ static void broadphase_sort_pairs(PhysicsEngine* engine) {
     }
 }
 
+extern "C" {
+
 int physics_internal_default_build_pairs(PhysicsEngine* engine, void* user) {
     const AABB* aabbs;
     (void)user;
@@ -279,3 +281,5 @@ int physics_internal_default_build_pairs(PhysicsEngine* engine, void* user) {
     broadphase_sort_pairs(engine);
     return engine->broadphase_pair_count;
 }
+
+}  // extern "C"

@@ -34,6 +34,8 @@ static void prepare_input_range(int begin, int end, void* user) {
     }
 }
 
+extern "C" {
+
 int physics_internal_body_has_finite_state(const RigidBody* body) {
     int i;
     if (body == NULL || body->shape == NULL) {
@@ -149,3 +151,5 @@ void physics_internal_detect_collisions(PhysicsEngine* engine) {
     }
     physics_internal_append_ccd_contacts(engine, engine->current_step_dt);
 }
+
+}  // extern "C"
