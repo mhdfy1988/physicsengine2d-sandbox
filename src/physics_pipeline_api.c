@@ -1,10 +1,6 @@
 #include <string.h>
 #include "physics_internal.h"
 
-static void physics_set_error(PhysicsEngine* engine, PhysicsErrorCode error) {
-    physics_internal_set_error(engine, error, NULL);
-}
-
 void physics_engine_set_callbacks(PhysicsEngine* engine, const PhysicsCallbacks* callbacks) {
     if (engine == NULL) return;
     if (callbacks == NULL) {
@@ -54,15 +50,15 @@ int physics_engine_add_broadphase_pair(PhysicsEngine* engine, int index_a, int i
     int i;
     if (engine == NULL) return 0;
     if (index_a < 0 || index_b < 0) {
-        physics_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT);
+        physics_internal_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT, NULL);
         return 0;
     }
     if (index_a >= engine->body_count || index_b >= engine->body_count) {
-        physics_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT);
+        physics_internal_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT, NULL);
         return 0;
     }
     if (index_a == index_b) {
-        physics_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT);
+        physics_internal_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT, NULL);
         return 0;
     }
     if (index_a > index_b) {
@@ -71,21 +67,21 @@ int physics_engine_add_broadphase_pair(PhysicsEngine* engine, int index_a, int i
         index_b = t;
     }
     if (engine->broadphase_pair_count >= MAX_BROADPHASE_PAIRS) {
-        physics_set_error(engine, PHYSICS_ERROR_CAPACITY_EXCEEDED);
+        physics_internal_set_error(engine, PHYSICS_ERROR_CAPACITY_EXCEEDED, NULL);
         return 0;
     }
 
     for (i = 0; i < engine->broadphase_pair_count; i++) {
         BroadphasePair p = engine->broadphase_pairs[i];
         if (p.ia == index_a && p.ib == index_b) {
-            physics_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT);
+            physics_internal_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT, NULL);
             return 0;
         }
     }
     engine->broadphase_pairs[engine->broadphase_pair_count].ia = index_a;
     engine->broadphase_pairs[engine->broadphase_pair_count].ib = index_b;
     engine->broadphase_pair_count++;
-    physics_set_error(engine, PHYSICS_ERROR_NONE);
+    physics_internal_set_error(engine, PHYSICS_ERROR_NONE, NULL);
     return 1;
 }
 
@@ -97,18 +93,18 @@ void physics_engine_clear_contacts(PhysicsEngine* engine) {
 int physics_engine_add_contact(PhysicsEngine* engine, RigidBody* a, RigidBody* b, const CollisionInfo* info) {
     CollisionInfo local_info;
     if (engine == NULL || a == NULL || b == NULL) {
-        physics_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT);
+        physics_internal_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT, NULL);
         return 0;
     }
     if (engine->contact_count >= MAX_CONTACTS) {
-        physics_set_error(engine, PHYSICS_ERROR_CAPACITY_EXCEEDED);
+        physics_internal_set_error(engine, PHYSICS_ERROR_CAPACITY_EXCEEDED, NULL);
         return 0;
     }
     if (info != NULL) {
         local_info = *info;
     } else {
         if (!collision_detect(a, b, &local_info)) {
-            physics_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT);
+            physics_internal_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT, NULL);
             return 0;
         }
     }
@@ -120,6 +116,6 @@ int physics_engine_add_contact(PhysicsEngine* engine, RigidBody* a, RigidBody* b
     physics_internal_emit_event(engine, PHYSICS_EVENT_CONTACT_CREATED, engine->contact_count, 0.0, NULL,
                                 &engine->contacts[engine->contact_count]);
     engine->contact_count++;
-    physics_set_error(engine, PHYSICS_ERROR_NONE);
+    physics_internal_set_error(engine, PHYSICS_ERROR_NONE, NULL);
     return 1;
 }

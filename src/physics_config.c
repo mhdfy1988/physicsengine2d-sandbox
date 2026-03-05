@@ -1,10 +1,6 @@
 #include <string.h>
 #include "physics_internal.h"
 
-static void physics_set_error(PhysicsEngine* engine, PhysicsErrorCode error) {
-    physics_internal_set_error(engine, error, NULL);
-}
-
 void physics_internal_sanitize_config(PhysicsConfig* config) {
     if (config == NULL) return;
     if (config->time_step <= 0.0f) config->time_step = 1.0f / 60.0f;
@@ -31,11 +27,11 @@ void physics_internal_sanitize_experimental_config(PhysicsExperimentalConfig* co
 int physics_engine_install_pipeline_plugin(PhysicsEngine* engine, const PhysicsPipelinePluginV1* plugin) {
     int init_ok = 1;
     if (engine == NULL || plugin == NULL) {
-        physics_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT);
+        physics_internal_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT, NULL);
         return 0;
     }
     if (plugin->api_version != PHYSICS_PIPELINE_PLUGIN_API_VERSION) {
-        physics_set_error(engine, PHYSICS_ERROR_API_VERSION_MISMATCH);
+        physics_internal_set_error(engine, PHYSICS_ERROR_API_VERSION_MISMATCH, NULL);
         return 0;
     }
 
@@ -56,10 +52,10 @@ int physics_engine_install_pipeline_plugin(PhysicsEngine* engine, const PhysicsP
     }
     if (!init_ok) {
         physics_engine_uninstall_pipeline_plugin(engine);
-        physics_set_error(engine, PHYSICS_ERROR_PLUGIN_INIT_FAILED);
+        physics_internal_set_error(engine, PHYSICS_ERROR_PLUGIN_INIT_FAILED, NULL);
         return 0;
     }
-    physics_set_error(engine, PHYSICS_ERROR_NONE);
+    physics_internal_set_error(engine, PHYSICS_ERROR_NONE, NULL);
     return 1;
 }
 
@@ -71,7 +67,7 @@ void physics_engine_uninstall_pipeline_plugin(PhysicsEngine* engine) {
     memset(&engine->plugin, 0, sizeof(engine->plugin));
     engine->plugin_installed = 0;
     physics_internal_bind_default_pipeline(engine);
-    physics_set_error(engine, PHYSICS_ERROR_NONE);
+    physics_internal_set_error(engine, PHYSICS_ERROR_NONE, NULL);
 }
 
 PhysicsErrorCode physics_engine_get_last_error(const PhysicsEngine* engine) {
@@ -80,7 +76,7 @@ PhysicsErrorCode physics_engine_get_last_error(const PhysicsEngine* engine) {
 }
 
 void physics_engine_clear_error(PhysicsEngine* engine) {
-    physics_set_error(engine, PHYSICS_ERROR_NONE);
+    physics_internal_set_error(engine, PHYSICS_ERROR_NONE, NULL);
 }
 
 const char* physics_error_code_string(PhysicsErrorCode code) {
@@ -96,16 +92,16 @@ const char* physics_error_code_string(PhysicsErrorCode code) {
 
 int physics_engine_set_job_system(PhysicsEngine* engine, const PhysicsJobSystemV1* job_system) {
     if (engine == NULL || job_system == NULL || job_system->parallel_for == NULL) {
-        physics_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT);
+        physics_internal_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT, NULL);
         return 0;
     }
     if (job_system->api_version != PHYSICS_JOB_SYSTEM_API_VERSION) {
-        physics_set_error(engine, PHYSICS_ERROR_API_VERSION_MISMATCH);
+        physics_internal_set_error(engine, PHYSICS_ERROR_API_VERSION_MISMATCH, NULL);
         return 0;
     }
     engine->job_system = *job_system;
     engine->job_system_installed = 1;
-    physics_set_error(engine, PHYSICS_ERROR_NONE);
+    physics_internal_set_error(engine, PHYSICS_ERROR_NONE, NULL);
     return 1;
 }
 
@@ -113,19 +109,19 @@ void physics_engine_reset_job_system(PhysicsEngine* engine) {
     if (engine == NULL) return;
     memset(&engine->job_system, 0, sizeof(engine->job_system));
     engine->job_system_installed = 0;
-    physics_set_error(engine, PHYSICS_ERROR_NONE);
+    physics_internal_set_error(engine, PHYSICS_ERROR_NONE, NULL);
 }
 
 void physics_engine_set_runtime_config(PhysicsEngine* engine, const PhysicsRuntimeConfig* config) {
     if (engine == NULL || config == NULL) {
-        physics_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT);
+        physics_internal_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT, NULL);
         return;
     }
     engine->config.time_step = config->time_step;
     engine->config.substeps = config->substeps;
     engine->config.damping = config->damping;
     physics_internal_sanitize_config(&engine->config);
-    physics_set_error(engine, PHYSICS_ERROR_NONE);
+    physics_internal_set_error(engine, PHYSICS_ERROR_NONE, NULL);
 }
 
 void physics_engine_get_runtime_config(const PhysicsEngine* engine, PhysicsRuntimeConfig* out_config) {
@@ -137,13 +133,13 @@ void physics_engine_get_runtime_config(const PhysicsEngine* engine, PhysicsRunti
 
 void physics_engine_set_solver_config(PhysicsEngine* engine, const PhysicsSolverConfig* config) {
     if (engine == NULL || config == NULL) {
-        physics_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT);
+        physics_internal_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT, NULL);
         return;
     }
     engine->config.iterations = config->iterations;
     engine->config.max_position_iterations_bias = config->max_position_iterations_bias;
     physics_internal_sanitize_config(&engine->config);
-    physics_set_error(engine, PHYSICS_ERROR_NONE);
+    physics_internal_set_error(engine, PHYSICS_ERROR_NONE, NULL);
 }
 
 void physics_engine_get_solver_config(const PhysicsEngine* engine, PhysicsSolverConfig* out_config) {
@@ -155,7 +151,7 @@ void physics_engine_get_solver_config(const PhysicsEngine* engine, PhysicsSolver
 void physics_engine_set_pipeline_config(PhysicsEngine* engine, const PhysicsPipelineConfig* config) {
     PhysicsBroadphaseType requested_type;
     if (engine == NULL || config == NULL) {
-        physics_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT);
+        physics_internal_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT, NULL);
         return;
     }
     requested_type = config->broadphase_type;
@@ -164,10 +160,10 @@ void physics_engine_set_pipeline_config(PhysicsEngine* engine, const PhysicsPipe
     physics_internal_sanitize_config(&engine->config);
     if (requested_type == PHYSICS_BROADPHASE_BVH) {
         engine->config.broadphase_type = PHYSICS_BROADPHASE_BRUTE_FORCE;
-        physics_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT);
+        physics_internal_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT, NULL);
         return;
     }
-    physics_set_error(engine, PHYSICS_ERROR_NONE);
+    physics_internal_set_error(engine, PHYSICS_ERROR_NONE, NULL);
 }
 
 void physics_engine_get_pipeline_config(const PhysicsEngine* engine, PhysicsPipelineConfig* out_config) {
@@ -178,12 +174,12 @@ void physics_engine_get_pipeline_config(const PhysicsEngine* engine, PhysicsPipe
 
 void physics_engine_set_experimental_config(PhysicsEngine* engine, const PhysicsExperimentalConfig* config) {
     if (engine == NULL || config == NULL) {
-        physics_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT);
+        physics_internal_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT, NULL);
         return;
     }
     engine->experimental = *config;
     physics_internal_sanitize_experimental_config(&engine->experimental);
-    physics_set_error(engine, PHYSICS_ERROR_NONE);
+    physics_internal_set_error(engine, PHYSICS_ERROR_NONE, NULL);
 }
 
 void physics_engine_get_experimental_config(const PhysicsEngine* engine, PhysicsExperimentalConfig* out_config) {
