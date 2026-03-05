@@ -12,7 +12,7 @@ BINDIR = bin
 OBJDIR = obj
 LIBDIR = lib
 
-C_SOURCES =
+C_SOURCES = $(SRCDIR)/content/scene_schema.c $(SRCDIR)/content/prefab_schema.c $(SRCDIR)/content/asset_database.c $(SRCDIR)/content/asset_importer.c $(SRCDIR)/content/asset_invalidation.c $(SRCDIR)/content/asset_pipeline.c $(SRCDIR)/content/asset_watch.c $(SRCDIR)/content/asset_hot_reload.c $(SRCDIR)/content/asset_fs_poll.c
 CPP_SOURCES = $(SRCDIR)/physics2d/math.cpp $(SRCDIR)/physics2d/shape.cpp $(SRCDIR)/physics2d/body.cpp $(SRCDIR)/physics2d/constraint.cpp $(SRCDIR)/physics2d/collision.cpp $(SRCDIR)/physics2d/collision_detect.cpp $(SRCDIR)/core/physics_memory.cpp $(SRCDIR)/core/physics_ids.cpp $(SRCDIR)/core/physics_parallel.cpp $(SRCDIR)/core/physics_world.cpp $(SRCDIR)/physics2d/physics_raycast.cpp $(SRCDIR)/core/physics_snapshot.cpp $(SRCDIR)/physics2d/physics_integrate.cpp $(SRCDIR)/physics2d/physics_resolve.cpp $(SRCDIR)/core/physics_step.cpp $(SRCDIR)/physics2d/physics_broadphase.cpp $(SRCDIR)/physics2d/physics_collision_pipeline.cpp $(SRCDIR)/physics2d/physics_contact_manager.cpp $(SRCDIR)/physics2d/physics_ccd.cpp $(SRCDIR)/c_api/physics_pipeline_api.cpp $(SRCDIR)/physics2d/physics_solver.cpp $(SRCDIR)/c_api/physics_query.cpp $(SRCDIR)/c_api/physics_mutation.cpp $(SRCDIR)/c_api/physics.cpp $(SRCDIR)/c_api/physics_lifecycle.cpp $(SRCDIR)/c_api/physics_runtime_api.cpp $(SRCDIR)/c_api/physics_config.cpp
 C_OBJECTS = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(C_SOURCES))
 CPP_OBJECTS = $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(CPP_SOURCES))
@@ -23,10 +23,11 @@ SANDBOX_SRCS = $(APPDIR_DWRITE)/main.c $(APPDIR_DWRITE)/infrastructure/project_t
 SANDBOX_ICON_RC = $(APPDIR_DWRITE)/app_icon.rc
 SANDBOX_ICON_ICO = assets/icons/physics_sandbox.ico
 SANDBOX_ICON_OBJ = $(OBJDIR)/app_icon.res.o
-TEST_SRC = $(TESTDIR)/regression_tests.c $(TESTDIR)/regression_collision_core_tests.c $(TESTDIR)/regression_event_snapshot_tests.c $(TESTDIR)/regression_pipeline_error_tests.c $(TESTDIR)/regression_sleep_broadphase_tests.c $(TESTDIR)/regression_stress_constraint_tests.c $(TESTDIR)/regression_engine_feature_tests.c $(TESTDIR)/equivalence/equivalence_api_tests.c
+TEST_SRC = $(TESTDIR)/regression_tests.c $(TESTDIR)/regression_collision_core_tests.c $(TESTDIR)/regression_event_snapshot_tests.c $(TESTDIR)/regression_pipeline_error_tests.c $(TESTDIR)/regression_sleep_broadphase_tests.c $(TESTDIR)/regression_stress_constraint_tests.c $(TESTDIR)/regression_engine_feature_tests.c $(TESTDIR)/equivalence/equivalence_api_tests.c $(TESTDIR)/regression_scene_schema_tests.c $(TESTDIR)/regression_prefab_schema_tests.c $(TESTDIR)/regression_asset_database_tests.c $(TESTDIR)/regression_asset_importer_tests.c $(TESTDIR)/regression_asset_pipeline_tests.c $(TESTDIR)/regression_asset_hot_reload_tests.c
 BENCH_SRC = $(TESTDIR)/benchmark_suite.c
 INVARIANT_SRC = $(TESTDIR)/invariant_tests.c
 APP_RUNTIME_SMOKE_SRC = $(TESTDIR)/app_runtime_tick_smoke.c $(APPDIR_DWRITE)/domain/app_command.c $(APPDIR_DWRITE)/infrastructure/app_event_bus.c $(APPDIR_DWRITE)/application/app_controller.c $(APPDIR_DWRITE)/application/app_runtime.c
+SCENE_MIGRATE_SRC = tools/scene_migrate_main.c
 
 CORE_LIB = $(LIBDIR)/libphysics2d.a
 SANDBOX_EXECUTABLE = $(BINDIR)/physics_sandbox
@@ -34,6 +35,7 @@ TEST_EXECUTABLE = $(BINDIR)/physics_tests
 BENCH_EXECUTABLE = $(BINDIR)/physics_bench
 INVARIANT_EXECUTABLE = $(BINDIR)/physics_invariants
 APP_RUNTIME_SMOKE_EXECUTABLE = $(BINDIR)/app_runtime_smoke
+SCENE_MIGRATE_EXECUTABLE = $(BINDIR)/scene_migrate
 
 WIN_DWRITE_LIBS = -ld2d1 -ldwrite -lwindowscodecs -lole32 -luuid -lshcore -lgdi32 -luser32
 WIN_GUI_FLAGS = -mwindows
@@ -78,9 +80,14 @@ $(INVARIANT_EXECUTABLE): $(CORE_LIB) $(INVARIANT_SRC) | $(BINDIR)
 $(APP_RUNTIME_SMOKE_EXECUTABLE): $(CORE_LIB) $(APP_RUNTIME_SMOKE_SRC) | $(BINDIR)
 	$(CC) $(CFLAGS) $(APP_RUNTIME_SMOKE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
 
+$(SCENE_MIGRATE_EXECUTABLE): $(CORE_LIB) $(SCENE_MIGRATE_SRC) | $(BINDIR)
+	$(CC) $(CFLAGS) $(SCENE_MIGRATE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+
 core: $(CORE_LIB)
 
 sandbox: $(SANDBOX_EXECUTABLE)
+
+scene-migrate: $(SCENE_MIGRATE_EXECUTABLE)
 
 run: $(SANDBOX_EXECUTABLE)
 	./$(SANDBOX_EXECUTABLE)
@@ -111,4 +118,4 @@ clean:
 
 -include $(DEPS)
 
-.PHONY: all core sandbox run test benchmark test-long check-core check-arch check-api clean
+.PHONY: all core sandbox scene-migrate run test benchmark test-long check-core check-arch check-api clean

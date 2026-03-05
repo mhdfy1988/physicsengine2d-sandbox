@@ -47,6 +47,15 @@ set(PHYSICS2D_SOURCES
     src/c_api/physics_query.cpp
     src/c_api/physics_mutation.cpp
     src/c_api/physics_pipeline_api.cpp
+    src/content/scene_schema.c
+    src/content/prefab_schema.c
+    src/content/asset_database.c
+    src/content/asset_importer.c
+    src/content/asset_invalidation.c
+    src/content/asset_pipeline.c
+    src/content/asset_watch.c
+    src/content/asset_hot_reload.c
+    src/content/asset_fs_poll.c
     src/core/physics_snapshot.cpp
     src/core/physics_world.cpp
     src/core/physics_memory.cpp
@@ -133,6 +142,12 @@ if(BUILD_TESTS)
         tests/regression_stress_constraint_tests.c
         tests/regression_engine_feature_tests.c
         tests/equivalence/equivalence_api_tests.c
+        tests/regression_scene_schema_tests.c
+        tests/regression_prefab_schema_tests.c
+        tests/regression_asset_database_tests.c
+        tests/regression_asset_importer_tests.c
+        tests/regression_asset_pipeline_tests.c
+        tests/regression_asset_hot_reload_tests.c
     )
     add_executable(physics_app_runtime_smoke
         tests/app_runtime_tick_smoke.c
@@ -171,6 +186,17 @@ if(BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
 endif()
+
+add_executable(scene_migrate tools/scene_migrate_main.c)
+target_link_libraries(scene_migrate PRIVATE physics2d)
+if(MSVC)
+    target_compile_options(scene_migrate PRIVATE /W4)
+else()
+    target_compile_options(scene_migrate PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+endif()
+set_target_properties(scene_migrate PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
 
 if(BUILD_CPP_COMPAT)
     physics_add_cpp_smoke(physics_cpp_smoke tests/cpp_api_smoke.cpp FALSE)

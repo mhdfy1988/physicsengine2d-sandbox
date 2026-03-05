@@ -10,3 +10,8 @@ backups/
 *.a
 *.lib
 *.dll
+Cache/
+artifacts/
+history_*.txt
+spawn_trace.log
+assets/hot_reload_smoke/
