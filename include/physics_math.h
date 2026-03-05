@@ -1,4 +1,4 @@
-#ifndef PHYSICS_MATH_H
+﻿#ifndef PHYSICS_MATH_H
 #define PHYSICS_MATH_H
 
 #include <math.h>
@@ -13,10 +13,10 @@ typedef struct {
 } Vec2;
 
 typedef struct {
-    float m[2][2];  // 2x2矩阵
+    float m[2][2];  /* 2x2 matrix */
 } Mat2;
 
-// 向量操作
+/* Vector operations */
 Vec2 vec2(float x, float y);
 Vec2 vec2_add(Vec2 a, Vec2 b);
 Vec2 vec2_sub(Vec2 a, Vec2 b);
@@ -29,7 +29,7 @@ float vec2_length(Vec2 v);
 Vec2 vec2_normalize(Vec2 v);
 Vec2 vec2_rotate(Vec2 v, float angle);
 
-// 矩阵操作
+/* Matrix operations */
 Mat2 mat2(float a, float b, float c, float d);
 Mat2 mat2_identity(void);
 Mat2 mat2_rotation(float angle);
@@ -38,7 +38,7 @@ Mat2 mat2_mul(Mat2 a, Mat2 b);
 Mat2 mat2_transpose(Mat2 m);
 Mat2 mat2_invert(Mat2 m);
 
-// 工具函数
+/* Utility helpers */
 float clamp(float value, float min, float max);
 float min_f(float a, float b);
 float max_f(float a, float b);

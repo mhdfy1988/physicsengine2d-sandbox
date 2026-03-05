@@ -13,6 +13,16 @@ void physics_internal_update_velocities(PhysicsEngine* engine, float dt) {
         if (body == NULL || body->type != BODY_DYNAMIC) {
             continue;
         }
+        if (engine->experimental.sleep_enabled && body->sleeping) {
+            if (vec2_length_sq(body->force) > 1e-8f || fabsf(body->torque) > 1e-8f) {
+                body->sleeping = 0;
+                body->sleep_timer = 0.0f;
+            } else {
+                body->velocity = vec2(0.0f, 0.0f);
+                body->angular_velocity = 0.0f;
+                continue;
+            }
+        }
         if (!physics_internal_body_has_finite_state(body)) {
             body->active = 0;
             continue;
@@ -51,6 +61,9 @@ void physics_internal_update_positions(PhysicsEngine* engine, float dt) {
     for (i = 0; i < engine->body_count; i++) {
         RigidBody* body = engine->bodies[i];
         if (body == NULL || body->type == BODY_STATIC) {
+            continue;
+        }
+        if (engine->experimental.sleep_enabled && body->type == BODY_DYNAMIC && body->sleeping) {
             continue;
         }
         if (!physics_internal_body_has_finite_state(body)) {

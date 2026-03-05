@@ -32,7 +32,9 @@ typedef enum {
 
 typedef enum {
     PHYSICS_BROADPHASE_BRUTE_FORCE = 0,
-    PHYSICS_BROADPHASE_GRID = 1
+    PHYSICS_BROADPHASE_GRID = 1,
+    PHYSICS_BROADPHASE_SAP = 2,
+    PHYSICS_BROADPHASE_BVH = 3
 } PhysicsBroadphaseType;
 
 typedef struct {
@@ -157,6 +159,25 @@ typedef struct {
     void* user;
 } PhysicsJobSystemV1;
 
+#define PHYSICS_WORLD_SNAPSHOT_VERSION 1u
+typedef struct {
+    int active;
+    int sleeping;
+    BodyType type;
+    float mass;
+    float inertia;
+    Vec2 position;
+    float angle;
+    Vec2 velocity;
+    float angular_velocity;
+} PhysicsBodySnapshot;
+
+typedef struct {
+    unsigned int version;
+    int body_count;
+    PhysicsBodySnapshot bodies[MAX_BODIES];
+} PhysicsWorldSnapshot;
+
 void physics_engine_set_config(PhysicsEngine* engine, const PhysicsConfig* config);
 void physics_engine_get_config(const PhysicsEngine* engine, PhysicsConfig* out_config);
 PHYSICS_DEPRECATED("Use physics_engine_set_event_sink")
@@ -194,5 +215,8 @@ RigidBody* physics_engine_resolve_body_handle(const PhysicsEngine* engine, Physi
 PhysicsConstraintHandle physics_engine_get_constraint_handle(const PhysicsEngine* engine, const Constraint* constraint);
 const Constraint* physics_engine_resolve_constraint_handle(const PhysicsEngine* engine, PhysicsConstraintHandle handle);
 void physics_engine_set_event_sink(PhysicsEngine* engine, PhysicsEventSinkFn sink, void* user);
+int physics_engine_capture_snapshot(const PhysicsEngine* engine, PhysicsWorldSnapshot* out_snapshot);
+int physics_engine_apply_snapshot(PhysicsEngine* engine, const PhysicsWorldSnapshot* snapshot);
+int physics_engine_replay_from_snapshot(PhysicsEngine* engine, const PhysicsWorldSnapshot* snapshot, int steps);
 
 #endif

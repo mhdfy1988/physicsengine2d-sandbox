@@ -2,6 +2,38 @@
 #include <stddef.h>
 #include "physics_internal.h"
 
+typedef struct {
+    PhysicsEngine* engine;
+} PrepareInputBatch;
+
+static void prepare_input_range(int begin, int end, void* user) {
+    PrepareInputBatch* b = (PrepareInputBatch*)user;
+    int i;
+    if (b == NULL || b->engine == NULL) return;
+    for (i = begin; i < end; i++) {
+        PhysicsEngine* engine = b->engine;
+        RigidBody* body = engine->bodies[i];
+        if (body == NULL || !body->active || body->shape == NULL || !physics_internal_body_has_finite_state(body)) {
+            if (body != NULL) body->active = 0;
+            engine->aabbs[i].min = vec2(0.0f, 0.0f);
+            engine->aabbs[i].max = vec2(0.0f, 0.0f);
+            continue;
+        }
+        engine->aabbs[i] = physics_internal_body_compute_aabb(body);
+        if (engine->experimental.ccd_enabled && body->type == BODY_DYNAMIC && engine->current_step_dt > 0.0f) {
+            Vec2 prev_pos = vec2_sub(body->position, vec2_scale(body->velocity, engine->current_step_dt));
+            AABB prev_box = engine->aabbs[i];
+            Vec2 delta = vec2_sub(prev_pos, body->position);
+            prev_box.min = vec2_add(prev_box.min, delta);
+            prev_box.max = vec2_add(prev_box.max, delta);
+            engine->aabbs[i].min = vec2(min_f(engine->aabbs[i].min.x, prev_box.min.x),
+                                        min_f(engine->aabbs[i].min.y, prev_box.min.y));
+            engine->aabbs[i].max = vec2(max_f(engine->aabbs[i].max.x, prev_box.max.x),
+                                        max_f(engine->aabbs[i].max.y, prev_box.max.y));
+        }
+    }
+}
+
 int physics_internal_body_has_finite_state(const RigidBody* body) {
     int i;
     if (body == NULL || body->shape == NULL) {
@@ -95,22 +127,14 @@ void physics_internal_bind_default_pipeline(PhysicsEngine* engine) {
 }
 
 void physics_internal_prepare_collision_inputs(PhysicsEngine* engine) {
-    int i;
+    PrepareInputBatch batch;
     if (engine == NULL) {
         return;
     }
 
     engine->broadphase_pair_count = 0;
-    for (i = 0; i < engine->body_count; i++) {
-        RigidBody* body = engine->bodies[i];
-        if (body == NULL || !body->active || body->shape == NULL || !physics_internal_body_has_finite_state(body)) {
-            if (body != NULL) body->active = 0;
-            engine->aabbs[i].min = vec2(0.0f, 0.0f);
-            engine->aabbs[i].max = vec2(0.0f, 0.0f);
-            continue;
-        }
-        engine->aabbs[i] = physics_internal_body_compute_aabb(body);
-    }
+    batch.engine = engine;
+    physics_internal_parallel_for(engine, engine->body_count, 32, prepare_input_range, &batch);
 }
 
 void physics_internal_detect_collisions(PhysicsEngine* engine) {
@@ -123,4 +147,5 @@ void physics_internal_detect_collisions(PhysicsEngine* engine) {
     if (engine->narrowphase_ops.build_contacts != NULL) {
         engine->narrowphase_ops.build_contacts(engine, engine->narrowphase_ops.user);
     }
+    physics_internal_append_ccd_contacts(engine, engine->current_step_dt);
 }

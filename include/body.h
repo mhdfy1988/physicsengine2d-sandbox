@@ -38,6 +38,8 @@ typedef struct {
     int owns_shape;
 
     int active;
+    int sleeping;
+    float sleep_timer;
 } RigidBody;
 
 RigidBody* body_create(float x, float y, float mass, Shape* shape);

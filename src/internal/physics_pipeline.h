@@ -18,8 +18,10 @@ typedef struct {
     PhysicsEngine* engine_hint;
     CollisionManifold* contacts;
     int contact_count;
+    const int* contact_ids;
     Constraint* constraints;
     int constraint_count;
+    const int* constraint_ids;
 } PhysicsSolverWorldView;
 
 typedef struct {
@@ -36,6 +38,7 @@ typedef void (*PhysicsParallelForFn)(int begin, int end, void* user);
 
 int physics_internal_default_build_pairs(PhysicsEngine* engine, void* user);
 int physics_internal_default_build_contacts(PhysicsEngine* engine, void* user);
+void physics_internal_append_ccd_contacts(PhysicsEngine* engine, float dt);
 void physics_internal_bind_default_pipeline(PhysicsEngine* engine);
 
 void physics_internal_step(PhysicsEngine* engine);

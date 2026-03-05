@@ -28,6 +28,8 @@ struct PhysicsEngine {
 
     CollisionManifold contacts[MAX_CONTACTS];
     int contact_count;
+    CollisionManifold persistent_contacts[MAX_CONTACTS];
+    int persistent_contact_count;
 
     Constraint constraints[MAX_CONSTRAINTS];
     int constraint_count;
@@ -51,6 +53,7 @@ struct PhysicsEngine {
     void* event_sink_user;
     PhysicsConfigSnapshot last_step_config_snapshot;
     PhysicsStepProfile last_profile;
+    float current_step_dt;
 };
 
 #endif

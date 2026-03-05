@@ -5,7 +5,8 @@
 
 typedef enum {
     CONSTRAINT_DISTANCE,
-    CONSTRAINT_SPRING
+    CONSTRAINT_SPRING,
+    CONSTRAINT_ROPE
 } ConstraintType;
 
 typedef struct {
@@ -34,6 +35,9 @@ void constraint_init_spring(Constraint* c, RigidBody* a, RigidBody* b,
                             Vec2 world_anchor_a, Vec2 world_anchor_b,
                             float rest_length, float stiffness, float damping,
                             int collide_connected);
+void constraint_init_rope(Constraint* c, RigidBody* a, RigidBody* b,
+                          Vec2 world_anchor_a, Vec2 world_anchor_b,
+                          float max_length, float stiffness, int collide_connected);
 void constraint_warm_start(Constraint* c);
 void constraint_solve_velocity(Constraint* c, float dt);
 void constraint_solve_position(Constraint* c);

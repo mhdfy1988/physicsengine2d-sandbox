@@ -1,10 +1,8 @@
 #include <math.h>
 #include <stddef.h>
 #include "../include/constraint.h"
-
-static Vec2 cross_scalar_vec(float s, Vec2 v) {
-    return vec2(-s * v.y, s * v.x);
-}
+#include "internal/physics_math_internal.h"
+#include "internal/physics_tuning.h"
 
 static float constraint_mass_denom(const RigidBody* a, const RigidBody* b, Vec2 ra, Vec2 rb, Vec2 n) {
     float ra_cn = vec2_cross(ra, n);
@@ -84,7 +82,7 @@ void constraint_init_distance(Constraint* c, RigidBody* a, RigidBody* b,
     c->local_anchor_a = body_get_local_point(a, world_anchor_a);
     c->local_anchor_b = body_get_local_point(b, world_anchor_b);
     c->rest_length = vec2_length(vec2_sub(world_anchor_b, world_anchor_a));
-    c->stiffness = clamp(stiffness, 0.08f, 1.0f);
+    c->stiffness = clamp(stiffness, PHYSICS_TUNE_CONSTRAINT_MIN_STIFFNESS, 1.0f);
     c->damping = 0.0f;
     c->break_force = 0.0f;
     c->last_impulse = 0.0f;
@@ -116,7 +114,29 @@ void constraint_init_spring(Constraint* c, RigidBody* a, RigidBody* b,
     c->active = 1;
 }
 
+void constraint_init_rope(Constraint* c, RigidBody* a, RigidBody* b,
+                          Vec2 world_anchor_a, Vec2 world_anchor_b,
+                          float max_length, float stiffness, int collide_connected) {
+    if (c == NULL || a == NULL || b == NULL) {
+        return;
+    }
+    c->type = CONSTRAINT_ROPE;
+    c->body_a = a;
+    c->body_b = b;
+    c->local_anchor_a = body_get_local_point(a, world_anchor_a);
+    c->local_anchor_b = body_get_local_point(b, world_anchor_b);
+    c->rest_length = max_f(max_length, 0.0f);
+    c->stiffness = clamp(stiffness, PHYSICS_TUNE_CONSTRAINT_MIN_STIFFNESS, 1.0f);
+    c->damping = 0.0f;
+    c->break_force = 0.0f;
+    c->last_impulse = 0.0f;
+    c->last_force = 0.0f;
+    c->collide_connected = collide_connected ? 1 : 0;
+    c->active = 1;
+}
+
 void constraint_solve_velocity(Constraint* c, float dt) {
+    const float wake_impulse_threshold = PHYSICS_TUNE_WAKE_IMPULSE_THRESHOLD;
     if (c == NULL || !c->active || c->body_a == NULL || c->body_b == NULL) {
         return;
     }
@@ -137,19 +157,34 @@ void constraint_solve_velocity(Constraint* c, float dt) {
         return;
     }
 
-    Vec2 va = vec2_add(a->velocity, cross_scalar_vec(a->angular_velocity, ra));
-    Vec2 vb = vec2_add(b->velocity, cross_scalar_vec(b->angular_velocity, rb));
+    Vec2 va = vec2_add(a->velocity, physics_cross_scalar_vec(a->angular_velocity, ra));
+    Vec2 vb = vec2_add(b->velocity, physics_cross_scalar_vec(b->angular_velocity, rb));
     float rel_n = vec2_dot(vec2_sub(vb, va), n);
     float x = dist - c->rest_length;
     float j = 0.0f;
 
     if (c->type == CONSTRAINT_DISTANCE) {
-        float effective_stiffness = max_f(c->stiffness, 0.08f);
+        float effective_stiffness = max_f(c->stiffness, PHYSICS_TUNE_CONSTRAINT_MIN_STIFFNESS);
         float inv_dt = (dt > 1e-6f) ? (1.0f / dt) : 0.0f;
         float target_rel = -effective_stiffness * x * inv_dt;
         j = (target_rel - rel_n) / denom;
+    } else if (c->type == CONSTRAINT_ROPE) {
+        float effective_stiffness = max_f(c->stiffness, PHYSICS_TUNE_CONSTRAINT_MIN_STIFFNESS);
+        float inv_dt = (dt > 1e-6f) ? (1.0f / dt) : 0.0f;
+        if (x <= 0.0f) {
+            c->last_impulse = 0.0f;
+            c->last_force = 0.0f;
+            return;
+        }
+        {
+            float target_rel = -effective_stiffness * x * inv_dt;
+            j = (target_rel - rel_n) / denom;
+            if (j > 0.0f) {
+                j = 0.0f;
+            }
+        }
     } else {
-        float effective_stiffness = max_f(c->stiffness, 0.20f);
+        float effective_stiffness = max_f(c->stiffness, PHYSICS_TUNE_CONSTRAINT_SPRING_MIN_STIFFNESS);
         float desired_force = -effective_stiffness * x - c->damping * rel_n;
         j = (desired_force * dt) / denom;
     }
@@ -160,7 +195,8 @@ void constraint_solve_velocity(Constraint* c, float dt) {
     }
 
     c->last_impulse += j;
-    c->last_impulse = clamp(c->last_impulse, -18.0f, 18.0f);
+    c->last_impulse = clamp(c->last_impulse, -PHYSICS_TUNE_CONSTRAINT_IMPULSE_LIMIT,
+                            PHYSICS_TUNE_CONSTRAINT_IMPULSE_LIMIT);
     c->last_force = (dt > 1e-6f) ? (fabsf(j) / dt) : 0.0f;
     if (c->break_force > 0.0f && c->last_force > c->break_force) {
         c->active = 0;
@@ -173,6 +209,12 @@ void constraint_solve_velocity(Constraint* c, float dt) {
     b->velocity = vec2_add(b->velocity, vec2_scale(impulse, b->inv_mass));
     a->angular_velocity -= vec2_cross(ra, impulse) * a->inv_inertia;
     b->angular_velocity += vec2_cross(rb, impulse) * b->inv_inertia;
+    if (fabsf(j) > wake_impulse_threshold) {
+        a->sleeping = 0;
+        b->sleeping = 0;
+        a->sleep_timer = 0.0f;
+        b->sleep_timer = 0.0f;
+    }
 }
 
 void constraint_solve_position(Constraint* c) {
@@ -202,11 +244,18 @@ void constraint_solve_position(Constraint* c) {
 
     float stiffness = 0.0f;
     if (c->type == CONSTRAINT_DISTANCE) {
-        stiffness = max_f(c->stiffness, 0.08f);
+        stiffness = max_f(c->stiffness, PHYSICS_TUNE_CONSTRAINT_MIN_STIFFNESS);
+    } else if (c->type == CONSTRAINT_ROPE) {
+        if (error <= 0.0f) {
+            return;
+        }
+        stiffness = max_f(c->stiffness, PHYSICS_TUNE_CONSTRAINT_MIN_STIFFNESS);
     } else {
         // Spring constraints should not be hard-snapped in the position solver.
         // Keep only a very small drift correction, otherwise it behaves like a rigid rod.
-        stiffness = clamp(max_f(c->stiffness, 0.20f) * 0.0005f, 0.0f, 0.03f);
+        stiffness = clamp(max_f(c->stiffness, PHYSICS_TUNE_CONSTRAINT_SPRING_MIN_STIFFNESS) *
+                              PHYSICS_TUNE_CONSTRAINT_SPRING_POS_CORRECTION_SCALE,
+                          0.0f, PHYSICS_TUNE_CONSTRAINT_SPRING_POS_CORRECTION_MAX);
     }
     float correction = error * stiffness;
     Vec2 correction_vec = vec2_scale(n, correction / inv_mass_sum);

@@ -11,6 +11,11 @@ typedef struct {
     int next;
 } GridEntry;
 
+typedef struct {
+    int body_index;
+    float min_x;
+} SapProxy;
+
 static int aabb_overlaps(AABB a, AABB b) {
     if (a.max.x < b.min.x || b.max.x < a.min.x) return 0;
     if (a.max.y < b.min.y || b.max.y < a.min.y) return 0;
@@ -173,6 +178,77 @@ static void broadphase_build_grid(PhysicsEngine* engine, const AABB* aabbs, floa
     }
 }
 
+static void broadphase_build_sap(PhysicsEngine* engine, const AABB* aabbs) {
+    SapProxy* proxies;
+    int* active;
+    int proxy_count = 0;
+    int i;
+    proxies = (SapProxy*)physics_internal_scratch_alloc(engine, (int)(sizeof(SapProxy) * (size_t)engine->body_count), 16);
+    active = (int*)physics_internal_scratch_alloc(engine, (int)(sizeof(int) * (size_t)engine->body_count), 16);
+    if (proxies == NULL || active == NULL) {
+        broadphase_build_bruteforce(engine, aabbs);
+        return;
+    }
+
+    for (i = 0; i < engine->body_count; i++) {
+        RigidBody* b = engine->bodies[i];
+        if (b == NULL || !b->active || b->shape == NULL) continue;
+        proxies[proxy_count].body_index = i;
+        proxies[proxy_count].min_x = aabbs[i].min.x;
+        proxy_count++;
+    }
+
+    for (i = 1; i < proxy_count; i++) {
+        SapProxy key = proxies[i];
+        int j = i - 1;
+        while (j >= 0 && (proxies[j].min_x > key.min_x ||
+               (proxies[j].min_x == key.min_x && proxies[j].body_index > key.body_index))) {
+            proxies[j + 1] = proxies[j];
+            j--;
+        }
+        proxies[j + 1] = key;
+    }
+
+    {
+        int active_count = 0;
+        for (i = 0; i < proxy_count; i++) {
+            int bi = proxies[i].body_index;
+            int k = 0;
+            int j;
+            for (j = 0; j < active_count; j++) {
+                int aj = active[j];
+                if (aabbs[aj].max.x >= aabbs[bi].min.x) {
+                    active[k++] = aj;
+                }
+            }
+            active_count = k;
+            for (j = 0; j < active_count; j++) {
+                broadphase_add_pair(engine, active[j], bi, aabbs);
+            }
+            if (active_count < engine->body_count) {
+                active[active_count++] = bi;
+            }
+        }
+    }
+}
+
+static void broadphase_sort_pairs(PhysicsEngine* engine) {
+    int i;
+    if (engine == NULL) return;
+    for (i = 1; i < engine->broadphase_pair_count; i++) {
+        BroadphasePair key = engine->broadphase_pairs[i];
+        int j = i - 1;
+        while (j >= 0) {
+            BroadphasePair cur = engine->broadphase_pairs[j];
+            if (cur.ia < key.ia) break;
+            if (cur.ia == key.ia && cur.ib <= key.ib) break;
+            engine->broadphase_pairs[j + 1] = cur;
+            j--;
+        }
+        engine->broadphase_pairs[j + 1] = key;
+    }
+}
+
 int physics_internal_default_build_pairs(PhysicsEngine* engine, void* user) {
     const AABB* aabbs;
     (void)user;
@@ -191,8 +267,15 @@ int physics_internal_default_build_pairs(PhysicsEngine* engine, void* user) {
     broadphase_mark_blocked_pairs(engine);
     if (engine->config.broadphase_type == PHYSICS_BROADPHASE_GRID && engine->config.broadphase_cell_size > 1e-6f) {
         broadphase_build_grid(engine, aabbs, engine->config.broadphase_cell_size);
+    } else if (engine->config.broadphase_type == PHYSICS_BROADPHASE_SAP) {
+        broadphase_build_sap(engine, aabbs);
+    } else if (engine->config.broadphase_type == PHYSICS_BROADPHASE_BVH) {
+        physics_internal_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT,
+                                   "broadphase_bvh_unsupported_fallback_bruteforce");
+        broadphase_build_bruteforce(engine, aabbs);
     } else {
         broadphase_build_bruteforce(engine, aabbs);
     }
+    broadphase_sort_pairs(engine);
     return engine->broadphase_pair_count;
 }

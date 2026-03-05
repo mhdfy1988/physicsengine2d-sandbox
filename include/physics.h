@@ -63,6 +63,9 @@ Constraint* physics_engine_add_spring_constraint(PhysicsEngine* engine, RigidBod
                                                  Vec2 world_anchor_a, Vec2 world_anchor_b,
                                                  float rest_length, float stiffness, float damping,
                                                  int collide_connected);
+Constraint* physics_engine_add_rope_constraint(PhysicsEngine* engine, RigidBody* a, RigidBody* b,
+                                               Vec2 world_anchor_a, Vec2 world_anchor_b,
+                                               float max_length, float stiffness, int collide_connected);
 void physics_engine_clear_constraints(PhysicsEngine* engine);
 
 void physics_engine_step(PhysicsEngine* engine);

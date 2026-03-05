@@ -12,12 +12,14 @@ typedef struct {
 
 typedef struct {
     CollisionManifold* contacts;
+    const int* contact_ids;
     int count;
     ContactSolveCache* cache;
 } ContactBatch;
 
 typedef struct {
     Constraint* constraints;
+    const int* constraint_ids;
     int count;
     float dt;
 } ConstraintBatch;
@@ -29,7 +31,8 @@ static void solve_contact_velocity_batch(int begin, int end, void* user) {
     if (begin < 0) begin = 0;
     if (end > b->count) end = b->count;
     for (i = begin; i < end; i++) {
-        collision_resolve_velocity(&b->contacts[i]);
+        int ci = (b->contact_ids != NULL) ? b->contact_ids[i] : i;
+        collision_resolve_velocity(&b->contacts[ci]);
     }
 }
 
@@ -40,7 +43,8 @@ static void solve_constraint_velocity_batch(int begin, int end, void* user) {
     if (begin < 0) begin = 0;
     if (end > b->count) end = b->count;
     for (i = begin; i < end; i++) {
-        constraint_solve_velocity(&b->constraints[i], b->dt);
+        int ci = (b->constraint_ids != NULL) ? b->constraint_ids[i] : i;
+        constraint_solve_velocity(&b->constraints[ci], b->dt);
     }
 }
 
@@ -51,7 +55,8 @@ static void solve_contact_position_batch(int begin, int end, void* user) {
     if (begin < 0) begin = 0;
     if (end > b->count) end = b->count;
     for (i = begin; i < end; i++) {
-        CollisionManifold* m = &b->contacts[i];
+        int ci = (b->contact_ids != NULL) ? b->contact_ids[i] : i;
+        CollisionManifold* m = &b->contacts[ci];
         ContactSolveCache* c = (b->cache != NULL) ? &b->cache[i] : NULL;
         if (m->bodyA == NULL || m->bodyB == NULL) continue;
         if (c != NULL && c->valid &&
@@ -88,7 +93,8 @@ static void solve_constraint_position_batch(int begin, int end, void* user) {
     if (begin < 0) begin = 0;
     if (end > b->count) end = b->count;
     for (i = begin; i < end; i++) {
-        constraint_solve_position(&b->constraints[i]);
+        int ci = (b->constraint_ids != NULL) ? b->constraint_ids[i] : i;
+        constraint_solve_position(&b->constraints[ci]);
     }
 }
 
@@ -102,6 +108,7 @@ void physics_internal_solve_world_view(PhysicsSolverWorldView* view, const Physi
     ConstraintBatch constraint_batch;
     ContactSolveCache* contact_cache = NULL;
     PhysicsEngine* engine_hint = NULL;
+    PhysicsEngine* dispatch_engine = NULL;
     if (view == NULL || view->contacts == NULL || view->constraints == NULL) {
         return;
     }
@@ -110,12 +117,15 @@ void physics_internal_solve_world_view(PhysicsSolverWorldView* view, const Physi
     position_iters = (ctx != NULL && ctx->position_iterations > 0) ? ctx->position_iterations : 1;
     dt = (ctx != NULL && ctx->dt > 0.0f) ? ctx->dt : (1.0f / 60.0f);
     contact_batch.contacts = view->contacts;
+    contact_batch.contact_ids = view->contact_ids;
     contact_batch.count = view->contact_count;
     contact_batch.cache = NULL;
     constraint_batch.constraints = view->constraints;
+    constraint_batch.constraint_ids = view->constraint_ids;
     constraint_batch.count = view->constraint_count;
     constraint_batch.dt = dt;
     engine_hint = view->engine_hint;
+    dispatch_engine = (engine_hint != NULL && engine_hint->job_system_installed) ? engine_hint : NULL;
     if (engine_hint != NULL && view->contact_count > 0) {
         contact_cache = (ContactSolveCache*)physics_internal_scratch_alloc(engine_hint,
             (int)(sizeof(ContactSolveCache) * (size_t)view->contact_count), 16);
@@ -129,16 +139,17 @@ void physics_internal_solve_world_view(PhysicsSolverWorldView* view, const Physi
     }
 
     for (i = 0; i < view->constraint_count; i++) {
-        constraint_warm_start(&view->constraints[i]);
+        int ci = (view->constraint_ids != NULL) ? view->constraint_ids[i] : i;
+        constraint_warm_start(&view->constraints[ci]);
     }
 
     for (iter = 0; iter < velocity_iters; iter++) {
-        physics_internal_parallel_for(engine_hint, view->contact_count, 64, solve_contact_velocity_batch, &contact_batch);
-        physics_internal_parallel_for(engine_hint, view->constraint_count, 64, solve_constraint_velocity_batch, &constraint_batch);
+        physics_internal_parallel_for(dispatch_engine, view->contact_count, 64, solve_contact_velocity_batch, &contact_batch);
+        physics_internal_parallel_for(dispatch_engine, view->constraint_count, 64, solve_constraint_velocity_batch, &constraint_batch);
     }
 
     for (iter = 0; iter < position_iters; iter++) {
-        physics_internal_parallel_for(engine_hint, view->contact_count, 64, solve_contact_position_batch, &contact_batch);
-        physics_internal_parallel_for(engine_hint, view->constraint_count, 64, solve_constraint_position_batch, &constraint_batch);
+        physics_internal_parallel_for(dispatch_engine, view->contact_count, 64, solve_contact_position_batch, &contact_batch);
+        physics_internal_parallel_for(dispatch_engine, view->constraint_count, 64, solve_constraint_position_batch, &constraint_batch);
     }
 }

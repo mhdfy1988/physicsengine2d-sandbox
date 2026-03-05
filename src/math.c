@@ -1,8 +1,8 @@
-#include <math.h>
+﻿#include <math.h>
 #include <stdlib.h>
 #include "../include/physics_math.h"
 
-// ===== 向量操作 =====
+// ===== Vector Operations =====
 Vec2 vec2(float x, float y) {
     Vec2 v = {x, y};
     return v;
@@ -54,7 +54,7 @@ Vec2 vec2_rotate(Vec2 v, float angle) {
     return vec2(v.x * cos_a - v.y * sin_a, v.x * sin_a + v.y * cos_a);
 }
 
-// ===== 矩阵操作 =====
+// ===== Matrix Operations =====
 Mat2 mat2(float a, float b, float c, float d) {
     Mat2 m = {{{a, b}, {c, d}}};
     return m;
@@ -102,7 +102,7 @@ Mat2 mat2_invert(Mat2 m) {
     );
 }
 
-// ===== 工具函数 =====
+// ===== Utility Functions =====
 float clamp(float value, float min, float max) {
     if (!isfinite(value)) return min;
     if (!isfinite(min)) min = 0.0f;

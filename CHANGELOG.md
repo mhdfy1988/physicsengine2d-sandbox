@@ -19,3 +19,12 @@ Format guideline:
 - `editor/changed`: Editor constraint selection migrated from raw pointer to constraint index.
 - `build/changed`: `Makefile` now outputs reusable core archive `lib/libphysics2d.a` via `make core`.
 - `tests/changed`: Regression tests migrated to public API usage and kept green (`PASS 13/13`).
+
+## 2026-03-05
+
+- `core/added`: Added sleeping/wakeup runtime behavior for dynamic bodies with automatic wake on force/impulse/contact.
+- `core/added`: Added rope constraint type (`CONSTRAINT_ROPE`) and public creation API.
+- `core/changed`: Added island-aware solving improvements with deterministic pair/contact ordering and SAP broadphase mode.
+- `core/added`: Added snapshot/replay APIs (`physics_engine_capture_snapshot`, `physics_engine_apply_snapshot`, `physics_engine_replay_from_snapshot`).
+- `build/added`: Added `benchmark` and `test-long` targets (plus CMake test executables `physics_bench` and `physics_invariants`).
+- `tests/added`: Expanded regression coverage for sleep/wakeup, rope constraints, SAP broadphase, and snapshot replay determinism.

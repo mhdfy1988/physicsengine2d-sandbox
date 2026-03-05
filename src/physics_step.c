@@ -6,6 +6,7 @@
 #include <windows.h>
 #endif
 #include "physics_internal.h"
+#include "internal/physics_tuning.h"
 
 static double time_now_ms(void) {
 #ifdef _WIN32
@@ -79,6 +80,70 @@ static void step_stage_solve(PhysicsEngine* engine, float dt) {
     physics_internal_resolve_collisions(engine, &solver_ctx);
 }
 
+static void step_stage_capture_persistent_contacts(PhysicsEngine* engine) {
+    int i;
+    if (engine == NULL) return;
+    engine->persistent_contact_count = 0;
+    for (i = 0; i < engine->contact_count && i < MAX_CONTACTS; i++) {
+        engine->persistent_contacts[i] = engine->contacts[i];
+        engine->persistent_contact_count++;
+    }
+}
+
+static int step_body_has_contact(const PhysicsEngine* engine, const RigidBody* body) {
+    int i;
+    if (engine == NULL || body == NULL) return 0;
+    for (i = 0; i < engine->contact_count; i++) {
+        const CollisionManifold* c = &engine->contacts[i];
+        if (c->bodyA == body || c->bodyB == body) return 1;
+    }
+    return 0;
+}
+
+static void step_stage_update_sleep(PhysicsEngine* engine, float dt) {
+    int i;
+    const float sleep_linear = PHYSICS_TUNE_SLEEP_LINEAR;
+    const float sleep_angular = PHYSICS_TUNE_SLEEP_ANGULAR;
+    const float contact_sleep_linear = PHYSICS_TUNE_SLEEP_CONTACT_LINEAR;
+    const float contact_sleep_angular = PHYSICS_TUNE_SLEEP_CONTACT_ANGULAR;
+    const float sleep_time = PHYSICS_TUNE_SLEEP_TIME;
+    if (engine == NULL || !engine->experimental.sleep_enabled) return;
+    for (i = 0; i < engine->body_count; i++) {
+        RigidBody* b = engine->bodies[i];
+        Vec2 gravity_force;
+        Vec2 external_force;
+        float linear_threshold;
+        float angular_threshold;
+        if (b == NULL || !b->active || b->type != BODY_DYNAMIC) continue;
+        gravity_force = vec2_scale(b->use_custom_gravity ? b->gravity : engine->gravity, b->mass);
+        external_force = vec2_sub(b->force, gravity_force);
+        if (vec2_length_sq(external_force) > 1e-8f || fabsf(b->torque) > 1e-8f) {
+            b->sleeping = 0;
+            b->sleep_timer = 0.0f;
+            continue;
+        }
+        if (step_body_has_contact(engine, b)) {
+            linear_threshold = contact_sleep_linear;
+            angular_threshold = contact_sleep_angular;
+        } else {
+            linear_threshold = sleep_linear;
+            angular_threshold = sleep_angular;
+        }
+        if (vec2_length_sq(b->velocity) <= linear_threshold * linear_threshold &&
+            fabsf(b->angular_velocity) <= angular_threshold) {
+            b->sleep_timer += dt;
+            if (b->sleep_timer >= sleep_time) {
+                b->sleeping = 1;
+                b->velocity = vec2(0.0f, 0.0f);
+                b->angular_velocity = 0.0f;
+            }
+        } else {
+            b->sleeping = 0;
+            b->sleep_timer = 0.0f;
+        }
+    }
+}
+
 void physics_internal_step(PhysicsEngine* engine) {
     Vec2 saved_force[MAX_BODIES];
     Vec2 prev_pos[MAX_BODIES];
@@ -131,6 +196,7 @@ void physics_internal_step(PhysicsEngine* engine) {
     for (sub = 0; sub < substeps; sub++) {
         double ta;
         double tb;
+        engine->current_step_dt = sub_dt;
         for (i = 0; i < engine->body_count; i++) {
             RigidBody* body = engine->bodies[i];
             if (body == NULL) continue;
@@ -158,14 +224,17 @@ void physics_internal_step(PhysicsEngine* engine) {
         if (engine->narrowphase_ops.build_contacts != NULL) {
             engine->narrowphase_ops.build_contacts(engine, engine->narrowphase_ops.user);
         }
+        physics_internal_append_ccd_contacts(engine, sub_dt);
         tb = time_now_ms();
         profile.narrowphase_ms += (tb - ta);
         physics_internal_emit_event(engine, PHYSICS_EVENT_POST_NARROWPHASE, engine->contact_count, (tb - ta), NULL, NULL);
 
         ta = time_now_ms();
         step_stage_solve(engine, sub_dt);
+        step_stage_update_sleep(engine, sub_dt);
         tb = time_now_ms();
         profile.solve_ms += (tb - ta);
+        step_stage_capture_persistent_contacts(engine);
     }
 
     {
@@ -179,5 +248,6 @@ void physics_internal_step(PhysicsEngine* engine) {
     profile.contact_count = engine->contact_count;
     profile.total_ms = time_now_ms() - t0;
     engine->last_profile = profile;
+    engine->current_step_dt = full_dt;
     physics_internal_emit_event(engine, PHYSICS_EVENT_STEP_END, profile.contact_count, profile.total_ms, NULL, NULL);
 }

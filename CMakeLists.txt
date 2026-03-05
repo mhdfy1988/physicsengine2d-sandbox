@@ -18,12 +18,14 @@ set(PHYSICS2D_SOURCES
     src/constraint.c
     src/collision.c
     src/physics.c
+    src/physics_snapshot.c
     src/physics_world.c
     src/physics_memory.c
     src/physics_ids.c
     src/physics_parallel.c
     src/physics_broadphase.c
     src/physics_contact_manager.c
+    src/physics_ccd.c
     src/physics_raycast.c
     src/physics_step.c
     src/physics_collision_pipeline.c
@@ -87,14 +89,36 @@ if(BUILD_EDITOR)
 endif()
 
 if(BUILD_TESTS)
-    add_executable(physics_tests tests/regression_tests.c)
+    add_executable(physics_tests
+        tests/regression_tests.c
+        tests/regression_collision_core_tests.c
+        tests/regression_event_snapshot_tests.c
+        tests/regression_pipeline_error_tests.c
+        tests/regression_sleep_broadphase_tests.c
+        tests/regression_stress_constraint_tests.c
+        tests/regression_engine_feature_tests.c
+    )
+    add_executable(physics_bench tests/benchmark_suite.c)
+    add_executable(physics_invariants tests/invariant_tests.c)
     target_link_libraries(physics_tests PRIVATE physics2d)
+    target_link_libraries(physics_bench PRIVATE physics2d)
+    target_link_libraries(physics_invariants PRIVATE physics2d)
     if(MSVC)
         target_compile_options(physics_tests PRIVATE /W4)
+        target_compile_options(physics_bench PRIVATE /W4)
+        target_compile_options(physics_invariants PRIVATE /W4)
     else()
         target_compile_options(physics_tests PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+        target_compile_options(physics_bench PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+        target_compile_options(physics_invariants PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
     endif()
     set_target_properties(physics_tests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+    set_target_properties(physics_bench PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+    set_target_properties(physics_invariants PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
 endif()

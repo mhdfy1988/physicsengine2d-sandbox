@@ -10,7 +10,7 @@ BINDIR = bin
 OBJDIR = obj
 LIBDIR = lib
 
-SOURCES = $(SRCDIR)/math.c $(SRCDIR)/shape.c $(SRCDIR)/body.c $(SRCDIR)/constraint.c $(SRCDIR)/collision.c $(SRCDIR)/physics.c $(SRCDIR)/physics_world.c $(SRCDIR)/physics_memory.c $(SRCDIR)/physics_ids.c $(SRCDIR)/physics_parallel.c $(SRCDIR)/physics_broadphase.c $(SRCDIR)/physics_contact_manager.c $(SRCDIR)/physics_raycast.c $(SRCDIR)/physics_step.c $(SRCDIR)/physics_collision_pipeline.c $(SRCDIR)/physics_resolve.c $(SRCDIR)/physics_solver.c $(SRCDIR)/physics_integrate.c
+SOURCES = $(SRCDIR)/math.c $(SRCDIR)/shape.c $(SRCDIR)/body.c $(SRCDIR)/constraint.c $(SRCDIR)/collision.c $(SRCDIR)/physics.c $(SRCDIR)/physics_snapshot.c $(SRCDIR)/physics_world.c $(SRCDIR)/physics_memory.c $(SRCDIR)/physics_ids.c $(SRCDIR)/physics_parallel.c $(SRCDIR)/physics_broadphase.c $(SRCDIR)/physics_contact_manager.c $(SRCDIR)/physics_ccd.c $(SRCDIR)/physics_raycast.c $(SRCDIR)/physics_step.c $(SRCDIR)/physics_collision_pipeline.c $(SRCDIR)/physics_resolve.c $(SRCDIR)/physics_solver.c $(SRCDIR)/physics_integrate.c
 OBJECTS = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(SOURCES))
 DEPS = $(OBJECTS:.o=.d)
 
@@ -18,11 +18,15 @@ SANDBOX_SRCS = $(APPDIR_DWRITE)/main.c $(APPDIR_DWRITE)/infrastructure/project_t
 SANDBOX_ICON_RC = $(APPDIR_DWRITE)/app_icon.rc
 SANDBOX_ICON_ICO = assets/icons/physics_sandbox.ico
 SANDBOX_ICON_OBJ = $(OBJDIR)/app_icon.res.o
-TEST_SRC = $(TESTDIR)/regression_tests.c
+TEST_SRC = $(TESTDIR)/regression_tests.c $(TESTDIR)/regression_collision_core_tests.c $(TESTDIR)/regression_event_snapshot_tests.c $(TESTDIR)/regression_pipeline_error_tests.c $(TESTDIR)/regression_sleep_broadphase_tests.c $(TESTDIR)/regression_stress_constraint_tests.c $(TESTDIR)/regression_engine_feature_tests.c
+BENCH_SRC = $(TESTDIR)/benchmark_suite.c
+INVARIANT_SRC = $(TESTDIR)/invariant_tests.c
 
 CORE_LIB = $(LIBDIR)/libphysics2d.a
 SANDBOX_EXECUTABLE = $(BINDIR)/physics_sandbox
 TEST_EXECUTABLE = $(BINDIR)/physics_tests
+BENCH_EXECUTABLE = $(BINDIR)/physics_bench
+INVARIANT_EXECUTABLE = $(BINDIR)/physics_invariants
 
 WIN_DWRITE_LIBS = -ld2d1 -ldwrite -lwindowscodecs -lole32 -luuid -lshcore -lgdi32 -luser32
 WIN_GUI_FLAGS = -mwindows
@@ -53,6 +57,12 @@ $(SANDBOX_EXECUTABLE): $(CORE_LIB) $(SANDBOX_SRCS) $(SANDBOX_ICON_OBJ) | $(BINDI
 $(TEST_EXECUTABLE): $(CORE_LIB) $(TEST_SRC) | $(BINDIR)
 	$(CC) $(CFLAGS) $(TEST_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
 
+$(BENCH_EXECUTABLE): $(CORE_LIB) $(BENCH_SRC) | $(BINDIR)
+	$(CC) $(CFLAGS) $(BENCH_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+
+$(INVARIANT_EXECUTABLE): $(CORE_LIB) $(INVARIANT_SRC) | $(BINDIR)
+	$(CC) $(CFLAGS) $(INVARIANT_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+
 core: $(CORE_LIB)
 
 sandbox: $(SANDBOX_EXECUTABLE)
@@ -62,6 +72,12 @@ run: $(SANDBOX_EXECUTABLE)
 
 test: $(TEST_EXECUTABLE)
 	./$(TEST_EXECUTABLE)
+
+benchmark: $(BENCH_EXECUTABLE)
+	./$(BENCH_EXECUTABLE)
+
+test-long: $(INVARIANT_EXECUTABLE)
+	./$(INVARIANT_EXECUTABLE)
 
 check-core:
 	powershell -ExecutionPolicy Bypass -File .\scripts\check_core_change.ps1
@@ -79,4 +95,4 @@ clean:
 
 -include $(DEPS)
 
-.PHONY: all core sandbox run test check-core check-arch check-api clean
+.PHONY: all core sandbox run test benchmark test-long check-core check-arch check-api clean

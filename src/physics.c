@@ -29,48 +29,61 @@ static PhysicsExperimentalConfig physics_default_experimental_config(void) {
     return cfg;
 }
 
-static void physics_set_error(PhysicsEngine* engine, PhysicsErrorCode error) {
+void physics_internal_set_error(PhysicsEngine* engine, PhysicsErrorCode error, const char* message_override) {
     if (engine == NULL) return;
     engine->last_error = error;
     if (error != PHYSICS_ERROR_NONE) {
-        physics_internal_emit_event(engine, PHYSICS_EVENT_ERROR, (int)error, 0.0, physics_error_code_string(error), NULL);
+        const char* message = message_override != NULL ? message_override : physics_error_code_string(error);
+        physics_internal_emit_event(engine, PHYSICS_EVENT_ERROR, (int)error, 0.0, message, NULL);
     }
 }
 
-void physics_internal_emit_event(PhysicsEngine* engine, PhysicsEventType type, int ivalue, double dvalue,
-                                 const char* message, const CollisionManifold* contact) {
-    if (engine == NULL) return;
+static void physics_set_error(PhysicsEngine* engine, PhysicsErrorCode error) {
+    physics_internal_set_error(engine, error, NULL);
+}
+
+static void physics_emit_trace_event(PhysicsEngine* engine, PhysicsEventType type, int ivalue, double dvalue,
+                                     const char* message, const CollisionManifold* contact) {
 #if PHYSICS_ENABLE_TRACE
-    {
-        PhysicsTraceEvent event;
-        memset(&event, 0, sizeof(event));
-        event.type = type;
-        event.step_index = engine->last_profile.step_index;
-        switch (type) {
-            case PHYSICS_EVENT_POST_BROADPHASE:
-            case PHYSICS_EVENT_POST_NARROWPHASE:
-                event.payload.stage.count = ivalue;
-                event.payload.stage.elapsed_ms = dvalue;
-                break;
-            case PHYSICS_EVENT_STEP_END:
-                event.payload.step_end.contact_count = ivalue;
-                event.payload.step_end.total_ms = dvalue;
-                break;
-            case PHYSICS_EVENT_ERROR:
-                event.payload.error.code = (PhysicsErrorCode)ivalue;
-                event.payload.error.message = message;
-                break;
-            case PHYSICS_EVENT_CONTACT_CREATED:
-                event.payload.contact.contact = contact;
-                break;
-            default:
-                break;
-        }
-        if (engine->event_sink != NULL) {
-            engine->event_sink(&event, engine->event_sink_user);
-        }
+    PhysicsTraceEvent event;
+    memset(&event, 0, sizeof(event));
+    event.type = type;
+    event.step_index = engine->last_profile.step_index;
+    switch (type) {
+        case PHYSICS_EVENT_POST_BROADPHASE:
+        case PHYSICS_EVENT_POST_NARROWPHASE:
+            event.payload.stage.count = ivalue;
+            event.payload.stage.elapsed_ms = dvalue;
+            break;
+        case PHYSICS_EVENT_STEP_END:
+            event.payload.step_end.contact_count = ivalue;
+            event.payload.step_end.total_ms = dvalue;
+            break;
+        case PHYSICS_EVENT_ERROR:
+            event.payload.error.code = (PhysicsErrorCode)ivalue;
+            event.payload.error.message = message;
+            break;
+        case PHYSICS_EVENT_CONTACT_CREATED:
+            event.payload.contact.contact = contact;
+            break;
+        default:
+            break;
     }
+    if (engine->event_sink != NULL) {
+        engine->event_sink(&event, engine->event_sink_user);
+    }
+#else
+    (void)engine;
+    (void)type;
+    (void)ivalue;
+    (void)dvalue;
+    (void)message;
+    (void)contact;
 #endif
+}
+
+static void physics_emit_legacy_callbacks(PhysicsEngine* engine, PhysicsEventType type, int ivalue,
+                                          const CollisionManifold* contact) {
     /* Compatibility bridge for legacy callbacks (always active for backward compatibility). */
     switch (type) {
         case PHYSICS_EVENT_STEP_BEGIN:
@@ -103,6 +116,13 @@ void physics_internal_emit_event(PhysicsEngine* engine, PhysicsEventType type, i
     }
 }
 
+void physics_internal_emit_event(PhysicsEngine* engine, PhysicsEventType type, int ivalue, double dvalue,
+                                 const char* message, const CollisionManifold* contact) {
+    if (engine == NULL) return;
+    physics_emit_trace_event(engine, type, ivalue, dvalue, message, contact);
+    physics_emit_legacy_callbacks(engine, type, ivalue, contact);
+}
+
 static void physics_sanitize_config(PhysicsConfig* config) {
     if (config == NULL) return;
     if (config->time_step <= 0.0f) config->time_step = 1.0f / 60.0f;
@@ -111,7 +131,9 @@ static void physics_sanitize_config(PhysicsConfig* config) {
     if (config->max_position_iterations_bias < 0) config->max_position_iterations_bias = 0;
     config->damping = clamp(config->damping, 0.0f, 1.0f);
     if (config->broadphase_cell_size <= 0.0f) config->broadphase_cell_size = 10.0f;
-    if (config->broadphase_type != PHYSICS_BROADPHASE_GRID) {
+    if (config->broadphase_type != PHYSICS_BROADPHASE_GRID &&
+        config->broadphase_type != PHYSICS_BROADPHASE_SAP &&
+        config->broadphase_type != PHYSICS_BROADPHASE_BVH) {
         config->broadphase_type = PHYSICS_BROADPHASE_BRUTE_FORCE;
     }
 }
@@ -161,6 +183,7 @@ PhysicsEngine* physics_engine_create(void) {
     engine->pair_stamp = pair_stamp;
     engine->pair_stamp_frame = 1;
     physics_internal_bind_default_pipeline(engine);
+    engine->current_step_dt = engine->config.time_step;
 
     return engine;
 }
@@ -416,6 +439,8 @@ int physics_engine_add_contact(PhysicsEngine* engine, RigidBody* a, RigidBody* b
     engine->contacts[engine->contact_count].bodyA = a;
     engine->contacts[engine->contact_count].bodyB = b;
     engine->contacts[engine->contact_count].info = local_info;
+    engine->contacts[engine->contact_count].cached_normal_impulse = 0.0f;
+    engine->contacts[engine->contact_count].cached_tangent_impulse = 0.0f;
     physics_internal_emit_event(engine, PHYSICS_EVENT_CONTACT_CREATED, engine->contact_count, 0.0, NULL,
                                 &engine->contacts[engine->contact_count]);
     engine->contact_count++;
@@ -548,13 +573,20 @@ void physics_engine_get_solver_config(const PhysicsEngine* engine, PhysicsSolver
 }
 
 void physics_engine_set_pipeline_config(PhysicsEngine* engine, const PhysicsPipelineConfig* config) {
+    PhysicsBroadphaseType requested_type;
     if (engine == NULL || config == NULL) {
         physics_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT);
         return;
     }
+    requested_type = config->broadphase_type;
     engine->config.broadphase_cell_size = config->broadphase_cell_size;
-    engine->config.broadphase_type = config->broadphase_type;
+    engine->config.broadphase_type = requested_type;
     physics_sanitize_config(&engine->config);
+    if (requested_type == PHYSICS_BROADPHASE_BVH) {
+        engine->config.broadphase_type = PHYSICS_BROADPHASE_BRUTE_FORCE;
+        physics_set_error(engine, PHYSICS_ERROR_INVALID_ARGUMENT);
+        return;
+    }
     physics_set_error(engine, PHYSICS_ERROR_NONE);
 }
 
@@ -893,6 +925,22 @@ Constraint* physics_engine_add_spring_constraint(PhysicsEngine* engine, RigidBod
     return c;
 }
 
+Constraint* physics_engine_add_rope_constraint(PhysicsEngine* engine, RigidBody* a, RigidBody* b,
+                                               Vec2 world_anchor_a, Vec2 world_anchor_b,
+                                               float max_length, float stiffness, int collide_connected) {
+    if (engine == NULL || a == NULL || b == NULL) {
+        return NULL;
+    }
+    if (engine->constraint_count >= MAX_CONSTRAINTS) {
+        return NULL;
+    }
+
+    Constraint* c = &engine->constraints[engine->constraint_count++];
+    constraint_init_rope(c, a, b, world_anchor_a, world_anchor_b, max_length, stiffness, collide_connected);
+    engine->constraint_epoch++;
+    return c;
+}
+
 void physics_engine_clear_constraints(PhysicsEngine* engine) {
     if (engine == NULL) {
         return;
@@ -920,6 +968,9 @@ void physics_engine_update_positions(PhysicsEngine* engine) {
 }
 
 void physics_engine_detect_collisions(PhysicsEngine* engine) {
+    if (engine != NULL) {
+        engine->current_step_dt = engine->config.time_step;
+    }
     physics_internal_detect_collisions(engine);
 }
 

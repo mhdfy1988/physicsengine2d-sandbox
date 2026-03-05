@@ -36,6 +36,8 @@ RigidBody* body_create(float x, float y, float mass, Shape* shape) {
 
     body->type = BODY_DYNAMIC;
     body->active = 1;
+    body->sleeping = 0;
+    body->sleep_timer = 0.0f;
 
     return body;
 }
@@ -59,6 +61,8 @@ void body_set_type(RigidBody* body, BodyType type) {
     }
 
     body->type = type;
+    body->sleeping = 0;
+    body->sleep_timer = 0.0f;
     if (type == BODY_STATIC) {
         body->inv_mass = 0.0f;
         body->inv_inertia = 0.0f;
@@ -107,6 +111,8 @@ void body_apply_force(RigidBody* body, Vec2 force) {
     }
 
     body->force = vec2_add(body->force, force);
+    body->sleeping = 0;
+    body->sleep_timer = 0.0f;
 }
 
 void body_apply_force_at(RigidBody* body, Vec2 force, Vec2 point) {
@@ -127,6 +133,8 @@ void body_apply_impulse(RigidBody* body, Vec2 impulse) {
     }
 
     body->velocity = vec2_add(body->velocity, vec2_scale(impulse, body->inv_mass));
+    body->sleeping = 0;
+    body->sleep_timer = 0.0f;
 }
 
 void body_apply_angular_impulse(RigidBody* body, float impulse) {
@@ -135,6 +143,8 @@ void body_apply_angular_impulse(RigidBody* body, float impulse) {
     }
 
     body->angular_velocity += impulse * body->inv_inertia;
+    body->sleeping = 0;
+    body->sleep_timer = 0.0f;
 }
 
 void body_apply_torque(RigidBody* body, float torque) {
@@ -143,6 +153,8 @@ void body_apply_torque(RigidBody* body, float torque) {
     }
 
     body->torque += torque;
+    body->sleeping = 0;
+    body->sleep_timer = 0.0f;
 }
 
 Vec2 body_get_velocity_at(RigidBody* body, Vec2 point) {
