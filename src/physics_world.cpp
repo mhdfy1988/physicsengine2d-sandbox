@@ -5,6 +5,8 @@ struct PhysicsWorld {
     PhysicsEngine* engine;
 };
 
+extern "C" {
+
 PhysicsWorld* physics_world_create(void) {
     PhysicsWorld* world = (PhysicsWorld*)malloc(sizeof(PhysicsWorld));
     if (world == NULL) return NULL;
@@ -37,3 +39,5 @@ const PhysicsEngine* physics_world_engine_const(const PhysicsWorld* world) {
     if (world == NULL) return NULL;
     return world->engine;
 }
+
+}  // extern "C"

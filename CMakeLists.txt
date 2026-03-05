@@ -48,7 +48,7 @@ set(PHYSICS2D_SOURCES
     src/physics_mutation.c
     src/physics_pipeline_api.c
     src/physics_snapshot.c
-    src/physics_world.c
+    src/physics_world.cpp
     src/physics_memory.cpp
     src/physics_ids.cpp
     src/physics_parallel.cpp
