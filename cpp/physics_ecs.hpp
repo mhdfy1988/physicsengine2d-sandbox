@@ -275,6 +275,31 @@ public:
     }
 };
 
+struct PipelineStats {
+    std::size_t cleaned_entities = 0;
+};
+
+class Pipeline {
+public:
+    void tick(Registry& registry, EngineView engine) noexcept {
+        spawn_system_.run(registry, engine);
+        step_system_.run(engine);
+        sync_system_.run(registry);
+        stats_.cleaned_entities = cleanup_system_.run(registry, engine);
+    }
+
+    const PipelineStats& stats() const noexcept {
+        return stats_;
+    }
+
+private:
+    SpawnRigidBodySystem spawn_system_;
+    PhysicsStepSystem step_system_;
+    SyncTransformSystem sync_system_;
+    CleanupSystem cleanup_system_;
+    PipelineStats stats_;
+};
+
 }  // namespace ecs
 }  // namespace physics2d
 
