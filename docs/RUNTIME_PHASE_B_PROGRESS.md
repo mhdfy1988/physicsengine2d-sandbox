@@ -22,12 +22,17 @@
 6. CI 门禁已升级：
    - Windows: `test + benchmark + arch/api checks`
    - Ubuntu: `cmake tests + benchmark + selected cpp smoke`
+7. 已增加 Physics->ECS 最小事件桥：
+   - `ContactCreated`
+   - `BodySleep`
+   - `BodyWake`
+   并通过 `runtime.last_events()` 暴露给上层。
 
 ## 当前状态
 1. `mingw32-make test`：`PASS (31/31)`。
 2. `mingw32-make benchmark`：`PASS`。
 3. `check_arch_deps.ps1` / `check_api_surface.ps1`：通过。
 
-## 下一步（B2 剩余）
-1. 增加 Physics->ECS 事件桥（contact/sleep/wakeup 最小集）。
-2. 将 runtime 调试快照接到编辑器最小闭环展示通路。
+## 下一步（B2 收口）
+1. 将 runtime 调试快照与事件桥接到编辑器最小闭环展示通路。
+2. 为事件桥补一组更贴近编辑器场景的回归样例（暂停/恢复/单步）。

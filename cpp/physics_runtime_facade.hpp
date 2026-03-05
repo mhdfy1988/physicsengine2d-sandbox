@@ -2,6 +2,8 @@
 #define PHYSICS_RUNTIME_FACADE_HPP
 
 #include <cstddef>
+#include <unordered_map>
+#include <vector>
 #include "physics_ecs.hpp"
 #include "physics_raii.hpp"
 
@@ -25,6 +27,19 @@ struct TickSnapshot {
     std::size_t frame_index = 0;
     TickStats stats;
     ecs::BridgeValidationReport bridge;
+};
+
+enum class RuntimeEventKind {
+    ContactCreated,
+    BodySleep,
+    BodyWake
+};
+
+struct RuntimeEvent {
+    RuntimeEventKind kind = RuntimeEventKind::ContactCreated;
+    ecs::Entity entity_a = ecs::kInvalidEntity;
+    ecs::Entity entity_b = ecs::kInvalidEntity;
+    int contact_index = -1;
 };
 
 class RuntimeFacade {
@@ -84,6 +99,7 @@ public:
         snapshot.bridge = registry_.validate_bridge();
         snapshot.stats.runtime_body_refs = snapshot.bridge.runtime_refs;
         snapshot.stats.reverse_body_refs = snapshot.bridge.reverse_refs;
+        collect_events(snapshot.stats.contact_count);
         last_snapshot_ = snapshot;
         return snapshot;
     }
@@ -96,12 +112,72 @@ public:
         return last_snapshot_;
     }
 
+    const std::vector<RuntimeEvent>& last_events() const noexcept {
+        return last_events_;
+    }
+
 private:
+    void collect_events(int contact_count) noexcept {
+        last_events_.clear();
+        if (!engine_.valid()) {
+            return;
+        }
+
+        for (auto it = last_sleep_state_.begin(); it != last_sleep_state_.end();) {
+            if (!registry_.alive(it->first)) {
+                it = last_sleep_state_.erase(it);
+            } else {
+                ++it;
+            }
+        }
+
+        for (int i = 0; i < contact_count; i++) {
+            const CollisionManifold* c = physics_engine_get_contact(engine_.get(), i);
+            if (c == nullptr || c->bodyA == nullptr || c->bodyB == nullptr) {
+                continue;
+            }
+            const ecs::Entity ea = registry_.entity_of_body(c->bodyA);
+            const ecs::Entity eb = registry_.entity_of_body(c->bodyB);
+            if (ea == ecs::kInvalidEntity || eb == ecs::kInvalidEntity) {
+                continue;
+            }
+            RuntimeEvent e;
+            e.kind = RuntimeEventKind::ContactCreated;
+            e.entity_a = ea;
+            e.entity_b = eb;
+            e.contact_index = i;
+            last_events_.push_back(e);
+        }
+
+        registry_.each_runtime([&](ecs::Entity entity, const ecs::RuntimeBodyRef& rr) {
+            if (rr.body == nullptr) {
+                return;
+            }
+            const bool current_sleeping = rr.body->sleeping != 0;
+            auto it = last_sleep_state_.find(entity);
+            if (it == last_sleep_state_.end()) {
+                last_sleep_state_[entity] = current_sleeping;
+                return;
+            }
+            if (it->second != current_sleeping) {
+                RuntimeEvent e;
+                e.kind = current_sleeping ? RuntimeEventKind::BodySleep : RuntimeEventKind::BodyWake;
+                e.entity_a = entity;
+                e.entity_b = ecs::kInvalidEntity;
+                e.contact_index = -1;
+                last_events_.push_back(e);
+                it->second = current_sleeping;
+            }
+        });
+    }
+
     Engine engine_;
     ecs::Registry registry_;
     ecs::Pipeline pipeline_;
     std::size_t frame_index_ = 0;
     TickSnapshot last_snapshot_;
+    std::vector<RuntimeEvent> last_events_;
+    std::unordered_map<ecs::Entity, bool> last_sleep_state_;
 };
 
 }  // namespace runtime
