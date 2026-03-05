@@ -1,92 +1,500 @@
-# Physics2D Engine Architecture
+# 2D 游戏引擎与开发工具架构文档
 
-This document defines the current architecture baseline and coding boundaries.
+## 1. 目标与范围
 
-## Layers
+本项目目标从“2D 物理库 + 沙盒程序”升级为“2D 游戏引擎 + 游戏开发工具”。
 
-1. Public API layer (`include/physics.h`, `src/physics.c`)
-2. World state + internal aggregation (`src/physics_internal.h`)
-3. Internal subsystem interfaces (`src/internal/*.h`)
-4. Pipeline implementations (`src/physics_*`)
-5. Math/geometry primitives (`src/math.c`, `src/shape.c`, `src/body.c`, `src/collision.c`, `src/constraint.c`)
+架构必须同时满足：
 
-## Pipeline Stages
+1. 运行时性能可控（面向游戏帧循环）。
+2. 工具链可扩展（面向关卡、资源、调试工作流）。
+3. C++ 重构可渐进落地（不一次性推翻现有稳定内核）。
 
-`physics_internal_step` runs the frame in explicit stages:
+当前重构总策略（最高优先级）：
 
-1. Integrate (`physics_internal_update_velocities(engine, dt)`, `physics_internal_update_positions(engine, dt)`)
-2. Broadphase (`build_pairs` op)
-3. Narrowphase/contact generation (`build_contacts` op)
-4. Solve (`physics_internal_resolve_collisions` with `PhysicsSolverContext`)
-5. Clear forces (`physics_internal_clear_forces`)
+1. 先将物理引擎内核从 C 平滑迁移到 C++（功能等价、行为等价、性能不退化）。
+2. 在内核 C++ 化完成前，编辑器化与非关键子系统扩展只做最小投入，不作为主线目标。
 
-Each stage is profiled into `PhysicsStepProfile`.
+---
 
-## Configuration
+## 2. 非目标（Out of Scope）
 
-`PhysicsConfig` is the single source of runtime tuning (sanitized by one path in `physics.c`):
+以下内容不在当前重构阶段范围内：
 
-- `time_step`, `substeps`, `iterations`, `max_position_iterations_bias`
-- `damping`
-- `broadphase_type`, `broadphase_cell_size`
-- reserved toggles for future systems: `ccd_enabled`, `sleep_enabled`, `threading_enabled`, `worker_count`
+1. 3D 渲染/3D 物理系统。
+2. 网络同步、多人联机框架。
+3. 完整商业化发布工具链（商店打包、自动更新平台等）。
+4. 跨平台编辑器（当前优先 Windows 路线）。
+5. 运行时脚本热更新全链路（先做基础脚本桥接）。
 
-Use `physics_engine_set_config/get_config` instead of writing internals directly.
+---
 
-## Memory Model
+## 3. 顶层分层（宏观）
 
-Per-frame temporary allocations must use scratch arena:
+采用 `工具层 / 核心层 / 第三方层` 分层，职责严格分离。
 
-- `physics_internal_scratch_reset`
-- `physics_internal_scratch_alloc`
+### 3.1 工具层（Editor/Tools）
 
-No per-step heap allocations in hot path.
+面向非程序与内容生产流程，是引擎的“入口”：
 
-`step` substeps must pass `dt` explicitly to subsystems. Stage code must not mutate shared config (`engine->config.time_step`) during a frame.
+1. 世界编辑器（场景、对象、组件编辑）。
+2. 资源管线（导入、转换、压缩、打包、热重载）。
+3. 调试工具（性能剖析、可视化调试、回放、日志）。
+4. Play-In-Editor（编辑器内运行与回切）。
 
-## Identity / Handles
+### 3.2 核心层（Runtime/Core）
 
-Internal identity types are centralized in `src/internal/physics_ids.h`:
+面向 C++ 引擎运行时，是性能与稳定性的核心：
 
-- `PhysicsBodyId`
-- `PhysicsConstraintId`
-- `PhysicsContactId`
+1. 底层支持层：内存、容器、数学库、文件系统、任务系统、日志。
+2. 引擎核心层：ECS、渲染、物理、输入、音频、动画、UI。
+3. 游戏性层：脚本桥接、事件系统、流程状态机、场景生命周期。
 
-Conversion helpers in `src/physics_ids.c` are the only allowed ptr<->id bridge.
+### 3.3 第三方层（Third-party）
 
-## Extension Points
+1. 图形 API 与平台库。
+2. 音频、字体、资源格式库。
+3. 脚本/序列化依赖（后续引入）。
 
-Pipeline replacement is done via ops in world state:
+第三方依赖统一通过适配层访问，不允许直接渗透到上层业务模块。
 
-- `PhysicsBroadphaseOps`
-- `PhysicsNarrowphaseOps`
+---
 
-Default bindings are installed by `physics_internal_bind_default_pipeline`.
-Public registration APIs map to those ops:
+## 4. 核心架构模式（微观）
 
-- `physics_engine_set_broadphase_builder`
-- `physics_engine_set_narrowphase_builder`
-- `physics_engine_reset_pipeline`
+采用 `分层 + ECS + 数据导向`。
 
-Solver execution goes through `physics_internal_parallel_for`. The current backend is serial with deterministic chunk dispatch, which keeps call semantics stable for a future worker-thread backend.
+### 4.1 ECS 作为运行时主数据模型
 
-Runtime events are unified in `PhysicsCallbacks`:
+1. `Entity`：仅做身份标识。
+2. `Component`：纯数据，避免业务逻辑侵入组件。
+3. `System`：按阶段遍历组件并执行业务逻辑。
 
-- frame hooks: `on_pre_step`, `on_post_step`
-- stage hooks: `on_post_broadphase`, `on_post_narrowphase`
-- contact hook: `on_contact_created`
+### 4.2 数据导向原则
 
-## Dependency Rules
+1. 以批处理和连续访问为优先目标。
+2. 少分配、少拷贝、可预测生命周期。
+3. 高频路径避免动态多态和临时堆分配。
 
-1. Public headers must not include internal headers.
-2. Internal modules must communicate via `src/internal/*.h` interfaces where possible.
-3. `src/physics_step.c` orchestrates stages; stage implementations do not call back into step.
-4. New subsystems should be added as new modules plus ops/context, not by growing monolithic files.
+### 4.3 生命周期与调度
 
-## Testing Rules
+运行时以阶段管线调度系统：
 
-Any change touching pipeline/config/memory must pass:
+1. Spawn（实体运行时实例化）
+2. Step（仿真推进）
+3. Sync（运行时数据回写）
+4. Cleanup（延迟销毁）
 
-- `mingw32-make clean`
-- `mingw32-make sandbox`
-- `mingw32-make test`
+---
+
+## 5. 运行时模块划分（目标态）
+
+### 5.1 Foundation
+
+1. 内存：分配策略、临时内存池、调试统计。
+2. 容器：引擎约束下的轻量容器。
+3. 数学：向量、矩阵、几何、常用算法。
+4. IO：文件系统抽象、路径、资产定位。
+5. 并行：任务系统与主线程同步点。
+
+### 5.2 Core
+
+1. Engine 主循环与模块生命周期。
+2. 配置管理与运行参数快照。
+3. 事件总线和调试通道。
+
+### 5.3 ECS
+
+1. Registry（实体与组件存储）。
+2. Query（组合查询视图）。
+3. System（可独立测试的系统单元）。
+4. Pipeline（阶段化调度和配置开关）。
+
+### 5.4 Domain Systems（2D）
+
+1. Transform2D
+2. Physics2D
+3. Render2D
+4. Input
+5. Audio
+6. UI
+7. Animation（后续）
+
+---
+
+## 6. 目录映射与依赖方向（落地约束）
+
+目标目录（建议）：
+
+1. `engine/foundation/*`
+2. `engine/core/*`
+3. `engine/ecs/*`
+4. `engine/systems/physics2d/*`
+5. `engine/systems/render2d/*`
+6. `engine/systems/input/*`
+7. `tools/editor/*`
+8. `tools/asset_pipeline/*`
+9. `third_party_adapters/*`
+
+依赖规则：
+
+1. `tools/* -> engine/*` 允许，反向禁止。
+2. `engine/systems/* -> engine/ecs + engine/core + engine/foundation` 允许。
+3. `engine/ecs -> engine/core + engine/foundation` 允许。
+4. `engine/core -> engine/foundation` 允许。
+5. `engine/foundation` 不依赖上层模块。
+6. 第三方库仅通过 `third_party_adapters/*` 暴露给 `engine/*`。
+
+---
+
+## 7. 编辑器与运行时关系
+
+编辑器不是单独游戏逻辑栈，而是运行时的上层壳：
+
+1. Editor 通过 Runtime API 驱动场景与系统。
+2. 运行时与编辑器共享 Scene/Prefab 数据格式。
+3. 调试、回放、可视化都基于 Runtime 标准接口。
+
+---
+
+## 8. 数据格式与版本策略
+
+### 8.1 统一数据对象
+
+1. Scene（场景）
+2. Prefab（预制体）
+3. AssetMeta（资源元数据）
+4. RuntimeConfig（运行时配置）
+
+### 8.2 版本字段要求
+
+所有可序列化对象必须包含：
+
+1. `schema_name`
+2. `schema_version`（整数）
+3. `engine_min_version`（可选）
+4. `engine_max_tested_version`（可选）
+
+### 8.3 兼容策略
+
+1. 新版本读取旧版本：必须支持（至少 N-1）。
+2. 旧版本读取新版本：不保证支持，但必须给出明确错误码和迁移提示。
+3. 破坏性变更必须提供升级器（`tools/asset_pipeline/migrations/*`）。
+
+### 8.4 迁移流程
+
+1. 先增量兼容读取。
+2. 提供离线迁移工具。
+3. 批量迁移后再移除旧字段读取分支（至少跨 1 个稳定版本）。
+
+---
+
+## 9. 并发与确定性策略
+
+### 9.1 主线程边界
+
+1. 场景管理、对象生命周期、UI 操作在主线程。
+2. 资源导入可异步，但提交到 Runtime 需主线程同步点。
+
+### 9.2 系统并行原则
+
+1. 写同一组件集合的系统不得并行。
+2. 只读系统可并行。
+3. 读写冲突由 Pipeline 阶段拆分解决，不在系统内部隐式加锁。
+
+### 9.3 确定性要求
+
+1. 固定时间步长可复现。
+2. 同输入序列下，关键逻辑结果一致（允许浮点微差范围内）。
+3. 回放/录制链路必须基于稳定顺序与稳定 ID。
+
+---
+
+## 10. 当前项目到目标架构的映射
+
+当前已有资产：
+
+1. C 物理内核（稳定、测试覆盖完整）。
+2. C++ 包装层（RAII、World、Snapshot、ECS 基础骨架）。
+3. ECS 已具备：Registry、Query、System、Pipeline、阶段开关。
+
+当前定位：
+
+1. 物理内核属于 `Physics2D Backend`。
+2. C++ ECS 与 Pipeline 属于 `Core/ECS` 雏形。
+3. Sandbox 可逐步演进为 Editor 原型容器。
+4. 当前主线任务是“内核 C -> C++ 迁移”，其完成前其余架构演进均从属该目标。
+
+---
+
+## 11. 渐进式重构路线（建议执行顺序）
+
+### 阶段 A：物理内核 C++ 化（第一优先级，必须先完成）
+
+1. 建立 C 与 C++ 双实现并行期（同一套测试同时验证）。
+2. 完成核心模块迁移（生命周期、配置、查询、碰撞、求解、步进）。
+3. 保持 API 行为一致（错误码、边界行为、快照/回放语义一致）。
+4. 清理 C 实现依赖，收敛到 C++ 内核主实现。
+
+### 阶段 B：Runtime 架构固化（内核 C++ 化之后）
+
+1. 稳定 Runtime API 边界（以内核 C++ 实现为基线）。
+2. 完成 ECS 调度主线与系统边界。
+3. 统一场景对象的组件化表达。
+
+### 阶段 C：数据与内容管线
+
+1. 定义 Scene/Prefab 序列化格式。
+2. 资源导入与构建管线（纹理、字体、音频）。
+3. 运行时热重载基础能力。
+
+### 阶段 D：编辑器化与工具链完善
+
+1. Inspector 与组件编辑。
+2. 资源浏览器与场景树。
+3. Play-In-Editor 与调试面板。
+4. Render2D、Animation、Audio 子系统补齐。
+5. 脚本层（Lua 或其他）桥接 ECS 数据。
+6. 性能分析与并行调度优化。
+
+---
+
+## 12. 里程碑验收标准（量化）
+
+### A 阶段完成定义
+
+1. C 与 C++ 内核在回归测试结果上等价（通过率 100%，且关键行为一致）。
+2. C++ 内核覆盖当前 C 内核核心能力（create/free/step/config/query/snapshot/error）。
+3. C++ 内核性能不低于 C 基线（允许设定小幅波动阈值，默认不超过 5%）。
+4. 迁移完成后默认实现切换到 C++，C 旧实现仅保留短期回滚窗口。
+
+### B 阶段完成定义
+
+1. Runtime API 以 C++ 内核为基线稳定。
+2. ECS 管线可驱动最小可玩场景并通过 smoke 与回归。
+3. 核心模块依赖边界符合架构规则。
+
+### C 阶段完成定义
+
+1. Scene/Prefab 版本化落地并有迁移工具。
+2. 资源导入支持至少 3 类资产（纹理、字体、音频）。
+3. 热重载链路在 demo 场景可验证。
+
+### D 阶段完成定义
+
+1. 编辑器可完成场景编辑、保存、运行、回切。
+2. Undo/Redo 覆盖核心编辑操作。
+3. 核心子系统完备并可演示端到端开发流程。
+4. 帧时间、内存、加载时长达到阶段目标（另行定义性能预算表）。
+5. 关键模块具备基准测试与剖析报告。
+
+---
+
+## 13. 架构决策原则
+
+1. 模块化解耦优先于短期编码速度。
+2. 面向接口编程，避免实现细节泄漏。
+3. 先可维护，再高性能；高性能优化要有基准验证。
+4. 拒绝一次性大爆炸重写，持续小步迁移。
+
+---
+
+## 14. 工程落地标准
+
+任何涉及核心架构变更的提交，至少满足：
+
+1. 回归测试全通过（当前基线：`mingw32-make test`）。
+2. 对应 smoke test 增补（C++ 包装/ECS/Pipeline）。
+3. 文档同步更新（本文件 + 对应 TODO/迁移文档）。
+
+---
+
+## 15. 文档编码与维护规范
+
+1. 本文档统一使用 UTF-8 编码保存。
+2. 标题编号采用连续数字，避免歧义。
+3. 新增架构决策需同步“依赖规则 + 里程碑验收”两节。
+4. 架构变更 PR 必须附“影响范围”和“回滚方案”。
+
+---
+
+## 16. 开发工具端到端工作流（Editor Workflow）
+
+标准工作流定义为：
+
+1. 新建/打开项目（Project）。
+2. 导入资源（纹理/字体/音频等），生成 AssetMeta。
+3. 创建或编辑场景（Scene）与预制体（Prefab）。
+4. 在 Inspector 调参并保存。
+5. Play-In-Editor 运行验证。
+6. 记录性能与错误，修复后重测。
+7. 生成构建产物（Debug/Release/Profile）。
+
+每一步必须定义：
+
+1. 输入（文件/配置/命令）。
+2. 输出（产物/缓存/日志）。
+3. 失败处理（回滚策略、错误提示、恢复入口）。
+
+---
+
+## 17. 项目系统与工程结构规范
+
+### 17.1 项目级对象
+
+1. Project：单个游戏工程，包含资产与场景。
+2. Workspace：可包含多个 Project 的工作目录（可选）。
+3. Package：可复用功能包（插件、模板、资源集）。
+4. Settings：项目配置与编辑器配置分离存储。
+
+### 17.2 项目目录约定
+
+1. `Assets/`：原始资源与导入源文件。
+2. `Scenes/`：场景数据。
+3. `Prefabs/`：预制体数据。
+4. `Build/`：构建输出。
+5. `Cache/`：中间缓存（可安全清理）。
+6. `ProjectSettings/`：项目设置。
+
+### 17.3 迁移规则
+
+1. `Assets/Scenes/Prefabs/ProjectSettings` 必须纳入版本管理。
+2. `Build/Cache` 默认不纳入版本管理。
+3. 项目升级由迁移工具完成，不允许手工批量改 schema。
+
+---
+
+## 18. 资源数据库与导入器规范
+
+### 18.1 Asset Database
+
+1. 每个资产拥有稳定 GUID（与文件路径解耦）。
+2. 每个资产拥有 `.meta` 文件（记录 GUID、类型、导入参数）。
+3. 维护资产依赖图（asset -> dependencies）。
+4. 支持增量导入（基于内容哈希与导入参数哈希）。
+
+### 18.2 缓存与失效
+
+1. 导入缓存按 `source_hash + importer_version + import_settings_hash` 失效。
+2. 依赖变化触发上游重导入（按依赖图传播）。
+3. 清理缓存不应破坏源资产与项目数据。
+
+### 18.3 导入器接口约束
+
+1. 导入器输入必须纯函数化（输入固定则输出可复现）。
+2. 导入器失败必须返回结构化错误码和可读错误信息。
+3. 导入器不得直接写业务目录外的路径。
+
+---
+
+## 19. Scene/Prefab 编辑语义
+
+### 19.1 Prefab 基础规则
+
+1. Prefab 支持实例化与嵌套。
+2. 实例支持属性 Override（仅记录差异字段）。
+3. 变体 Prefab 允许继承基础 Prefab 并覆盖部分字段。
+
+### 19.2 冲突与合并
+
+1. 嵌套 Prefab 冲突按“最近层覆盖”规则解析。
+2. 无法自动合并时必须给出冲突面板与逐项选择。
+3. 删除父字段时，子层 Override 必须进入“悬挂引用”修复流程。
+
+### 19.3 序列化要求
+
+1. Scene 和 Prefab 必须使用稳定 ID 引用实体与组件。
+2. 保存顺序稳定（避免无意义 diff）。
+3. 变更最小化写盘（只写发生变化的对象）。
+
+---
+
+## 20. Undo/Redo 命令模型
+
+### 20.1 核心模型
+
+1. 采用 `Command` 模型作为主机制。
+2. 大对象批量改动可辅以 Snapshot（混合策略）。
+3. 所有可编辑操作必须可逆（Do/Undo/Redo）。
+
+### 20.2 合并策略
+
+1. 连续拖拽/滑条操作可合并为单条命令。
+2. 跨系统复合操作使用事务命令（Atomic）。
+3. 命令失败必须保证状态回滚一致。
+
+### 20.3 与 ECS 一致性
+
+1. 命令执行必须维护 Entity/Component 引用稳定。
+2. 删除实体需可恢复其组件与关联关系。
+3. Undo/Redo 与 Play-In-Editor 状态切换必须隔离。
+
+---
+
+## 21. 插件与扩展机制
+
+### 21.1 插件能力范围
+
+1. 自定义 Inspector。
+2. 自定义资源导入器。
+3. 自定义菜单与工具窗口。
+4. 自定义构建步骤。
+
+### 21.2 生命周期
+
+1. 发现（scan）。
+2. 加载（load）。
+3. 初始化（init）。
+4. 卸载（shutdown/unload）。
+
+### 21.3 安全与边界
+
+1. 插件只能通过公开扩展 API 操作编辑器与运行时。
+2. 插件异常不得导致主程序崩溃（必须可隔离并禁用）。
+3. 插件版本必须声明兼容引擎版本区间。
+
+---
+
+## 22. 构建目标矩阵与 CI 产物
+
+### 22.1 构建类型
+
+1. Editor Debug
+2. Editor Release
+3. Runtime Debug
+4. Runtime Release
+5. Runtime Profile
+
+### 22.2 产物规范
+
+1. 产物目录按平台和配置隔离。
+2. 每次 CI 构建输出版本号、提交哈希、构建时间。
+3. Editor 与 Runtime 产物可独立发布与回滚。
+
+### 22.3 CI 门禁
+
+1. 回归测试和 smoke 测试失败即阻断。
+2. 架构依赖检查失败即阻断（禁止跨层违规依赖）。
+3. 文档与 schema 变更必须包含迁移说明。
+
+---
+
+## 23. 可观测性与崩溃诊断
+
+### 23.1 日志与追踪
+
+1. 统一日志级别（Debug/Info/Warn/Error/Fatal）。
+2. Runtime 与 Editor 日志分通道输出。
+3. 关键系统提供 Trace 事件（step、load、import、build）。
+
+### 23.2 崩溃与故障恢复
+
+1. 崩溃时生成最小诊断包（日志、配置、堆栈、最近操作）。
+2. 编辑器重启后支持恢复最近工作会话（可配置）。
+3. 可选崩溃回放入口（基于输入序列与快照）。
+
+### 23.3 支持与排障
+
+1. 提供一键导出诊断信息入口。
+2. 故障单必须可关联到构建版本与资源版本。
+3. 高优先级故障需可在 CI 场景复现并回归验证。
