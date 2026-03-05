@@ -20,7 +20,7 @@
 - [x] Scene Tree 支持场景项选择同步（层级点击切换到指定场景）
 - [x] Scene Tree 支持场景重命名（双击或 `F2`）
 - [x] Scene Tree 支持场景排序
-- [ ] Inspector 支持核心组件字段编辑与约束校验
+- [x] Inspector 支持核心组件字段编辑与约束校验
 - [ ] 统一命令总线驱动编辑操作
 - [ ] Undo/Redo 覆盖核心编辑行为并有回归
 - [ ] 资产引用编辑默认走 GUID 安全路径
@@ -80,3 +80,12 @@
 - [x] 帮助文档已同步排序操作提示
 - [x] 验证通过：`mingw32-make test`, `mingw32-make sandbox`, `mingw32-make benchmark`, `scripts/check_arch_deps.ps1`, `scripts/check_api_surface.ps1`, `scripts/hot_reload_smoke.ps1`, `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
 - [x] 门禁摘要：`artifacts/phase_d_gate_suite_20260306_013031/summary.md`
+
+## 2026-03-06 D2 Inspector Core Editing Snapshot
+
+- [x] Inspector 输入路径升级为严格数值解析（拒绝非法尾随字符与 NaN/Inf）
+- [x] Inspector 核心字段已接入范围校验（物体 + 约束）
+- [x] Inspector 支持行内 `- / +` 与键盘 `Left/Right/-/+` 微调
+- [x] 帮助文案与字段提示已同步可编辑范围
+- [x] 验证通过：`mingw32-make test`, `mingw32-make sandbox`, `mingw32-make benchmark`, `scripts/check_arch_deps.ps1`, `scripts/check_api_surface.ps1`, `scripts/hot_reload_smoke.ps1`, `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
+- [x] 门禁摘要：`artifacts/phase_d_gate_suite_20260306_014251/summary.md`

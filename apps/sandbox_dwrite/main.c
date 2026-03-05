@@ -571,6 +571,9 @@ static int hot_reload_register_source_path(const char* source_path);
 static void hot_reload_register_tree_recursive(const char* root_dir, int depth);
 static void init_hot_reload_pipeline(void);
 static void hot_reload_tick_runtime(void);
+static int parse_double_strict(const wchar_t* text, double* out_v);
+static int inspector_commit_row_value(int row, double value, int emit_log);
+static int inspector_adjust_focused_row(int sign);
 static void begin_value_input_for_scene_name(int scene_index);
 static const wchar_t* value_input_title(void);
 
@@ -2976,6 +2979,328 @@ static void begin_value_input_for_inspector_row(int row) {
     g_state.value_input_caret = g_state.value_input_len;
 }
 
+static int parse_double_strict(const wchar_t* text, double* out_v) {
+    const wchar_t* start;
+    wchar_t* end = NULL;
+    double value;
+    if (text == NULL || out_v == NULL) return 0;
+    start = text;
+    while (*start != L'\0' && iswspace(*start)) start++;
+    if (*start == L'\0') return 0;
+    value = wcstod(start, &end);
+    if (start == end) return 0;
+    while (end != NULL && *end != L'\0' && iswspace(*end)) end++;
+    if (end != NULL && *end != L'\0') return 0;
+    if (!isfinite(value)) return 0;
+    *out_v = value;
+    return 1;
+}
+
+static const wchar_t* inspector_body_row_label(int row) {
+    if (row == 0) return L"质量";
+    if (row == 1) return L"位置X";
+    if (row == 2) return L"位置Y";
+    if (row == 3) return L"速度X";
+    if (row == 4) return L"速度Y";
+    if (row == 5) return L"角速度";
+    if (row == 6) return L"阻尼";
+    if (row == 7) return L"弹性";
+    return L"字段";
+}
+
+static const wchar_t* inspector_constraint_row_label(int row) {
+    if (row == 0) return L"目标长度";
+    if (row == 1) return L"刚度";
+    if (row == 2) return L"阻尼";
+    if (row == 3) return L"断裂阈值";
+    if (row == 4) return L"连体碰撞";
+    if (row == 5) return L"弹性预设";
+    return L"字段";
+}
+
+static int inspector_apply_body_row_value(int row, double value, int commit) {
+    RigidBody* b = g_state.selected;
+    if (b == NULL) return 0;
+    if (!isfinite(value)) {
+        if (commit) push_console_log(L"[警告] 检查器输入不是有效数值");
+        return 0;
+    }
+    if (row == 0) {
+        if (value < 0.1 || value > 1000.0) {
+            if (commit) push_console_log(L"[警告] 质量范围应为 0.1 ~ 1000");
+            return 0;
+        }
+        if (commit) {
+            b->mass = (float)value;
+            b->inv_mass = (b->mass > 0.0f) ? (1.0f / b->mass) : 0.0f;
+            if (b->shape != NULL) {
+                b->inertia = shape_get_moment_of_inertia(b->shape, b->mass);
+                b->inv_inertia = (b->inertia > 0.0f) ? (1.0f / b->inertia) : 0.0f;
+            }
+        }
+        return 1;
+    }
+    if (row == 1 || row == 2) {
+        if (value < -5000.0 || value > 5000.0) {
+            if (commit) push_console_log(L"[警告] 位置范围应为 -5000 ~ 5000");
+            return 0;
+        }
+        if (commit) {
+            if (row == 1) b->position.x = (float)value;
+            else b->position.y = (float)value;
+        }
+        return 1;
+    }
+    if (row == 3 || row == 4) {
+        if (value < -500.0 || value > 500.0) {
+            if (commit) push_console_log(L"[警告] 速度范围应为 -500 ~ 500");
+            return 0;
+        }
+        if (commit) {
+            if (row == 3) b->velocity.x = (float)value;
+            else b->velocity.y = (float)value;
+        }
+        return 1;
+    }
+    if (row == 5) {
+        if (value < -200.0 || value > 200.0) {
+            if (commit) push_console_log(L"[警告] 角速度范围应为 -200 ~ 200");
+            return 0;
+        }
+        if (commit) b->angular_velocity = (float)value;
+        return 1;
+    }
+    if (row == 6) {
+        if (value < 0.0 || value > 1.0) {
+            if (commit) push_console_log(L"[警告] 阻尼范围应为 0.0 ~ 1.0");
+            return 0;
+        }
+        if (commit) b->damping = (float)value;
+        return 1;
+    }
+    if (row == 7) {
+        if (b->shape == NULL) {
+            if (commit) push_console_log(L"[警告] 当前物体缺少形状，无法编辑弹性");
+            return 0;
+        }
+        if (value < 0.0 || value > 1.0) {
+            if (commit) push_console_log(L"[警告] 弹性范围应为 0.0 ~ 1.0");
+            return 0;
+        }
+        if (commit) b->shape->restitution = (float)value;
+        return 1;
+    }
+    if (commit) push_console_log(L"[警告] 未知检查器字段");
+    return 0;
+}
+
+static int inspector_apply_constraint_row_value(int row, double value, int commit) {
+    const Constraint* c = selected_constraint_ref();
+    int iv;
+    if (c == NULL || !c->active || g_state.engine == NULL || g_state.selected_constraint_index < 0) return 0;
+    if (!isfinite(value)) {
+        if (commit) push_console_log(L"[警告] 检查器输入不是有效数值");
+        return 0;
+    }
+    if (row == 0) {
+        if (value < 0.0 || value > 500.0) {
+            if (commit) push_console_log(L"[警告] 目标长度范围应为 0 ~ 500");
+            return 0;
+        }
+        if (commit) physics_engine_constraint_set_rest_length(g_state.engine, g_state.selected_constraint_index, (float)value);
+        return 1;
+    }
+    if (row == 1) {
+        if (c->type == CONSTRAINT_DISTANCE) {
+            if (value < 0.08 || value > 1.0) {
+                if (commit) push_console_log(L"[警告] 距离约束刚度范围应为 0.08 ~ 1.0");
+                return 0;
+            }
+        } else {
+            if (value < 0.20 || value > 40.0) {
+                if (commit) push_console_log(L"[警告] 弹簧刚度范围应为 0.20 ~ 40.0");
+                return 0;
+            }
+        }
+        if (commit) physics_engine_constraint_set_stiffness(g_state.engine, g_state.selected_constraint_index, (float)value);
+        return 1;
+    }
+    if (row == 2) {
+        if (value < 0.0 || value > 20.0) {
+            if (commit) push_console_log(L"[警告] 约束阻尼范围应为 0.0 ~ 20.0");
+            return 0;
+        }
+        if (commit) physics_engine_constraint_set_damping(g_state.engine, g_state.selected_constraint_index, (float)value);
+        return 1;
+    }
+    if (row == 3) {
+        if (value < 0.0 || value > 100000.0) {
+            if (commit) push_console_log(L"[警告] 断裂阈值范围应为 0 ~ 100000");
+            return 0;
+        }
+        if (commit) physics_engine_constraint_set_break_force(g_state.engine, g_state.selected_constraint_index, (float)value);
+        return 1;
+    }
+    if (row == 4) {
+        iv = (int)value;
+        if (fabs(value - (double)iv) > 1e-6 || (iv != 0 && iv != 1)) {
+            if (commit) push_console_log(L"[警告] 连体碰撞只接受 0 或 1");
+            return 0;
+        }
+        if (commit) physics_engine_constraint_set_collide_connected(g_state.engine, g_state.selected_constraint_index, iv);
+        return 1;
+    }
+    if (row == 5) {
+        if (c->type != CONSTRAINT_SPRING) {
+            if (commit) push_console_log(L"[警告] 当前约束不支持弹性预设");
+            return 0;
+        }
+        iv = (int)value;
+        if (fabs(value - (double)iv) > 1e-6 || iv < 0 || iv > 2) {
+            if (commit) push_console_log(L"[警告] 弹性预设仅支持 0(软)/1(中)/2(高)");
+            return 0;
+        }
+        if (commit) apply_spring_preset_to_constraint_index(g_state.selected_constraint_index, iv);
+        return 1;
+    }
+    if (commit) push_console_log(L"[警告] 未知检查器字段");
+    return 0;
+}
+
+static int inspector_commit_row_value(int row, double value, int emit_log) {
+    const Constraint* c = selected_constraint_ref();
+    if (c != NULL && c->active) {
+        if (!inspector_apply_constraint_row_value(row, value, 0)) return 0;
+        history_push_snapshot();
+        if (!inspector_apply_constraint_row_value(row, value, 1)) return 0;
+        if (emit_log) {
+            if (row == 4) {
+                push_console_log(L"[检查器] 已更新约束.%s = %d", inspector_constraint_row_label(row), ((int)value) != 0 ? 1 : 0);
+            } else if (row == 5) {
+                int preset = (int)value;
+                const wchar_t* preset_name = (preset == 0) ? L"软" : ((preset == 1) ? L"中" : L"高");
+                push_console_log(L"[检查器] 已更新约束.%s = %s", inspector_constraint_row_label(row), preset_name);
+            } else {
+                push_console_log(L"[检查器] 已更新约束.%s = %.4f", inspector_constraint_row_label(row), value);
+            }
+        }
+        return 1;
+    }
+    if (g_state.selected != NULL) {
+        if (!inspector_apply_body_row_value(row, value, 0)) return 0;
+        history_push_snapshot();
+        if (!inspector_apply_body_row_value(row, value, 1)) return 0;
+        if (emit_log) {
+            push_console_log(L"[检查器] 已更新物体.%s = %.4f", inspector_body_row_label(row), value);
+        }
+        return 1;
+    }
+    return 0;
+}
+
+static int inspector_adjust_focused_row(int sign) {
+    const Constraint* c;
+    int row;
+    double next = 0.0;
+    if (sign == 0) return 0;
+    sign = (sign < 0) ? -1 : 1;
+    row = g_state.inspector_focused_row;
+    c = selected_constraint_ref();
+    if (c != NULL && c->active) {
+        if (row == 0) {
+            next = c->rest_length + (double)sign * 0.10;
+            if (next < 0.0) next = 0.0;
+            if (next > 500.0) next = 500.0;
+        } else if (row == 1) {
+            next = c->stiffness + (double)sign * ((c->type == CONSTRAINT_DISTANCE) ? 0.05 : 0.20);
+            if (c->type == CONSTRAINT_DISTANCE) {
+                if (next < 0.08) next = 0.08;
+                if (next > 1.0) next = 1.0;
+            } else {
+                if (next < 0.20) next = 0.20;
+                if (next > 40.0) next = 40.0;
+            }
+        } else if (row == 2) {
+            next = c->damping + (double)sign * 0.05;
+            if (next < 0.0) next = 0.0;
+            if (next > 20.0) next = 20.0;
+        } else if (row == 3) {
+            next = c->break_force + (double)sign * 10.0;
+            if (next < 0.0) next = 0.0;
+            if (next > 100000.0) next = 100000.0;
+        }
+        else if (row == 4) next = c->collide_connected ? 0.0 : 1.0;
+        else if (row == 5 && c->type == CONSTRAINT_SPRING) {
+            int preset = spring_preset_for_constraint(c);
+            if (preset < 0) preset = 1;
+            preset += sign;
+            if (preset < 0) preset = 0;
+            if (preset > 2) preset = 2;
+            next = (double)preset;
+        } else {
+            return 0;
+        }
+        if (row == 0 && fabs(next - c->rest_length) < 1e-6) return 0;
+        if (row == 1 && fabs(next - c->stiffness) < 1e-6) return 0;
+        if (row == 2 && fabs(next - c->damping) < 1e-6) return 0;
+        if (row == 3 && fabs(next - c->break_force) < 1e-6) return 0;
+        if (row == 4 && ((next > 0.5) == (c->collide_connected != 0))) return 0;
+        if (row == 5 && c->type == CONSTRAINT_SPRING) {
+            int current_preset = spring_preset_for_constraint(c);
+            int next_preset = (int)next;
+            if (current_preset >= 0 && next_preset == current_preset) return 0;
+        }
+        return inspector_commit_row_value(row, next, 0);
+    }
+    if (g_state.selected != NULL) {
+        RigidBody* b = g_state.selected;
+        if (row == 0) {
+            next = b->mass + (double)sign * 0.10;
+            if (next < 0.1) next = 0.1;
+            if (next > 1000.0) next = 1000.0;
+        } else if (row == 1) {
+            next = b->position.x + (double)sign * 0.20;
+            if (next < -5000.0) next = -5000.0;
+            if (next > 5000.0) next = 5000.0;
+        } else if (row == 2) {
+            next = b->position.y + (double)sign * 0.20;
+            if (next < -5000.0) next = -5000.0;
+            if (next > 5000.0) next = 5000.0;
+        } else if (row == 3) {
+            next = b->velocity.x + (double)sign * 0.20;
+            if (next < -500.0) next = -500.0;
+            if (next > 500.0) next = 500.0;
+        } else if (row == 4) {
+            next = b->velocity.y + (double)sign * 0.20;
+            if (next < -500.0) next = -500.0;
+            if (next > 500.0) next = 500.0;
+        } else if (row == 5) {
+            next = b->angular_velocity + (double)sign * 0.10;
+            if (next < -200.0) next = -200.0;
+            if (next > 200.0) next = 200.0;
+        } else if (row == 6) {
+            next = b->damping + (double)sign * 0.02;
+            if (next < 0.0) next = 0.0;
+            if (next > 1.0) next = 1.0;
+        } else if (row == 7) {
+            next = (b->shape ? b->shape->restitution : 0.0f) + (double)sign * 0.02;
+            if (next < 0.0) next = 0.0;
+            if (next > 1.0) next = 1.0;
+        }
+        else return 0;
+        if (row == 0 && fabs(next - b->mass) < 1e-6) return 0;
+        if (row == 1 && fabs(next - b->position.x) < 1e-6) return 0;
+        if (row == 2 && fabs(next - b->position.y) < 1e-6) return 0;
+        if (row == 3 && fabs(next - b->velocity.x) < 1e-6) return 0;
+        if (row == 4 && fabs(next - b->velocity.y) < 1e-6) return 0;
+        if (row == 5 && fabs(next - b->angular_velocity) < 1e-6) return 0;
+        if (row == 6 && fabs(next - b->damping) < 1e-6) return 0;
+        if (row == 7 && b->shape != NULL && fabs(next - b->shape->restitution) < 1e-6) return 0;
+        return inspector_commit_row_value(row, next, 0);
+    }
+    return 0;
+}
+
 static void begin_value_input_for_hierarchy_filter(void) {
     lstrcpynW(g_state.value_input_buf, g_state.hierarchy_filter_buf, 64);
     g_state.value_input_target = VALUE_INPUT_TARGET_HIERARCHY_FILTER;
@@ -3053,19 +3378,10 @@ static void apply_value_input(void) {
     if (g_state.value_input_target == VALUE_INPUT_TARGET_DEBUG_PARAM ||
         g_state.value_input_target == VALUE_INPUT_TARGET_INSPECTOR) {
         double v = 0.0;
-        int has_digit = 0;
-        int i;
-        for (i = 0; g_state.value_input_buf[i] != L'\0'; i++) {
-            if (g_state.value_input_buf[i] >= L'0' && g_state.value_input_buf[i] <= L'9') {
-                has_digit = 1;
-                break;
-            }
-        }
-        if (!has_digit) {
-            push_console_log(L"[警告] 输入无效");
+        if (!parse_double_strict(g_state.value_input_buf, &v)) {
+            push_console_log(L"[警告] 输入无效，请输入规范数值");
             return;
         }
-        v = _wtof(g_state.value_input_buf);
         if (g_state.value_input_target == VALUE_INPUT_TARGET_DEBUG_PARAM) {
             SceneConfig* cfg = &g_state.scenes[g_state.scene_index];
             int row = g_state.value_input_row;
@@ -3084,43 +3400,13 @@ static void apply_value_input(void) {
             push_console_log(L"[调试] 已输入模拟参数");
             return;
         }
-        history_push_snapshot();
+        if (inspector_commit_row_value(g_state.value_input_row, v, 1)) return;
         if (csel != NULL && csel->active) {
-            int row = g_state.value_input_row;
-            if (row == 0) physics_engine_constraint_set_rest_length(g_state.engine, g_state.selected_constraint_index, (float)v);
-            if (row == 1) {
-                float min_stiffness = (csel->type == CONSTRAINT_DISTANCE) ? 0.08f : 0.20f;
-                physics_engine_constraint_set_stiffness(g_state.engine, g_state.selected_constraint_index, max_f(min_stiffness, (float)v));
-            }
-            if (row == 2) physics_engine_constraint_set_damping(g_state.engine, g_state.selected_constraint_index, (float)v);
-            if (row == 3) physics_engine_constraint_set_break_force(g_state.engine, g_state.selected_constraint_index, (float)v);
-            if (row == 4) physics_engine_constraint_set_collide_connected(g_state.engine, g_state.selected_constraint_index, (((int)v) != 0) ? 1 : 0);
-            if (row == 5 && csel->type == CONSTRAINT_SPRING) {
-                int preset = (int)v;
-                if (preset < 0) preset = 0;
-                if (preset > 2) preset = 2;
-                apply_spring_preset_to_constraint_index(g_state.selected_constraint_index, preset);
-            }
-            push_console_log(L"[检查器] 已输入约束参数");
+            push_console_log(L"[警告] 约束参数未更新，请检查输入范围");
         } else if (g_state.selected != NULL) {
-            RigidBody* b = g_state.selected;
-            int row = g_state.value_input_row;
-            if (row == 0) {
-                b->mass = max_f(0.1f, (float)v);
-                b->inv_mass = (b->mass > 0.0f) ? (1.0f / b->mass) : 0.0f;
-                if (b->shape != NULL) {
-                    b->inertia = shape_get_moment_of_inertia(b->shape, b->mass);
-                    b->inv_inertia = (b->inertia > 0.0f) ? (1.0f / b->inertia) : 0.0f;
-                }
-            }
-            if (row == 1) b->position.x = (float)v;
-            if (row == 2) b->position.y = (float)v;
-            if (row == 3) b->velocity.x = (float)v;
-            if (row == 4) b->velocity.y = (float)v;
-            if (row == 5) b->angular_velocity = (float)v;
-            if (row == 6) b->damping = clamp((float)v, 0.0f, 1.0f);
-            if (row == 7 && b->shape != NULL) b->shape->restitution = clamp((float)v, 0.0f, 1.0f);
-            push_console_log(L"[检查器] 已输入物体参数");
+            push_console_log(L"[警告] 物体参数未更新，请检查输入范围");
+        } else {
+            push_console_log(L"[警告] 当前无可编辑对象");
         }
     }
 }
@@ -3142,20 +3428,20 @@ static const wchar_t* inspector_row_hint_text(void) {
     hint[0] = L'\0';
     if (selected_constraint_is_active()) {
         const Constraint* c = selected_constraint_ref();
-        if (row == 0) lstrcpyW(hint, L"目标长度 >= 0 (单位: m)");
+        if (row == 0) lstrcpyW(hint, L"目标长度范围: 0 ~ 500 (单位: m)");
         if (row == 1) {
             if (c != NULL && c->type == CONSTRAINT_DISTANCE) lstrcpyW(hint, L"距离刚度范围: 0.08 ~ 1.0");
-            else lstrcpyW(hint, L"弹簧刚度 >= 0.20 (单位: N/m)");
+            else lstrcpyW(hint, L"弹簧刚度范围: 0.20 ~ 40.0 (单位: N/m)");
         }
-        if (row == 2) lstrcpyW(hint, L"阻尼 >= 0 (单位: Ns/m)");
-        if (row == 3) lstrcpyW(hint, L"断裂阈值 >= 0 (单位: N)");
+        if (row == 2) lstrcpyW(hint, L"阻尼范围: 0.0 ~ 20.0 (单位: Ns/m)");
+        if (row == 3) lstrcpyW(hint, L"断裂阈值范围: 0 ~ 100000 (单位: N)");
         if (row == 4) lstrcpyW(hint, L"连体碰撞: 0=禁止 1=允许");
         if (row == 5 && c != NULL && c->type == CONSTRAINT_SPRING) lstrcpyW(hint, L"弹性预设: 0=软 1=中 2=高");
     } else if (g_state.selected != NULL) {
-        if (row == 0) lstrcpyW(hint, L"质量 > 0 (单位: kg)");
-        if (row == 1 || row == 2) lstrcpyW(hint, L"位置 (单位: m)");
-        if (row == 3 || row == 4) lstrcpyW(hint, L"速度 (单位: m/s)");
-        if (row == 5) lstrcpyW(hint, L"角速度 (单位: rad/s)");
+        if (row == 0) lstrcpyW(hint, L"质量范围: 0.1 ~ 1000 (单位: kg)");
+        if (row == 1 || row == 2) lstrcpyW(hint, L"位置范围: -5000 ~ 5000 (单位: m)");
+        if (row == 3 || row == 4) lstrcpyW(hint, L"速度范围: -500 ~ 500 (单位: m/s)");
+        if (row == 5) lstrcpyW(hint, L"角速度范围: -200 ~ 200 (单位: rad/s)");
         if (row == 6) lstrcpyW(hint, L"阻尼范围: 0.0 ~ 1.0");
         if (row == 7) lstrcpyW(hint, L"弹性范围: 0.0 ~ 1.0");
     }
@@ -3182,6 +3468,11 @@ static void clear_right_panel_ui_state(void) {
     g_state.debug_scroll_offset = 0;
     g_state.debug_focused_row = 0;
     g_state.keyboard_focus_area = 1;
+    for (i = 0; i < INSPECTOR_MAX_ROWS; i++) {
+        g_ins_row_rect[i] = rc(0, 0, 0, 0);
+        g_ins_minus_rect[i] = rc(0, 0, 0, 0);
+        g_ins_plus_rect[i] = rc(0, 0, 0, 0);
+    }
     for (i = 0; i < 3; i++) {
         g_dbg_row_rect[i] = rc(0, 0, 0, 0);
         g_dbg_minus_rect[i] = rc(0, 0, 0, 0);
@@ -3259,9 +3550,11 @@ static D2D1_RECT_F render_right_inspector_section(D2D1_RECT_F right_rect) {
         for (ri = 0; ri < g_ins_row_count && ri < INSPECTOR_MAX_ROWS; ri++) {
             const wchar_t* label = L"--";
             D2D1_RECT_F rr = rc(inspector.left + 10.0f, inspector_offset_y + ri * step, inspector_content_right, inspector_offset_y + ri * step + 26.0f);
+            D2D1_RECT_F minus_btn = rc(rr.right - 52.0f, rr.top + 3.0f, rr.right - 30.0f, rr.bottom - 3.0f);
+            D2D1_RECT_F plus_btn = rc(rr.right - 26.0f, rr.top + 3.0f, rr.right - 4.0f, rr.bottom - 3.0f);
             g_ins_row_rect[ri] = rr;
-            g_ins_minus_rect[ri] = rc(0, 0, 0, 0);
-            g_ins_plus_rect[ri] = rc(0, 0, 0, 0);
+            g_ins_minus_rect[ri] = minus_btn;
+            g_ins_plus_rect[ri] = plus_btn;
             draw_card_round(rr, 5.0f,
                             (ri == g_state.inspector_focused_row) ? rgba(0.24f, 0.30f, 0.40f, 1.0f) : rgba(0.19f, 0.22f, 0.28f, 1.0f),
                             rgba(0.31f, 0.37f, 0.46f, 1.0f));
@@ -3291,11 +3584,19 @@ static D2D1_RECT_F render_right_inspector_section(D2D1_RECT_F right_rect) {
                 }
             }
             draw_text(label, rc(rr.left + 6.0f, rr.top + 1.0f, lx1, rr.bottom - 1.0f), g_ui.fmt_info, rgba(0.70f, 0.77f, 0.86f, 1.0f));
-            draw_text(line, rc(vx0, rr.top + 1.0f, rr.right - 8.0f, rr.bottom - 1.0f), g_ui.fmt_info, rgba(0.89f, 0.93f, 0.97f, 1.0f));
+            draw_text(line, rc(vx0, rr.top + 1.0f, rr.right - 58.0f, rr.bottom - 1.0f), g_ui.fmt_info, rgba(0.89f, 0.93f, 0.97f, 1.0f));
+            draw_card_round(minus_btn, 3.0f,
+                            point_in_rect(g_state.mouse_screen, minus_btn) ? rgba(0.31f, 0.40f, 0.54f, 1.0f) : rgba(0.23f, 0.30f, 0.42f, 1.0f),
+                            rgba(0.44f, 0.55f, 0.71f, 1.0f));
+            draw_card_round(plus_btn, 3.0f,
+                            point_in_rect(g_state.mouse_screen, plus_btn) ? rgba(0.31f, 0.40f, 0.54f, 1.0f) : rgba(0.23f, 0.30f, 0.42f, 1.0f),
+                            rgba(0.44f, 0.55f, 0.71f, 1.0f));
+            draw_text(L"-", minus_btn, g_ui.fmt_info, rgba(0.90f, 0.94f, 0.99f, 1.0f));
+            draw_text(L"+", plus_btn, g_ui.fmt_info, rgba(0.90f, 0.94f, 0.99f, 1.0f));
         }
         {
             const wchar_t* ih = inspector_row_hint_text();
-            draw_text(L"提示: Enter输入  双击快速输入  ↑↓切换",
+            draw_text(L"提示: Enter输入  双击快速输入  ↑↓切换  ←→或-/+微调",
                       rc(lx0, inspector_offset_y + g_ins_row_count * step + 8.0f, vx1, inspector_offset_y + g_ins_row_count * step + 28.0f),
                       g_ui.fmt_info, rgba(0.62f, 0.70f, 0.80f, 1.0f));
             draw_text(ih, rc(lx0, inspector_offset_y + g_ins_row_count * step + 34.0f, vx1, inspector_offset_y + g_ins_row_count * step + 56.0f),
@@ -4863,7 +5164,7 @@ static void render_help_modal_content(D2D1_RECT_F modal) {
                   g_ui.fmt_mono, rgba(0.74f, 0.81f, 0.90f, 1.0f));
         draw_text(L"3) 点碰撞日志条目可快速选中相关对象", rc(modal.left + 22.0f, modal.top + 132.0f, modal.right - 24.0f, modal.top + 162.0f),
                   g_ui.fmt_mono, rgba(0.74f, 0.81f, 0.90f, 1.0f));
-        draw_text(L"4) 在检查器里用 +/- 或 Enter 修改质量/速度/约束", rc(modal.left + 22.0f, modal.top + 162.0f, modal.right - 24.0f, modal.top + 192.0f),
+        draw_text(L"4) 在检查器里用 ←/→ 或 +/- 微调，Enter/双击输入精确值", rc(modal.left + 22.0f, modal.top + 162.0f, modal.right - 24.0f, modal.top + 192.0f),
                   g_ui.fmt_mono, rgba(0.74f, 0.81f, 0.90f, 1.0f));
         draw_text(L"5) 打开底部性能页，观察 FPS 与物理耗时曲线", rc(modal.left + 22.0f, modal.top + 192.0f, modal.right - 24.0f, modal.top + 222.0f),
                   g_ui.fmt_mono, rgba(0.74f, 0.81f, 0.90f, 1.0f));
@@ -5874,6 +6175,20 @@ static int handle_bottom_console_lbuttondown(HWND hwnd) {
 static int handle_inspector_debug_lbuttondown(HWND hwnd) {
     int idx;
     for (idx = 0; point_in_rect(g_state.mouse_screen, g_inspector_viewport_rect) && idx < g_ins_row_count && idx < INSPECTOR_MAX_ROWS; idx++) {
+        if (point_in_rect(g_state.mouse_screen, g_ins_minus_rect[idx])) {
+            g_state.inspector_focused_row = idx;
+            g_state.keyboard_focus_area = 1;
+            inspector_adjust_focused_row(-1);
+            InvalidateRect(hwnd, NULL, FALSE);
+            return 1;
+        }
+        if (point_in_rect(g_state.mouse_screen, g_ins_plus_rect[idx])) {
+            g_state.inspector_focused_row = idx;
+            g_state.keyboard_focus_area = 1;
+            inspector_adjust_focused_row(1);
+            InvalidateRect(hwnd, NULL, FALSE);
+            return 1;
+        }
         if (point_in_rect(g_state.mouse_screen, g_ins_row_rect[idx])) {
             g_state.inspector_focused_row = idx;
             g_state.keyboard_focus_area = 1;
@@ -6106,6 +6421,12 @@ static int handle_keydown_inspector_controls(WPARAM wparam) {
         if (wparam == VK_UP) { g_state.inspector_focused_row = (g_state.inspector_focused_row + rcnt - 1) % rcnt; changed = 1; }
         if (wparam == VK_DOWN) { g_state.inspector_focused_row = (g_state.inspector_focused_row + 1) % rcnt; changed = 1; }
         if (wparam == VK_RETURN) { begin_value_input_for_inspector_row(g_state.inspector_focused_row); changed = 1; }
+        if (wparam == VK_LEFT || wparam == VK_SUBTRACT || wparam == VK_OEM_MINUS) {
+            if (inspector_adjust_focused_row(-1)) changed = 1;
+        }
+        if (wparam == VK_RIGHT || wparam == VK_ADD || wparam == VK_OEM_PLUS) {
+            if (inspector_adjust_focused_row(1)) changed = 1;
+        }
     }
     return changed;
 }
