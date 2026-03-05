@@ -482,6 +482,8 @@ static CollisionEvent g_collision_events[COLLISION_EVENT_CAP];
 static int g_collision_event_head;
 static int g_collision_event_count;
 static int g_collision_event_filter_selected_only;
+static AppRuntimeErrorItem g_tick_runtime_errors[APP_RUNTIME_MAX_ERRORS];
+static int g_tick_runtime_error_count;
 static BodyClipboard g_clipboard_body;
 static wchar_t g_status_project_path[260];
 static wchar_t g_status_user[64];
@@ -504,6 +506,9 @@ static int body_index_of(const PhysicsEngine* engine, const RigidBody* b);
 static void clear_collision_events(void);
 static void push_collision_event(int body_a_index, int body_b_index, Vec2 point, float rel_speed, float penetration);
 static void capture_collision_events(void);
+static void reset_tick_runtime_errors(void);
+static void push_tick_runtime_error(int code, int severity, int count);
+static void runtime_event_sink_collect(const PhysicsTraceEvent* event, void* user);
 static int collision_event_involves_selected(const CollisionEvent* ev);
 static void select_body_by_index(int body_index);
 static void cleanup_constraint_selection(void);
@@ -823,19 +828,61 @@ static const wchar_t* runtime_error_severity_label(int severity) {
     return L"warning";
 }
 
+static void reset_tick_runtime_errors(void) {
+    g_tick_runtime_error_count = 0;
+}
+
+static void push_tick_runtime_error(int code, int severity, int count) {
+    int i;
+    if (code == PHYSICS_ERROR_NONE || count <= 0) return;
+    for (i = 0; i < g_tick_runtime_error_count; i++) {
+        if (g_tick_runtime_errors[i].code == code && g_tick_runtime_errors[i].severity == severity) {
+            g_tick_runtime_errors[i].count += count;
+            return;
+        }
+    }
+    if (g_tick_runtime_error_count >= APP_RUNTIME_MAX_ERRORS) return;
+    g_tick_runtime_errors[g_tick_runtime_error_count].code = code;
+    g_tick_runtime_errors[g_tick_runtime_error_count].severity = severity;
+    g_tick_runtime_errors[g_tick_runtime_error_count].count = count;
+    g_tick_runtime_error_count++;
+}
+
+static void runtime_event_sink_collect(const PhysicsTraceEvent* event, void* user) {
+    int code;
+    int severity;
+    (void)user;
+    if (event == NULL || event->type != PHYSICS_EVENT_ERROR) return;
+    code = (int)event->payload.error.code;
+    severity = (code == PHYSICS_ERROR_INVALID_ARGUMENT || code == PHYSICS_ERROR_CAPACITY_EXCEEDED)
+                   ? APP_RUNTIME_ERROR_ERROR
+                   : APP_RUNTIME_ERROR_WARNING;
+    push_tick_runtime_error(code, severity, 1);
+}
+
 static void app_runtime_collect_errors_for_tick(void) {
     AppRuntimeErrorItem items[APP_RUNTIME_MAX_ERRORS];
     int n = 0;
-    int code = (g_state.engine != NULL) ? physics_engine_get_last_error(g_state.engine) : PHYSICS_ERROR_NONE;
-    if (code != PHYSICS_ERROR_NONE) {
-        items[0].code = code;
-        items[0].severity = (code == PHYSICS_ERROR_INVALID_ARGUMENT || code == PHYSICS_ERROR_CAPACITY_EXCEEDED)
-                                ? APP_RUNTIME_ERROR_ERROR
-                                : APP_RUNTIME_ERROR_WARNING;
-        items[0].count = 1;
-        n = 1;
+    int i;
+    if (g_tick_runtime_error_count > 0) {
+        n = g_tick_runtime_error_count;
+        if (n > APP_RUNTIME_MAX_ERRORS) n = APP_RUNTIME_MAX_ERRORS;
+        for (i = 0; i < n; i++) {
+            items[i] = g_tick_runtime_errors[i];
+        }
+    } else {
+        int code = (g_state.engine != NULL) ? physics_engine_get_last_error(g_state.engine) : PHYSICS_ERROR_NONE;
+        if (code != PHYSICS_ERROR_NONE) {
+            items[0].code = code;
+            items[0].severity = (code == PHYSICS_ERROR_INVALID_ARGUMENT || code == PHYSICS_ERROR_CAPACITY_EXCEEDED)
+                                    ? APP_RUNTIME_ERROR_ERROR
+                                    : APP_RUNTIME_ERROR_WARNING;
+            items[0].count = 1;
+            n = 1;
+        }
     }
     app_runtime_set_runtime_errors(&g_app_runtime, items, n);
+    reset_tick_runtime_errors();
 }
 
 static void export_perf_report_csv(void) {
@@ -1997,6 +2044,8 @@ static void apply_scene(int scene_index) {
     if (g_state.engine == NULL) {
         return;
     }
+    physics_engine_set_event_sink(g_state.engine, runtime_event_sink_collect, NULL);
+    reset_tick_runtime_errors();
 
     cfg = &g_state.scenes[scene_index];
     physics_engine_set_gravity(g_state.engine, vec2(0.0f, cfg->gravity_y));

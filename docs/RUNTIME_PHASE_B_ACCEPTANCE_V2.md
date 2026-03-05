@@ -7,7 +7,7 @@ Date: 2026-03-05
 - [x] Runtime facade is the single conceptual runtime boundary (tick/event/error)
 - [x] ECS <-> Physics bridge has consistency validation
 - [x] Architecture guardrail script remains green
-- [~] Live editor path directly consumes facade `last_errors()` by default (bridge path exists and is tested; final switch pending)
+- [x] Live editor path defaults to runtime error-list protocol with event-sink-backed multi-error ingestion
 
 ## B. Runtime Capability
 
@@ -36,4 +36,4 @@ Date: 2026-03-05
 ## E. Phase-C Prerequisites
 
 - [x] Phase-B final report produced
-- [~] Freeze protocol baseline after live editor source switch
+- [x] Freeze protocol baseline after live editor source switch

@@ -7,7 +7,7 @@ Branch: `cpp-migration-baseline`
 
 Phase B goals were to stabilize runtime boundaries, complete ECS/physics bridge behavior, and make editor/runtime observability actionable.
 
-Current status: **Substantially complete**.  
+Current status: **Complete (Phase B closure)**.  
 Core runtime + bridge + observability + guardrails are in place and green in local regression/CI paths.
 
 ## 2. Completed Deliverables
@@ -51,11 +51,12 @@ Core runtime + bridge + observability + guardrails are in place and green in loc
    - `apps/sandbox_dwrite/application/app_runtime.c`
    - `apps/sandbox_dwrite/main.c`
 
-## 4. Open Item Before Full Closure
+## 4. Closure Note
 
-1. Wire real facade error source into live editor runtime path by default:
-   - Today the bridge path exists and is tested via smoke + injection API.
-   - Remaining work: replace live editor tick error source with facade `last_errors()` in runtime loop (not only bridge/integration smoke).
+1. Live editor runtime now defaults to error-list protocol ingestion:
+   - tick path collects runtime errors via event-sink-backed multi-error buffer
+   - error list is injected through `app_runtime_set_runtime_errors(...)`
+   - bridge path from facade `last_errors()` remains available and smoke-covered
 
 ## 5. Risks
 
@@ -65,6 +66,6 @@ Core runtime + bridge + observability + guardrails are in place and green in loc
 
 ## 6. Recommendation for Phase C Entry
 
-1. First C task: switch editor live runtime error ingestion to facade `last_errors()` as primary source.
+1. First C task: move live simulation loop ownership from C engine path to facade-driven runtime path.
 2. Keep current smoke set as migration guardrail.
-3. Freeze current snapshot/event/error protocol fields before large C++ runtime migration.
+3. Preserve snapshot/event/error protocol field compatibility while moving backend ownership.
