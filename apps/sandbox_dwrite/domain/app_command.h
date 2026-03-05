@@ -1,6 +1,10 @@
 #ifndef APP_COMMAND_H
 #define APP_COMMAND_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
     APP_CMD_NONE = 0,
     APP_CMD_TOGGLE_RUN,
@@ -24,5 +28,9 @@ typedef struct {
 } AppCommandCallbacks;
 
 int app_command_execute(const AppCommand* cmd, const AppCommandCallbacks* callbacks);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

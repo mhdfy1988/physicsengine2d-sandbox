@@ -3,6 +3,10 @@
 
 #include "app_controller.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     AppEventBus event_bus;
     AppController controller;
@@ -18,5 +22,9 @@ int app_runtime_pop_event(AppRuntime* runtime, AppEvent* out_event);
 void app_runtime_report_tick(AppRuntime* runtime, PhysicsEngine* engine, int running, float step_ms);
 const AppRuntimeSnapshot* app_runtime_get_last_snapshot(const AppRuntime* runtime);
 void app_runtime_set_runtime_errors(AppRuntime* runtime, const AppRuntimeErrorItem* errors, int error_count);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

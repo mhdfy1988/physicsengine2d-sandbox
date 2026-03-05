@@ -808,6 +808,12 @@ static const wchar_t* runtime_error_label(int code) {
         case PHYSICS_ERROR_API_VERSION_MISMATCH: return L"api_version_mismatch";
         case PHYSICS_ERROR_PLUGIN_INIT_FAILED: return L"plugin_init_failed";
         case PHYSICS_ERROR_CAPACITY_EXCEEDED: return L"capacity_exceeded";
+        case APP_RUNTIME_ERROR_CODE_BRIDGE_MISSING_REVERSE: return L"bridge_missing_reverse";
+        case APP_RUNTIME_ERROR_CODE_BRIDGE_STALE_ENTITY: return L"bridge_stale_entity";
+        case APP_RUNTIME_ERROR_CODE_BRIDGE_NULL_BODY: return L"bridge_null_body";
+        case APP_RUNTIME_ERROR_CODE_BRIDGE_DUPLICATE_BODY: return L"bridge_duplicate_body";
+        case APP_RUNTIME_ERROR_CODE_BRIDGE_REFCOUNT_MISMATCH: return L"bridge_ref_count_mismatch";
+        case APP_RUNTIME_ERROR_CODE_PIPELINE_MAPPING_ERRORS: return L"pipeline_mapping_errors";
         default: return L"unknown";
     }
 }

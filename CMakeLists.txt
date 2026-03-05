@@ -195,6 +195,23 @@ if(BUILD_CPP_WRAPPER)
     physics_add_cpp_smoke(physics_cpp_runtime_error_channel_smoke tests/cpp_runtime_error_channel_smoke.cpp TRUE)
     physics_add_cpp_smoke(physics_cpp_runtime_error_recovery_smoke tests/cpp_runtime_error_recovery_smoke.cpp TRUE)
     physics_add_cpp_smoke(physics_cpp_runtime_multi_error_smoke tests/cpp_runtime_multi_error_smoke.cpp TRUE)
+    add_executable(physics_cpp_runtime_app_bridge_smoke
+        tests/cpp_runtime_app_bridge_smoke.cpp
+        apps/sandbox_dwrite/domain/app_command.c
+        apps/sandbox_dwrite/infrastructure/app_event_bus.c
+        apps/sandbox_dwrite/application/app_controller.c
+        apps/sandbox_dwrite/application/app_runtime.c
+    )
+    target_include_directories(physics_cpp_runtime_app_bridge_smoke PRIVATE ${CMAKE_SOURCE_DIR}/cpp)
+    target_link_libraries(physics_cpp_runtime_app_bridge_smoke PRIVATE physics2d)
+    if(MSVC)
+        target_compile_options(physics_cpp_runtime_app_bridge_smoke PRIVATE /W4)
+    else()
+        target_compile_options(physics_cpp_runtime_app_bridge_smoke PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+    endif()
+    set_target_properties(physics_cpp_runtime_app_bridge_smoke PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
     physics_add_cpp_smoke(physics_cpp_runtime_events_smoke tests/cpp_runtime_events_smoke.cpp TRUE)
     physics_add_cpp_smoke(physics_cpp_runtime_pause_step_smoke tests/cpp_runtime_pause_step_smoke.cpp TRUE)
 endif()
