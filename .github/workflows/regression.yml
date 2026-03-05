@@ -23,7 +23,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  regression:
+  cmake-regression:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -37,3 +37,12 @@ jobs:
 
       - name: Run Regression Tests
         run: ./build/bin/physics_tests
+
+  make-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build And Run Make Tests
+        run: make test

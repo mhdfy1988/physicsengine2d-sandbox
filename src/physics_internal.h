@@ -8,5 +8,7 @@ RigidBody* physics_internal_raycast(PhysicsEngine* engine, Vec2 start, Vec2 end)
 void physics_internal_emit_event(PhysicsEngine* engine, PhysicsEventType type, int ivalue, double dvalue,
                                  const char* message, const CollisionManifold* contact);
 void physics_internal_set_error(PhysicsEngine* engine, PhysicsErrorCode error, const char* message_override);
+void physics_internal_sanitize_config(PhysicsConfig* config);
+void physics_internal_sanitize_experimental_config(PhysicsExperimentalConfig* config);
 
 #endif

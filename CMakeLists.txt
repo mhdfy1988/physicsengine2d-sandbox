@@ -17,7 +17,9 @@ set(PHYSICS2D_SOURCES
     src/body.c
     src/constraint.c
     src/collision.c
+    src/collision_detect.c
     src/physics.c
+    src/physics_config.c
     src/physics_snapshot.c
     src/physics_world.c
     src/physics_memory.c
