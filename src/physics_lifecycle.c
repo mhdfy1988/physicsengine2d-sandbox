@@ -1,25 +1,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include "physics_internal.h"
+#include "internal/physics_defaults.h"
 
 static PhysicsConfig physics_default_config(void) {
     PhysicsConfig cfg;
-    cfg.time_step = 1.0f / 60.0f;
-    cfg.substeps = 3;
-    cfg.iterations = 5;
-    cfg.damping = 0.99f;
-    cfg.broadphase_cell_size = 10.0f;
+    cfg.time_step = PHYSICS_DEFAULT_TIME_STEP;
+    cfg.substeps = PHYSICS_DEFAULT_SUBSTEPS;
+    cfg.iterations = PHYSICS_DEFAULT_ITERATIONS;
+    cfg.damping = PHYSICS_DEFAULT_DAMPING;
+    cfg.broadphase_cell_size = PHYSICS_DEFAULT_BROADPHASE_CELL_SIZE;
     cfg.broadphase_type = PHYSICS_BROADPHASE_GRID;
-    cfg.max_position_iterations_bias = 3;
+    cfg.max_position_iterations_bias = PHYSICS_DEFAULT_MAX_POSITION_ITERATION_BIAS;
     return cfg;
 }
 
 static PhysicsExperimentalConfig physics_default_experimental_config(void) {
     PhysicsExperimentalConfig cfg;
-    cfg.ccd_enabled = 0;
-    cfg.sleep_enabled = 0;
-    cfg.threading_enabled = 0;
-    cfg.worker_count = 1;
+    cfg.ccd_enabled = PHYSICS_DEFAULT_EXPERIMENTAL_CCD;
+    cfg.sleep_enabled = PHYSICS_DEFAULT_EXPERIMENTAL_SLEEP;
+    cfg.threading_enabled = PHYSICS_DEFAULT_EXPERIMENTAL_THREADING;
+    cfg.worker_count = PHYSICS_DEFAULT_EXPERIMENTAL_WORKERS;
     return cfg;
 }
 
@@ -33,7 +34,7 @@ PhysicsEngine* physics_engine_create(void) {
     }
     memset(engine, 0, sizeof(*engine));
 
-    engine->gravity = vec2(0, 9.8f);
+    engine->gravity = vec2(PHYSICS_DEFAULT_GRAVITY_X, PHYSICS_DEFAULT_GRAVITY_Y);
     engine->config = physics_default_config();
     engine->experimental = physics_default_experimental_config();
     physics_internal_sanitize_config(&engine->config);

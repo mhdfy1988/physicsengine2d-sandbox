@@ -1,14 +1,17 @@
 #include <string.h>
 #include "physics_internal.h"
+#include "internal/physics_defaults.h"
 
 void physics_internal_sanitize_config(PhysicsConfig* config) {
     if (config == NULL) return;
-    if (config->time_step <= 0.0f) config->time_step = 1.0f / 60.0f;
-    if (config->substeps < 1) config->substeps = 1;
-    if (config->iterations < 1) config->iterations = 1;
+    if (config->time_step <= 0.0f) config->time_step = PHYSICS_DEFAULT_TIME_STEP;
+    if (config->substeps < 1) config->substeps = PHYSICS_DEFAULT_SUBSTEPS;
+    if (config->iterations < 1) config->iterations = PHYSICS_DEFAULT_ITERATIONS;
     if (config->max_position_iterations_bias < 0) config->max_position_iterations_bias = 0;
     config->damping = clamp(config->damping, 0.0f, 1.0f);
-    if (config->broadphase_cell_size <= 0.0f) config->broadphase_cell_size = 10.0f;
+    if (config->broadphase_cell_size <= 0.0f) {
+        config->broadphase_cell_size = PHYSICS_DEFAULT_BROADPHASE_CELL_SIZE;
+    }
     if (config->broadphase_type != PHYSICS_BROADPHASE_GRID &&
         config->broadphase_type != PHYSICS_BROADPHASE_SAP &&
         config->broadphase_type != PHYSICS_BROADPHASE_BVH) {
@@ -21,7 +24,7 @@ void physics_internal_sanitize_experimental_config(PhysicsExperimentalConfig* co
     config->ccd_enabled = config->ccd_enabled ? 1 : 0;
     config->sleep_enabled = config->sleep_enabled ? 1 : 0;
     config->threading_enabled = config->threading_enabled ? 1 : 0;
-    if (config->worker_count < 1) config->worker_count = 1;
+    if (config->worker_count < 1) config->worker_count = PHYSICS_DEFAULT_EXPERIMENTAL_WORKERS;
 }
 
 int physics_engine_install_pipeline_plugin(PhysicsEngine* engine, const PhysicsPipelinePluginV1* plugin) {
