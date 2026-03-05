@@ -6,6 +6,8 @@
 
 架构基线：[`ENGINE_ARCHITECTURE.md`](./ENGINE_ARCHITECTURE.md)  
 阶段 C 收口：[`PHASE_C_FINAL_REPORT.md`](./PHASE_C_FINAL_REPORT.md)
+进度跟踪：[`PHASE_D_PROGRESS.md`](./PHASE_D_PROGRESS.md)  
+验收清单：[`PHASE_D_ACCEPTANCE.md`](./PHASE_D_ACCEPTANCE.md)
 
 ## 1. 文档目标
 
@@ -158,8 +160,8 @@
 ## 11. 交付清单
 
 1. 阶段 D 详细设计文档（本文件）。
-2. 阶段 D 进度文档（待创建）。
-3. 阶段 D 验收清单（待创建）。
+2. 阶段 D 进度文档（见 [PHASE_D_PROGRESS.md](./PHASE_D_PROGRESS.md)）。
+3. 阶段 D 验收清单（见 [PHASE_D_ACCEPTANCE.md](./PHASE_D_ACCEPTANCE.md)）。
 4. 阶段 D 封板报告（阶段完成时输出）。
 5. 对应测试、脚本、门禁报告与证据归档。
 
