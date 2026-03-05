@@ -12,8 +12,8 @@ BINDIR = bin
 OBJDIR = obj
 LIBDIR = lib
 
-C_SOURCES = $(SRCDIR)/math.c $(SRCDIR)/shape.c $(SRCDIR)/body.c $(SRCDIR)/constraint.c $(SRCDIR)/collision.c $(SRCDIR)/collision_detect.c
-CPP_SOURCES = $(SRCDIR)/physics_memory.cpp $(SRCDIR)/physics_ids.cpp $(SRCDIR)/physics_parallel.cpp $(SRCDIR)/physics_world.cpp $(SRCDIR)/physics_raycast.cpp $(SRCDIR)/physics_snapshot.cpp $(SRCDIR)/physics_integrate.cpp $(SRCDIR)/physics_resolve.cpp $(SRCDIR)/physics_step.cpp $(SRCDIR)/physics_broadphase.cpp $(SRCDIR)/physics_collision_pipeline.cpp $(SRCDIR)/physics_contact_manager.cpp $(SRCDIR)/physics_ccd.cpp $(SRCDIR)/physics_pipeline_api.cpp $(SRCDIR)/physics_solver.cpp $(SRCDIR)/physics_query.cpp $(SRCDIR)/physics_mutation.cpp $(SRCDIR)/physics.cpp $(SRCDIR)/physics_lifecycle.cpp $(SRCDIR)/physics_runtime_api.cpp $(SRCDIR)/physics_config.cpp
+C_SOURCES =
+CPP_SOURCES = $(SRCDIR)/math.cpp $(SRCDIR)/shape.cpp $(SRCDIR)/body.cpp $(SRCDIR)/constraint.cpp $(SRCDIR)/collision.cpp $(SRCDIR)/collision_detect.cpp $(SRCDIR)/physics_memory.cpp $(SRCDIR)/physics_ids.cpp $(SRCDIR)/physics_parallel.cpp $(SRCDIR)/physics_world.cpp $(SRCDIR)/physics_raycast.cpp $(SRCDIR)/physics_snapshot.cpp $(SRCDIR)/physics_integrate.cpp $(SRCDIR)/physics_resolve.cpp $(SRCDIR)/physics_step.cpp $(SRCDIR)/physics_broadphase.cpp $(SRCDIR)/physics_collision_pipeline.cpp $(SRCDIR)/physics_contact_manager.cpp $(SRCDIR)/physics_ccd.cpp $(SRCDIR)/physics_pipeline_api.cpp $(SRCDIR)/physics_solver.cpp $(SRCDIR)/physics_query.cpp $(SRCDIR)/physics_mutation.cpp $(SRCDIR)/physics.cpp $(SRCDIR)/physics_lifecycle.cpp $(SRCDIR)/physics_runtime_api.cpp $(SRCDIR)/physics_config.cpp
 C_OBJECTS = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(C_SOURCES))
 CPP_OBJECTS = $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(CPP_SOURCES))
 OBJECTS = $(C_OBJECTS) $(CPP_OBJECTS)

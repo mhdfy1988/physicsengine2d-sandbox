@@ -34,12 +34,12 @@ function(physics_add_cpp_smoke target source needs_cpp_include)
 endfunction()
 
 set(PHYSICS2D_SOURCES
-    src/math.c
-    src/shape.c
-    src/body.c
-    src/constraint.c
-    src/collision.c
-    src/collision_detect.c
+    src/math.cpp
+    src/shape.cpp
+    src/body.cpp
+    src/constraint.cpp
+    src/collision.cpp
+    src/collision_detect.cpp
     src/physics.cpp
     src/physics_lifecycle.cpp
     src/physics_runtime_api.cpp
