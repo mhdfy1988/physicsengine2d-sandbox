@@ -780,7 +780,7 @@ static int log_match_filter(const wchar_t* s, int mode) {
     if (s == NULL) return 0;
     if (mode == 0) base_ok = 1;
     if (mode == 1) base_ok = (wcsstr(s, L"[状态]") != NULL);
-    if (mode == 2) base_ok = (wcsstr(s, L"[物理]") != NULL) || (wcsstr(s, L"[碰撞]") != NULL);
+    if (mode == 2) base_ok = (wcsstr(s, L"[物理]") != NULL) || (wcsstr(s, L"[碰撞]") != NULL) || (wcsstr(s, L"[运行时]") != NULL);
     if (mode == 3) base_ok = (wcsstr(s, L"[警告]") != NULL);
     if (mode == 4) return 0;
     if (!base_ok) return 0;
@@ -891,6 +891,14 @@ static void menu_cb_step_once(void* user) {
     (void)user;
     cmd.type = APP_CMD_STEP_ONCE;
     app_runtime_dispatch(&g_app_runtime, cmd);
+}
+
+static void focus_console_log_panel(int log_filter_mode) {
+    g_state.ui_show_bottom_panel = 1;
+    g_state.bottom_panel_collapsed = 0;
+    g_state.bottom_active_tab = 0;
+    g_state.log_filter_mode = log_filter_mode;
+    g_state.log_scroll_offset = 0;
 }
 
 static void menu_cb_reset_scene(void* user) {
@@ -5287,6 +5295,7 @@ static int handle_inspector_debug_lbuttondown(HWND hwnd) {
                 RuntimeTickHistoryEntry entry = g_state.runtime_tick_history[entry_idx];
                 push_console_log(L"[运行时] 帧#%u 对象:%d 约束:%d 接触:%d %.2fms",
                                  entry.frame_index, entry.body_count, entry.constraint_count, entry.contact_count, entry.step_ms);
+                focus_console_log_panel(2);
                 InvalidateRect(hwnd, NULL, FALSE);
                 return 1;
             }
@@ -5299,6 +5308,7 @@ static int handle_inspector_debug_lbuttondown(HWND hwnd) {
                 RuntimeStateHistoryEntry entry = g_state.runtime_state_history[entry_idx];
                 push_console_log(L"[运行时] 帧#%u 状态:%s 时间戳:%ums",
                                  entry.frame_index, entry.running ? L"运行" : L"暂停", entry.tick_ms);
+                focus_console_log_panel(0);
                 InvalidateRect(hwnd, NULL, FALSE);
                 return 1;
             }
