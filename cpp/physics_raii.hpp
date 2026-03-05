@@ -54,6 +54,10 @@ public:
         return physics_engine_get_body_count(handle_.get());
     }
 
+    RigidBody* body(int index) const noexcept {
+        return physics_engine_get_body(handle_.get(), index);
+    }
+
     void add_body(RigidBody* body) noexcept {
         physics_engine_add_body(handle_.get(), body);
     }
@@ -64,6 +68,48 @@ public:
 
     RigidBody* detach_body(RigidBody* body) noexcept {
         return physics_engine_detach_body(handle_.get(), body);
+    }
+
+    int constraint_count() const noexcept {
+        return physics_engine_get_constraint_count(handle_.get());
+    }
+
+    Constraint* add_distance_constraint(RigidBody* a, RigidBody* b,
+                                        Vec2 world_anchor_a, Vec2 world_anchor_b,
+                                        float stiffness, int collide_connected) noexcept {
+        return physics_engine_add_distance_constraint(handle_.get(), a, b,
+                                                      world_anchor_a, world_anchor_b,
+                                                      stiffness, collide_connected);
+    }
+
+    Constraint* add_spring_constraint(RigidBody* a, RigidBody* b,
+                                      Vec2 world_anchor_a, Vec2 world_anchor_b,
+                                      float rest_length, float stiffness, float damping,
+                                      int collide_connected) noexcept {
+        return physics_engine_add_spring_constraint(handle_.get(), a, b,
+                                                    world_anchor_a, world_anchor_b,
+                                                    rest_length, stiffness, damping,
+                                                    collide_connected);
+    }
+
+    Constraint* add_rope_constraint(RigidBody* a, RigidBody* b,
+                                    Vec2 world_anchor_a, Vec2 world_anchor_b,
+                                    float max_length, float stiffness, int collide_connected) noexcept {
+        return physics_engine_add_rope_constraint(handle_.get(), a, b,
+                                                  world_anchor_a, world_anchor_b,
+                                                  max_length, stiffness, collide_connected);
+    }
+
+    bool constraint_active(int index) const noexcept {
+        return physics_engine_constraint_is_active(handle_.get(), index) != 0;
+    }
+
+    void set_constraint_active(int index, bool active) noexcept {
+        physics_engine_constraint_set_active(handle_.get(), index, active ? 1 : 0);
+    }
+
+    void clear_constraints() noexcept {
+        physics_engine_clear_constraints(handle_.get());
     }
 
     bool add_broadphase_pair(int index_a, int index_b) noexcept {
