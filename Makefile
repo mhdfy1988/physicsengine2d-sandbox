@@ -1,8 +1,8 @@
 CC = gcc
 CXX = g++
 AR = ar
-CFLAGS = -Wall -Wextra -Wpedantic -std=c99 -finput-charset=UTF-8 -fexec-charset=UTF-8 -Iinclude
-CXXFLAGS = -Wall -Wextra -Wpedantic -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8 -Iinclude -DPHYSICS_USE_CPP_KERNEL=1
+CFLAGS = -Wall -Wextra -Wpedantic -std=c99 -finput-charset=UTF-8 -fexec-charset=UTF-8 -Iinclude -Isrc
+CXXFLAGS = -Wall -Wextra -Wpedantic -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8 -Iinclude -Isrc -DPHYSICS_USE_CPP_KERNEL=1
 LDFLAGS = -lm
 DEPFLAGS = -MMD -MP
 SRCDIR = src
@@ -13,7 +13,7 @@ OBJDIR = obj
 LIBDIR = lib
 
 C_SOURCES =
-CPP_SOURCES = $(SRCDIR)/math.cpp $(SRCDIR)/shape.cpp $(SRCDIR)/body.cpp $(SRCDIR)/constraint.cpp $(SRCDIR)/collision.cpp $(SRCDIR)/collision_detect.cpp $(SRCDIR)/physics_memory.cpp $(SRCDIR)/physics_ids.cpp $(SRCDIR)/physics_parallel.cpp $(SRCDIR)/physics_world.cpp $(SRCDIR)/physics_raycast.cpp $(SRCDIR)/physics_snapshot.cpp $(SRCDIR)/physics_integrate.cpp $(SRCDIR)/physics_resolve.cpp $(SRCDIR)/physics_step.cpp $(SRCDIR)/physics_broadphase.cpp $(SRCDIR)/physics_collision_pipeline.cpp $(SRCDIR)/physics_contact_manager.cpp $(SRCDIR)/physics_ccd.cpp $(SRCDIR)/physics_pipeline_api.cpp $(SRCDIR)/physics_solver.cpp $(SRCDIR)/physics_query.cpp $(SRCDIR)/physics_mutation.cpp $(SRCDIR)/physics.cpp $(SRCDIR)/physics_lifecycle.cpp $(SRCDIR)/physics_runtime_api.cpp $(SRCDIR)/physics_config.cpp
+CPP_SOURCES = $(SRCDIR)/physics2d/math.cpp $(SRCDIR)/physics2d/shape.cpp $(SRCDIR)/physics2d/body.cpp $(SRCDIR)/physics2d/constraint.cpp $(SRCDIR)/physics2d/collision.cpp $(SRCDIR)/physics2d/collision_detect.cpp $(SRCDIR)/core/physics_memory.cpp $(SRCDIR)/core/physics_ids.cpp $(SRCDIR)/core/physics_parallel.cpp $(SRCDIR)/core/physics_world.cpp $(SRCDIR)/physics2d/physics_raycast.cpp $(SRCDIR)/core/physics_snapshot.cpp $(SRCDIR)/physics2d/physics_integrate.cpp $(SRCDIR)/physics2d/physics_resolve.cpp $(SRCDIR)/core/physics_step.cpp $(SRCDIR)/physics2d/physics_broadphase.cpp $(SRCDIR)/physics2d/physics_collision_pipeline.cpp $(SRCDIR)/physics2d/physics_contact_manager.cpp $(SRCDIR)/physics2d/physics_ccd.cpp $(SRCDIR)/c_api/physics_pipeline_api.cpp $(SRCDIR)/physics2d/physics_solver.cpp $(SRCDIR)/c_api/physics_query.cpp $(SRCDIR)/c_api/physics_mutation.cpp $(SRCDIR)/c_api/physics.cpp $(SRCDIR)/c_api/physics_lifecycle.cpp $(SRCDIR)/c_api/physics_runtime_api.cpp $(SRCDIR)/c_api/physics_config.cpp
 C_OBJECTS = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(C_SOURCES))
 CPP_OBJECTS = $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(CPP_SOURCES))
 OBJECTS = $(C_OBJECTS) $(CPP_OBJECTS)
@@ -48,9 +48,11 @@ $(LIBDIR):
 	if not exist $(LIBDIR) mkdir $(LIBDIR)
 
 $(C_OBJECTS): $(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
+	powershell -NoProfile -Command "New-Item -ItemType Directory -Force '$(dir $@)' | Out-Null"
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 $(CPP_OBJECTS): $(OBJDIR)/%.o: $(SRCDIR)/%.cpp | $(OBJDIR)
+	powershell -NoProfile -Command "New-Item -ItemType Directory -Force '$(dir $@)' | Out-Null"
 	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c $< -o $@
 
 $(CORE_LIB): $(OBJECTS) | $(LIBDIR)

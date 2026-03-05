@@ -34,38 +34,39 @@ function(physics_add_cpp_smoke target source needs_cpp_include)
 endfunction()
 
 set(PHYSICS2D_SOURCES
-    src/math.cpp
-    src/shape.cpp
-    src/body.cpp
-    src/constraint.cpp
-    src/collision.cpp
-    src/collision_detect.cpp
-    src/physics.cpp
-    src/physics_lifecycle.cpp
-    src/physics_runtime_api.cpp
-    src/physics_config.cpp
-    src/physics_query.cpp
-    src/physics_mutation.cpp
-    src/physics_pipeline_api.cpp
-    src/physics_snapshot.cpp
-    src/physics_world.cpp
-    src/physics_memory.cpp
-    src/physics_ids.cpp
-    src/physics_parallel.cpp
-    src/physics_broadphase.cpp
-    src/physics_contact_manager.cpp
-    src/physics_ccd.cpp
-    src/physics_raycast.cpp
-    src/physics_step.cpp
-    src/physics_collision_pipeline.cpp
-    src/physics_resolve.cpp
-    src/physics_solver.cpp
-    src/physics_integrate.cpp
+    src/physics2d/math.cpp
+    src/physics2d/shape.cpp
+    src/physics2d/body.cpp
+    src/physics2d/constraint.cpp
+    src/physics2d/collision.cpp
+    src/physics2d/collision_detect.cpp
+    src/c_api/physics.cpp
+    src/c_api/physics_lifecycle.cpp
+    src/c_api/physics_runtime_api.cpp
+    src/c_api/physics_config.cpp
+    src/c_api/physics_query.cpp
+    src/c_api/physics_mutation.cpp
+    src/c_api/physics_pipeline_api.cpp
+    src/core/physics_snapshot.cpp
+    src/core/physics_world.cpp
+    src/core/physics_memory.cpp
+    src/core/physics_ids.cpp
+    src/core/physics_parallel.cpp
+    src/physics2d/physics_broadphase.cpp
+    src/physics2d/physics_contact_manager.cpp
+    src/physics2d/physics_ccd.cpp
+    src/physics2d/physics_raycast.cpp
+    src/core/physics_step.cpp
+    src/physics2d/physics_collision_pipeline.cpp
+    src/physics2d/physics_resolve.cpp
+    src/physics2d/physics_solver.cpp
+    src/physics2d/physics_integrate.cpp
 )
 
 add_library(physics2d STATIC ${PHYSICS2D_SOURCES})
 add_library(physics_core ALIAS physics2d)
 target_include_directories(physics2d PUBLIC ${CMAKE_SOURCE_DIR}/include)
+target_include_directories(physics2d PRIVATE ${CMAKE_SOURCE_DIR}/src)
 if(PHYSICS_USE_CPP_KERNEL)
     target_compile_definitions(physics2d PUBLIC PHYSICS_USE_CPP_KERNEL=1)
 else()
