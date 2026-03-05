@@ -1,7 +1,7 @@
 # 阶段 D 验收清单（编辑器化与工具链完善）
 
 更新时间：2026-03-06  
-状态：进行中（D1）
+状态：进行中（D2）
 
 对应设计：[`PHASE_D_DETAILED_DESIGN.md`](./PHASE_D_DETAILED_DESIGN.md)  
 进度跟踪：[`PHASE_D_PROGRESS.md`](./PHASE_D_PROGRESS.md)  
@@ -19,7 +19,7 @@
 
 - [x] Scene Tree 支持场景项选择同步（层级点击切换到指定场景）
 - [x] Scene Tree 支持场景重命名（双击或 `F2`）
-- [ ] Scene Tree 支持场景排序
+- [x] Scene Tree 支持场景排序
 - [ ] Inspector 支持核心组件字段编辑与约束校验
 - [ ] 统一命令总线驱动编辑操作
 - [ ] Undo/Redo 覆盖核心编辑行为并有回归
@@ -72,3 +72,11 @@
 - [x] 层级过滤已对场景列表生效（无匹配时显示占位提示）
 - [x] 验证通过：`mingw32-make test`, `mingw32-make sandbox`, `mingw32-make benchmark`, `scripts/check_arch_deps.ps1`, `scripts/check_api_surface.ps1`, `scripts/hot_reload_smoke.ps1`, `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
 - [x] 门禁摘要：`artifacts/phase_d_gate_suite_20260306_012203/summary.md`
+
+## 2026-03-06 D2 Scene Tree Ordering Snapshot
+
+- [x] Scene Tree 已支持排序视图（渲染与过滤均按 `scene_order` 生效）
+- [x] 排序快捷键已接入：`Alt+Up` / `Alt+Down` / `Alt+Home`
+- [x] 帮助文档已同步排序操作提示
+- [x] 验证通过：`mingw32-make test`, `mingw32-make sandbox`, `mingw32-make benchmark`, `scripts/check_arch_deps.ps1`, `scripts/check_api_surface.ps1`, `scripts/hot_reload_smoke.ps1`, `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
+- [x] 门禁摘要：`artifacts/phase_d_gate_suite_20260306_013031/summary.md`

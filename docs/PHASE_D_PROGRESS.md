@@ -2,7 +2,7 @@
 
 更新时间：2026-03-06  
 分支：`cpp-migration-baseline`  
-状态：D1 已完成（进入 D2 启动准备）
+状态：D2 进行中（Scene Tree 选择/重命名/排序已完成）
 
 > 跟踪基线：以 [PHASE_D_DETAILED_DESIGN.md](./PHASE_D_DETAILED_DESIGN.md) 和 [PHASE_D_ACCEPTANCE.md](./PHASE_D_ACCEPTANCE.md) 为准。  
 > D1 证据包：见 [PHASE_D_EVIDENCE.md](./PHASE_D_EVIDENCE.md)。
@@ -18,7 +18,7 @@
 
 ## 进行中
 
-1. D2 Scene Tree 排序能力与 Inspector 第一条闭环选型。
+1. D2 Inspector 第一条闭环（核心字段编辑 + 约束校验）方案与实现。
 
 ## 待完成（按里程碑）
 
@@ -33,7 +33,7 @@
 
 - [x] Scene Tree 选择能力（层级点击切换）
 - [x] Scene Tree 重命名能力（双击/F2）
-- [ ] Scene Tree 排序能力
+- [x] Scene Tree 排序能力
 - [ ] Inspector 核心组件字段编辑闭环
 - [ ] 统一 command bus + Undo/Redo 主路径
 - [ ] GUID 安全资产引用编辑
@@ -65,9 +65,9 @@
 
 ## 下一次更新触发条件
 
-1. D2 Scene Tree 排序能力完成。
-2. D2 对应验收条目首次进入可执行回归。
-3. D2 相关门禁新增项进入稳定执行。
+1. D2 Inspector 第一条闭环（字段编辑 + 约束校验）完成。
+2. `tests/editor_undo_redo_smoke.c` 初版接入并稳定通过。
+3. D2 command bus 主路径首次覆盖核心编辑操作。
 
 ## 2026-03-06 D1 Taxonomy + Headless Smoke
 
@@ -114,3 +114,25 @@
   - `scripts/hot_reload_smoke.ps1`
   - `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
   - `scripts/run_phase_d_gate_suite.ps1` (PASS, summary: `artifacts/phase_d_gate_suite_20260306_012203/summary.md`)
+
+## 2026-03-06 D2 Scene Tree Ordering (Sort)
+
+- Added scene ordering state and reorder helpers:
+  - scene list now renders by `scene_order` instead of raw catalog index
+  - scene content-height/filtering path switched to ordered traversal
+- Added hierarchy reorder shortcuts:
+  - `Alt+Up`: move current scene up by one position
+  - `Alt+Down`: move current scene down by one position
+  - `Alt+Home`: reset scene order to default
+- Updated help modal usage text with sorting shortcut hints.
+- Touched files:
+  - `apps/sandbox_dwrite/main.c`
+- Verification:
+  - `mingw32-make test`
+  - `mingw32-make sandbox`
+  - `mingw32-make benchmark`
+  - `scripts/check_arch_deps.ps1`
+  - `scripts/check_api_surface.ps1`
+  - `scripts/hot_reload_smoke.ps1`
+  - `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
+  - `scripts/run_phase_d_gate_suite.ps1` (PASS, summary: `artifacts/phase_d_gate_suite_20260306_013031/summary.md`)

@@ -134,6 +134,7 @@ typedef struct {
     PhysicsEngine* engine;
     SceneConfig scenes[SCENE_COUNT];
     wchar_t scene_names[SCENE_COUNT][SCENE_NAME_MAX];
+    int scene_order[SCENE_COUNT];
     int scene_index;
     int running;
     int draw_contacts;
@@ -530,6 +531,10 @@ static HICON g_app_icon_small = NULL;
 static const float BREAK_FORCE_PRESETS[] = {0.0f, 60.0f, 120.0f, 250.0f, 500.0f, 1000.0f};
 static const int BREAK_FORCE_PRESET_COUNT = 6;
 static const wchar_t* scene_display_name(int scene_index);
+static int scene_order_index_at(int order_index);
+static int scene_order_find_position(int scene_index);
+static int scene_order_move_selected(int direction);
+static int scene_order_reset_default(void);
 static void apply_layout_preset(int preset);
 static void apply_scene(int scene_index);
 static void spawn_circle_at_cursor(void);
@@ -617,6 +622,53 @@ static const wchar_t* scene_display_name(int scene_index) {
         return scene_catalog_name(scene_index);
     }
     return g_state.scene_names[scene_index];
+}
+
+static int scene_order_index_at(int order_index) {
+    int scene_index;
+    if (order_index < 0 || order_index >= SCENE_COUNT) return 0;
+    scene_index = g_state.scene_order[order_index];
+    if (scene_index < 0 || scene_index >= SCENE_COUNT) {
+        return order_index;
+    }
+    return scene_index;
+}
+
+static int scene_order_find_position(int scene_index) {
+    int i;
+    if (scene_index < 0 || scene_index >= SCENE_COUNT) return -1;
+    for (i = 0; i < SCENE_COUNT; i++) {
+        if (g_state.scene_order[i] == scene_index) return i;
+    }
+    return -1;
+}
+
+static int scene_order_reset_default(void) {
+    int i;
+    int changed = 0;
+    for (i = 0; i < SCENE_COUNT; i++) {
+        if (g_state.scene_order[i] != i) changed = 1;
+        g_state.scene_order[i] = i;
+    }
+    return changed;
+}
+
+static int scene_order_move_selected(int direction) {
+    int pos;
+    int target;
+    int tmp;
+    if (direction == 0) return 0;
+    pos = scene_order_find_position(g_state.scene_index);
+    if (pos < 0) {
+        scene_order_reset_default();
+        pos = scene_order_find_position(g_state.scene_index);
+    }
+    target = pos + direction;
+    if (pos < 0 || target < 0 || target >= SCENE_COUNT) return 0;
+    tmp = g_state.scene_order[pos];
+    g_state.scene_order[pos] = g_state.scene_order[target];
+    g_state.scene_order[target] = tmp;
+    return 1;
 }
 
 static void push_console_log(const wchar_t* fmt, ...) {
@@ -3795,9 +3847,11 @@ static float compute_hierarchy_content_height(float row_h, const HierarchyStats*
     float content_h = 0.0f;
     int scene_rows = 0;
     int i;
+    int scene_index;
     wchar_t line[128];
     for (i = 0; i < SCENE_COUNT; i++) {
-        swprintf(line, 128, L"#%d %s", i + 1, scene_display_name(i));
+        scene_index = scene_order_index_at(i);
+        swprintf(line, 128, L"#%d %s", scene_index + 1, scene_display_name(scene_index));
         if (g_state.hierarchy_filter_len > 0 && wcsstr(line, g_state.hierarchy_filter_buf) == NULL) continue;
         scene_rows++;
     }
@@ -4115,6 +4169,7 @@ static void render_hierarchy_scrollbar(D2D1_RECT_F hierarchy_rect, D2D1_RECT_F h
 
 static float render_hierarchy_scene_section(D2D1_RECT_F hierarchy_rect, float y, float row_h) {
     int i;
+    int scene_index;
     wchar_t line[128];
     float content_right = g_hierarchy_viewport_rect.right - 2.0f;
     g_tree_scene_header_rect = rc(hierarchy_rect.left + 10.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
@@ -4130,14 +4185,15 @@ static float render_hierarchy_scene_section(D2D1_RECT_F hierarchy_rect, float y,
         int row_count = 0;
         for (i = 0; i < SCENE_COUNT && g_explorer_scene_count < EXPLORER_SCENE_MAX_ITEMS; i++) {
             D2D1_RECT_F row;
-            swprintf(line, 128, L"#%d %s", i + 1, scene_display_name(i));
+            scene_index = scene_order_index_at(i);
+            swprintf(line, 128, L"#%d %s", scene_index + 1, scene_display_name(scene_index));
             if (g_state.hierarchy_filter_len > 0 && wcsstr(line, g_state.hierarchy_filter_buf) == NULL) continue;
             row = rc(hierarchy_rect.left + 24.0f, y + row_count * (row_h + 4.0f), content_right,
                      y + row_count * (row_h + 4.0f) + row_h);
             g_explorer_scene_rect[g_explorer_scene_count] = row;
-            g_explorer_scene_index[g_explorer_scene_count] = i;
+            g_explorer_scene_index[g_explorer_scene_count] = scene_index;
             draw_text(line, row, g_ui.fmt_mono,
-                      (i == g_state.scene_index) ? rgba(0.98f, 0.78f, 0.42f, 1.0f) : rgba(0.88f, 0.92f, 0.97f, 1.0f));
+                      (scene_index == g_state.scene_index) ? rgba(0.98f, 0.78f, 0.42f, 1.0f) : rgba(0.88f, 0.92f, 0.97f, 1.0f));
             g_explorer_scene_count++;
             row_count++;
         }
@@ -4825,7 +4881,7 @@ static void render_help_modal_content(D2D1_RECT_F modal) {
     } else {
         draw_text(L"使用说明", rc(modal.left + 18.0f, modal.top + 14.0f, modal.right - 60.0f, modal.top + 46.0f), g_ui.fmt_title,
                   rgba(0.88f, 0.92f, 0.97f, 1.0f));
-        draw_text(L"1) 场景切换: F1~F9直选，层级列表点击切换；F2或双击可重命名", rc(modal.left + 22.0f, modal.top + 72.0f, modal.right - 24.0f, modal.top + 102.0f),
+        draw_text(L"1) 场景: F1~F9切换，层级点击切换；F2/双击重命名；Alt+Up/Down排序", rc(modal.left + 22.0f, modal.top + 72.0f, modal.right - 24.0f, modal.top + 102.0f),
                   g_ui.fmt_mono, rgba(0.74f, 0.81f, 0.90f, 1.0f));
         draw_text(L"2) 运行控制: Space运行/暂停 N单步 R重置 F11切布局", rc(modal.left + 22.0f, modal.top + 102.0f, modal.right - 24.0f, modal.top + 132.0f),
                   g_ui.fmt_mono, rgba(0.74f, 0.81f, 0.90f, 1.0f));
@@ -6118,6 +6174,31 @@ static int handle_keydown_scene_switch(WPARAM wparam) {
     return changed;
 }
 
+static int handle_keydown_scene_reorder(HWND hwnd, WPARAM wparam) {
+    int alt_down = (GetKeyState(VK_MENU) & 0x8000) != 0;
+    int changed = 0;
+    int pos = -1;
+    if (!alt_down) return 0;
+    if (wparam != VK_UP && wparam != VK_DOWN && wparam != VK_HOME) return 0;
+    if (g_state.keyboard_focus_area != 1) return 1;
+    if (g_state.selected != NULL || selected_constraint_ref() != NULL) return 1;
+    if (wparam == VK_UP) changed = scene_order_move_selected(-1);
+    if (wparam == VK_DOWN) changed = scene_order_move_selected(1);
+    if (wparam == VK_HOME) changed = scene_order_reset_default();
+    if (changed) {
+        if (wparam == VK_HOME) {
+            push_console_log(L"[场景] 排序已恢复默认顺序");
+        } else {
+            pos = scene_order_find_position(g_state.scene_index);
+            if (pos >= 0) {
+                push_console_log(L"[场景] 顺序调整: %s -> 第 %d 位", scene_display_name(g_state.scene_index), pos + 1);
+            }
+        }
+        InvalidateRect(hwnd, NULL, FALSE);
+    }
+    return 1;
+}
+
 static int handle_mousemove_scroll_drag(HWND hwnd) {
     if (g_state.hierarchy_scroll_dragging && g_state.hierarchy_scroll_max > 0) {
         float track_h = g_hierarchy_scroll_track_rect.bottom - g_hierarchy_scroll_track_rect.top;
@@ -6228,6 +6309,7 @@ static int handle_mousewheel_dispatch(HWND hwnd, int delta) {
 
 static int handle_syskeydown(HWND hwnd, WPARAM wparam) {
     int mid = 0;
+    if (handle_keydown_scene_reorder(hwnd, wparam)) return 1;
     if (wparam == 'F') mid = 1;
     if (wparam == 'E') mid = 2;
     if (wparam == 'G') mid = 3;
@@ -6316,6 +6398,7 @@ static int handle_keydown(HWND hwnd, WPARAM wparam) {
     if (handle_value_input_keydown(hwnd, wparam)) return 1;
     if (handle_open_menu_keydown(hwnd, wparam)) return 1;
     if (handle_modal_keydown(hwnd, wparam)) return 1;
+    if (handle_keydown_scene_reorder(hwnd, wparam)) return 1;
     if (wparam == VK_F2 && g_state.keyboard_focus_area == 1) {
         begin_value_input_for_scene_name(g_state.scene_index);
         InvalidateRect(hwnd, NULL, FALSE);
@@ -6600,8 +6683,12 @@ static void init_app_runtime_callbacks(void) {
 }
 
 static void init_state_defaults(void) {
+    int i;
     scene_catalog_copy_defaults(g_state.scenes, SCENE_COUNT);
     scene_catalog_copy_default_names(g_state.scene_names, SCENE_COUNT);
+    for (i = 0; i < SCENE_COUNT; i++) {
+        g_state.scene_order[i] = i;
+    }
     srand((unsigned int)time(NULL));
     g_state.running = 0;
     g_state.draw_contacts = 0;
