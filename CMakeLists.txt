@@ -155,17 +155,25 @@ if(BUILD_CPP_WRAPPER)
     add_executable(physics_cpp_status_smoke tests/cpp_status_smoke.cpp)
     target_include_directories(physics_cpp_status_smoke PRIVATE ${CMAKE_SOURCE_DIR}/cpp)
     target_link_libraries(physics_cpp_status_smoke PRIVATE physics2d)
+    add_executable(physics_cpp_world_raii_smoke tests/cpp_world_raii_smoke.cpp)
+    target_include_directories(physics_cpp_world_raii_smoke PRIVATE ${CMAKE_SOURCE_DIR}/cpp)
+    target_link_libraries(physics_cpp_world_raii_smoke PRIVATE physics2d)
     if(MSVC)
         target_compile_options(physics_cpp_raii_smoke PRIVATE /W4)
         target_compile_options(physics_cpp_status_smoke PRIVATE /W4)
+        target_compile_options(physics_cpp_world_raii_smoke PRIVATE /W4)
     else()
         target_compile_options(physics_cpp_raii_smoke PRIVATE -Wall -Wextra -Wpedantic)
         target_compile_options(physics_cpp_status_smoke PRIVATE -Wall -Wextra -Wpedantic)
+        target_compile_options(physics_cpp_world_raii_smoke PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     set_target_properties(physics_cpp_raii_smoke PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
     set_target_properties(physics_cpp_status_smoke PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+    set_target_properties(physics_cpp_world_raii_smoke PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
 endif()
