@@ -169,6 +169,8 @@ typedef struct {
     int runtime_contact_count;
     int runtime_state_change_count;
     unsigned int runtime_event_drop_count;
+    unsigned int runtime_drop_warn_ms;
+    unsigned int runtime_drop_last_seen;
     RuntimeTickHistoryEntry runtime_tick_history[8];
     int runtime_tick_history_head;
     int runtime_tick_history_count;
@@ -1973,6 +1975,8 @@ static void apply_scene(int scene_index) {
     g_state.runtime_contact_count = 0;
     g_state.runtime_state_change_count = 0;
     g_state.runtime_event_drop_count = 0;
+    g_state.runtime_drop_warn_ms = 0;
+    g_state.runtime_drop_last_seen = 0;
     g_state.runtime_tick_history_head = 0;
     g_state.runtime_tick_history_count = 0;
     g_state.runtime_state_history_head = 0;
@@ -4295,6 +4299,7 @@ static void render_open_menu_dropdown(void) {
 static void render_status_bar(D2D1_RECT_F status_rect) {
     wchar_t line[128];
     wchar_t line_right[128];
+    D2D1_COLOR_F bus_color = rgba(0.66f, 0.88f, 0.66f, 1.0f);
     const AppRuntimeSnapshot* snapshot = app_runtime_get_last_snapshot(&g_app_runtime);
     int body_count = count_dynamic_bodies(g_state.engine);
     int constraint_count = (g_state.engine != NULL) ? physics_engine_get_constraint_count(g_state.engine) : 0;
@@ -4341,6 +4346,14 @@ static void render_status_bar(D2D1_RECT_F status_rect) {
     swprintf(line_right, 128, L"约束调试:%s", g_state.draw_constraints ? L"开" : L"关");
     draw_text(line_right, rc(status_rect.right - 360.0f, status_rect.top + 6.0f, status_rect.right - 220.0f, status_rect.bottom - 4.0f),
               g_ui.fmt_info, rgba(0.66f, 0.74f, 0.85f, 1.0f));
+    if (g_state.runtime_event_drop_count > 0) {
+        bus_color = (g_state.runtime_event_drop_count >= 100) ? rgba(0.98f, 0.42f, 0.38f, 1.0f) : rgba(0.97f, 0.78f, 0.42f, 1.0f);
+        swprintf(line_right, 128, L"事件总线:拥塞(%u)", g_state.runtime_event_drop_count);
+    } else {
+        swprintf(line_right, 128, L"事件总线:健康");
+    }
+    draw_text(line_right, rc(status_rect.right - 216.0f, status_rect.top + 6.0f, status_rect.right - 24.0f, status_rect.bottom - 4.0f),
+              g_ui.fmt_info, bus_color);
 }
 
 static void render_help_modal_content(D2D1_RECT_F modal) {
@@ -4649,8 +4662,18 @@ static void process_app_events(void) {
                 push_console_log(L"[创建] 已生成方块对象");
             }
         } else if (ev.type == APP_EVENT_RUNTIME_TICK) {
+            unsigned int prev_drop = g_state.runtime_event_drop_count;
             apply_runtime_snapshot_to_state(&ev.runtime_snapshot);
             runtime_push_tick_history(&ev.runtime_snapshot);
+            if (g_state.runtime_event_drop_count > prev_drop) {
+                unsigned int now_ms = (unsigned int)GetTickCount();
+                unsigned int delta_drop = g_state.runtime_event_drop_count - prev_drop;
+                if ((now_ms - g_state.runtime_drop_warn_ms) >= 1000 || g_state.runtime_drop_last_seen == 0) {
+                    push_console_log(L"[警告] 事件总线丢弃 +%u (累计:%u)", delta_drop, g_state.runtime_event_drop_count);
+                    g_state.runtime_drop_warn_ms = now_ms;
+                    g_state.runtime_drop_last_seen = g_state.runtime_event_drop_count;
+                }
+            }
             if (g_state.runtime_running && ev.runtime_snapshot.contact_count != g_state.last_contact_count) {
                 unsigned int now_ms = (unsigned int)GetTickCount();
                 if ((now_ms - g_state.last_contact_log_ms) >= 500) {
@@ -6098,6 +6121,8 @@ static void init_state_defaults(void) {
     g_state.runtime_contact_count = 0;
     g_state.runtime_state_change_count = 0;
     g_state.runtime_event_drop_count = 0;
+    g_state.runtime_drop_warn_ms = 0;
+    g_state.runtime_drop_last_seen = 0;
     g_state.runtime_tick_history_head = 0;
     g_state.runtime_tick_history_count = 0;
     g_state.runtime_state_history_head = 0;
