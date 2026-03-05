@@ -21,12 +21,28 @@ struct TickStats {
     std::size_t reverse_body_refs = 0;
     int body_count = 0;
     int contact_count = 0;
+    std::size_t runtime_error_count = 0;
 };
 
 struct TickSnapshot {
     std::size_t frame_index = 0;
     TickStats stats;
     ecs::BridgeValidationReport bridge;
+};
+
+enum class RuntimeErrorCode {
+    BridgeMissingReverse,
+    BridgeStaleEntity,
+    BridgeNullBody,
+    BridgeDuplicateBody,
+    BridgeRefCountMismatch,
+    PipelineMappingErrors
+};
+
+struct RuntimeError {
+    RuntimeErrorCode code = RuntimeErrorCode::BridgeMissingReverse;
+    std::size_t count = 0;
+    std::size_t frame_index = 0;
 };
 
 enum class RuntimeEventKind {
@@ -99,6 +115,8 @@ public:
         snapshot.bridge = registry_.validate_bridge();
         snapshot.stats.runtime_body_refs = snapshot.bridge.runtime_refs;
         snapshot.stats.reverse_body_refs = snapshot.bridge.reverse_refs;
+        collect_errors(snapshot);
+        snapshot.stats.runtime_error_count = last_errors_.size();
         collect_events(snapshot.stats.contact_count);
         last_snapshot_ = snapshot;
         return snapshot;
@@ -116,7 +134,37 @@ public:
         return last_events_;
     }
 
+    const std::vector<RuntimeError>& last_errors() const noexcept {
+        return last_errors_;
+    }
+
 private:
+    void push_error(RuntimeErrorCode code, std::size_t count, std::size_t frame_index) noexcept {
+        if (count == 0) {
+            return;
+        }
+        RuntimeError e;
+        e.code = code;
+        e.count = count;
+        e.frame_index = frame_index;
+        last_errors_.push_back(e);
+    }
+
+    void collect_errors(const TickSnapshot& snapshot) noexcept {
+        last_errors_.clear();
+        push_error(RuntimeErrorCode::BridgeMissingReverse, snapshot.bridge.missing_reverse, snapshot.frame_index);
+        push_error(RuntimeErrorCode::BridgeStaleEntity, snapshot.bridge.stale_entities, snapshot.frame_index);
+        push_error(RuntimeErrorCode::BridgeNullBody, snapshot.bridge.null_bodies, snapshot.frame_index);
+        push_error(RuntimeErrorCode::BridgeDuplicateBody, snapshot.bridge.duplicate_bodies, snapshot.frame_index);
+        if (snapshot.bridge.runtime_refs != snapshot.bridge.reverse_refs) {
+            const std::size_t delta = (snapshot.bridge.runtime_refs > snapshot.bridge.reverse_refs)
+                                          ? (snapshot.bridge.runtime_refs - snapshot.bridge.reverse_refs)
+                                          : (snapshot.bridge.reverse_refs - snapshot.bridge.runtime_refs);
+            push_error(RuntimeErrorCode::BridgeRefCountMismatch, delta, snapshot.frame_index);
+        }
+        push_error(RuntimeErrorCode::PipelineMappingErrors, snapshot.stats.mapping_errors, snapshot.frame_index);
+    }
+
     void collect_events(int contact_count) noexcept {
         last_events_.clear();
         if (!engine_.valid()) {
@@ -177,6 +225,7 @@ private:
     std::size_t frame_index_ = 0;
     TickSnapshot last_snapshot_;
     std::vector<RuntimeEvent> last_events_;
+    std::vector<RuntimeError> last_errors_;
     std::unordered_map<ecs::Entity, bool> last_sleep_state_;
 };
 

@@ -378,6 +378,14 @@ public:
         return report;
     }
 
+    bool debug_remove_reverse_mapping(Entity e) noexcept {
+        auto it = runtime_bodies_.find(e);
+        if (it == runtime_bodies_.end() || it->second.body == nullptr) {
+            return false;
+        }
+        return body_to_entity_.erase(it->second.body) > 0;
+    }
+
 private:
     void mark_runtime_dirty(Entity e, std::uint32_t bits) noexcept {
         if (runtime_bodies_.find(e) == runtime_bodies_.end()) {
