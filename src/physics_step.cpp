@@ -10,7 +10,7 @@
 
 static double time_now_ms(void) {
 #ifdef _WIN32
-    static LARGE_INTEGER freq = {0};
+    static LARGE_INTEGER freq = {};
     LARGE_INTEGER now;
     if (freq.QuadPart == 0) {
         QueryPerformanceFrequency(&freq);
@@ -144,6 +144,8 @@ static void step_stage_update_sleep(PhysicsEngine* engine, float dt) {
     }
 }
 
+extern "C" {
+
 void physics_internal_step(PhysicsEngine* engine) {
     Vec2 saved_force[MAX_BODIES];
     Vec2 prev_pos[MAX_BODIES];
@@ -251,3 +253,5 @@ void physics_internal_step(PhysicsEngine* engine) {
     engine->current_step_dt = full_dt;
     physics_internal_emit_event(engine, PHYSICS_EVENT_STEP_END, profile.contact_count, profile.total_ms, NULL, NULL);
 }
+
+}  // extern "C"
