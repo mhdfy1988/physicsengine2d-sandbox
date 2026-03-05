@@ -3,6 +3,10 @@
 
 #include <math.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef PI
 #define PI 3.14159265359f
 #endif
@@ -43,5 +47,9 @@ float clamp(float value, float min, float max);
 float min_f(float a, float b);
 float max_f(float a, float b);
 int is_equal(float a, float b, float epsilon);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

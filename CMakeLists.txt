@@ -1,12 +1,16 @@
 ﻿cmake_minimum_required(VERSION 3.16)
-project(PhysicsEngine2D C)
+project(PhysicsEngine2D C CXX)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(BUILD_EDITOR "Build DWrite interactive editor app" ON)
 option(BUILD_SANDBOX "Deprecated alias for BUILD_EDITOR" ON)
 option(BUILD_TESTS "Build regression test executable" OFF)
+option(BUILD_CPP_COMPAT "Build C++ compatibility smoke target" ON)
 if(DEFINED BUILD_SANDBOX)
     set(BUILD_EDITOR ${BUILD_SANDBOX})
 endif()
@@ -126,6 +130,19 @@ if(BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
     set_target_properties(physics_invariants PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+endif()
+
+if(BUILD_CPP_COMPAT)
+    add_executable(physics_cpp_smoke tests/cpp_api_smoke.cpp)
+    target_link_libraries(physics_cpp_smoke PRIVATE physics2d)
+    if(MSVC)
+        target_compile_options(physics_cpp_smoke PRIVATE /W4)
+    else()
+        target_compile_options(physics_cpp_smoke PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    set_target_properties(physics_cpp_smoke PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
 endif()

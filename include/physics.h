@@ -1,4 +1,4 @@
-#ifndef PHYSICS_ENGINE_H
+﻿#ifndef PHYSICS_ENGINE_H
 #define PHYSICS_ENGINE_H
 
 #include "physics_math.h"
@@ -6,6 +6,10 @@
 #include "shape.h"
 #include "collision.h"
 #include "constraint.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define MAX_BODIES 1024
 #define MAX_CONTACTS 4096
@@ -80,6 +84,10 @@ int physics_engine_get_bodies_in_area(PhysicsEngine* engine, Vec2 center, float 
 
 #ifndef PHYSICS_NO_EXTENSIONS
 #include "physics_ext.h"
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif

@@ -1,7 +1,11 @@
-#ifndef PHYSICS_CONSTRAINT_H
+﻿#ifndef PHYSICS_CONSTRAINT_H
 #define PHYSICS_CONSTRAINT_H
 
 #include "body.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef enum {
     CONSTRAINT_DISTANCE,
@@ -41,5 +45,9 @@ void constraint_init_rope(Constraint* c, RigidBody* a, RigidBody* b,
 void constraint_warm_start(Constraint* c);
 void constraint_solve_velocity(Constraint* c, float dt);
 void constraint_solve_position(Constraint* c);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

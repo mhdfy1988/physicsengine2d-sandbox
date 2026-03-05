@@ -3,6 +3,10 @@
 
 #include "physics_math.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
     SHAPE_CIRCLE,
     SHAPE_POLYGON
@@ -39,5 +43,9 @@ void shape_free(Shape* shape);
 float shape_get_area(Shape* shape);
 float shape_get_moment_of_inertia(Shape* shape, float mass);
 Vec2 shape_get_center_of_mass(Shape* shape);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

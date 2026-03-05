@@ -4,6 +4,10 @@
 #include "physics_math.h"
 #include "body.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     Vec2 point;             /* Contact point */
     Vec2 normal;            /* Contact normal */
@@ -33,5 +37,9 @@ int sat_test_polygon(RigidBody* a, RigidBody* b, CollisionInfo* info);
 void collision_resolve(CollisionManifold* manifold);
 void collision_resolve_velocity(CollisionManifold* manifold);
 void collision_resolve_position(CollisionManifold* manifold);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

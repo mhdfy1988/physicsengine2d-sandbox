@@ -1,8 +1,12 @@
-#ifndef PHYSICS_EXT_H
+﻿#ifndef PHYSICS_EXT_H
 #define PHYSICS_EXT_H
 
 #ifndef PHYSICS_ENGINE_H
 #include "physics.h"
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 typedef int (*PhysicsBroadphaseBuilder)(PhysicsEngine* engine, void* user);
@@ -218,5 +222,9 @@ void physics_engine_set_event_sink(PhysicsEngine* engine, PhysicsEventSinkFn sin
 int physics_engine_capture_snapshot(const PhysicsEngine* engine, PhysicsWorldSnapshot* out_snapshot);
 int physics_engine_apply_snapshot(PhysicsEngine* engine, const PhysicsWorldSnapshot* snapshot);
 int physics_engine_replay_from_snapshot(PhysicsEngine* engine, const PhysicsWorldSnapshot* snapshot, int steps);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -1,8 +1,12 @@
-#ifndef PHYSICS_BODY_H
+﻿#ifndef PHYSICS_BODY_H
 #define PHYSICS_BODY_H
 
 #include "physics_math.h"
 #include "shape.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef enum {
     BODY_DYNAMIC,
@@ -60,5 +64,9 @@ void body_apply_torque(RigidBody* body, float torque);
 Vec2 body_get_velocity_at(RigidBody* body, Vec2 point);
 Vec2 body_get_world_point(RigidBody* body, Vec2 local_point);
 Vec2 body_get_local_point(RigidBody* body, Vec2 world_point);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
