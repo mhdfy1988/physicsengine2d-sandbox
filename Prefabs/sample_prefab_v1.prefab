@@ -1,0 +1,8 @@
+schema_version|1
+prefab_guid|prefab://enemy_base
+base_prefab_guid|none
+is_variant|0
+entity_count|2
+entity|1|body|box|4.000000|2.000000|1.000000|0.000000|0.000000|0.000000|0.100000|0.600000|2.500000|0.970000
+entity|2|sensor|circle|0.500000|0.000000|1.500000|0.000000|0.000000|0.000000|0.800000|0.200000|0.700000|1.000000
+override_count|0

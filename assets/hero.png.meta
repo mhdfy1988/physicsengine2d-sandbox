@@ -1,0 +1,8 @@
+guid|asset://3fc0ce2f499f51df
+asset_type|texture
+importer_id|texture-importer
+importer_version|1
+source_hash|sha256:demo_hero_source
+import_settings_hash|sha256:demo_texture_settings
+dependency_count|1
+dependency|asset://sampler_linear_default
