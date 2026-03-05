@@ -32,7 +32,25 @@
     X(regression_test_snapshot_replay_determinism) \
     X(regression_test_snapshot_applies_mass_inertia) \
     X(regression_test_equivalence_runtime_setters) \
-    X(regression_test_equivalence_remove_body_paths)
+    X(regression_test_equivalence_remove_body_paths) \
+    X(regression_test_scene_schema_roundtrip) \
+    X(regression_test_scene_schema_migration_golden) \
+    X(regression_test_prefab_schema_roundtrip) \
+    X(regression_test_prefab_schema_variant_parse) \
+    X(regression_test_asset_meta_roundtrip) \
+    X(regression_test_asset_dependency_graph) \
+    X(regression_test_asset_importer_smoke) \
+    X(regression_test_asset_importer_parameterized_settings) \
+    X(regression_test_asset_invalidation_propagation) \
+    X(regression_test_asset_pipeline_incremental_reimport) \
+    X(regression_test_asset_pipeline_meta_parameter_deserialize) \
+    X(regression_test_asset_pipeline_missing_source_failure) \
+    X(regression_test_asset_watch_debounce_batch) \
+    X(regression_test_asset_hot_reload_service_pipeline_bridge) \
+    X(regression_test_asset_fs_poll_source_bridge) \
+    X(regression_test_asset_hot_reload_missing_source_failure) \
+    X(regression_test_asset_hot_reload_failure_keeps_previous_artifact) \
+    X(regression_test_asset_fs_poll_rewatch_does_not_swallow_change)
 
 #define DECLARE_REGRESSION_TEST(fn) int fn(void);
 REGRESSION_TEST_LIST(DECLARE_REGRESSION_TEST)

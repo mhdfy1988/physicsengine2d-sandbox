@@ -1,0 +1,9 @@
+schema_version|1
+prefab_guid|prefab://enemy_variant_fast
+base_prefab_guid|prefab://enemy_base
+is_variant|1
+entity_count|1
+entity|10|body|box|4.000000|2.000000|1.000000|0.000000|0.000000|0.000000|0.100000|0.600000|2.500000|0.970000
+override_count|2
+override|1|10|mass|3.5
+override|2|10|damping|0.94

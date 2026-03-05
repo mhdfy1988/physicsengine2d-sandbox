@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include "../apps/sandbox_dwrite/application/app_runtime.h"
 
 static int g_toggle_called = 0;
@@ -144,6 +145,49 @@ int main(void) {
         if (!found_tick) {
             printf("[FAIL] no runtime tick after injected errors\n");
             return 13;
+        }
+    }
+    {
+        AppRuntime runtime3;
+        AppCommandCallbacks callbacks3;
+        AssetHotReloadTickReport hr_report;
+        AppEvent ev3;
+        int found_hot = 0;
+        callbacks3.toggle_run = cb_noop;
+        callbacks3.step_once = cb_noop;
+        callbacks3.reset_scene = cb_noop;
+        callbacks3.spawn_circle = cb_noop;
+        callbacks3.spawn_box = cb_noop;
+        callbacks3.user = 0;
+        app_runtime_init(&runtime3, callbacks3);
+        asset_hot_reload_tick_report_init(&hr_report);
+        hr_report.pipeline_ran = 1;
+        hr_report.ready_batch.count = 2;
+        hr_report.pipeline_report.affected_count = 3;
+        hr_report.pipeline_report.imported_count = 2;
+        hr_report.pipeline_report.failed_count = 1;
+        snprintf(hr_report.pipeline_report.imported_guids[0], ASSET_DB_MAX_GUID, "asset://aaa");
+        snprintf(hr_report.pipeline_report.imported_guids[1], ASSET_DB_MAX_GUID, "asset://bbb");
+        app_runtime_report_hot_reload(&runtime3, &hr_report);
+        while (app_runtime_pop_event(&runtime3, &ev3)) {
+            if (ev3.type == APP_EVENT_HOT_RELOAD_BATCH) {
+                found_hot = 1;
+                if (!ev3.hot_reload_snapshot.valid ||
+                    ev3.hot_reload_snapshot.ready_batch_count != 2 ||
+                    ev3.hot_reload_snapshot.affected_count != 3 ||
+                    ev3.hot_reload_snapshot.imported_count != 2 ||
+                    ev3.hot_reload_snapshot.failed_count != 1 ||
+                    ev3.hot_reload_snapshot.imported_guid_count != 2 ||
+                    strcmp(ev3.hot_reload_snapshot.imported_guids[0], "asset://aaa") != 0 ||
+                    strcmp(ev3.hot_reload_snapshot.imported_guids[1], "asset://bbb") != 0) {
+                    printf("[FAIL] hot-reload runtime event payload mismatch\n");
+                    return 14;
+                }
+            }
+        }
+        if (!found_hot) {
+            printf("[FAIL] no hot-reload event published\n");
+            return 15;
         }
     }
 
