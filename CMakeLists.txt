@@ -19,6 +19,8 @@ set(PHYSICS2D_SOURCES
     src/collision.c
     src/collision_detect.c
     src/physics.c
+    src/physics_lifecycle.c
+    src/physics_runtime_api.c
     src/physics_config.c
     src/physics_query.c
     src/physics_mutation.c
