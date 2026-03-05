@@ -279,13 +279,38 @@ struct PipelineStats {
     std::size_t cleaned_entities = 0;
 };
 
+struct PipelineConfig {
+    bool run_spawn = true;
+    bool run_step = true;
+    bool run_sync = true;
+    bool run_cleanup = true;
+};
+
 class Pipeline {
 public:
+    void set_config(const PipelineConfig& config) noexcept {
+        config_ = config;
+    }
+
+    const PipelineConfig& config() const noexcept {
+        return config_;
+    }
+
     void tick(Registry& registry, EngineView engine) noexcept {
-        spawn_system_.run(registry, engine);
-        step_system_.run(engine);
-        sync_system_.run(registry);
-        stats_.cleaned_entities = cleanup_system_.run(registry, engine);
+        if (config_.run_spawn) {
+            spawn_system_.run(registry, engine);
+        }
+        if (config_.run_step) {
+            step_system_.run(engine);
+        }
+        if (config_.run_sync) {
+            sync_system_.run(registry);
+        }
+
+        stats_.cleaned_entities = 0;
+        if (config_.run_cleanup) {
+            stats_.cleaned_entities = cleanup_system_.run(registry, engine);
+        }
     }
 
     const PipelineStats& stats() const noexcept {
@@ -297,6 +322,7 @@ private:
     PhysicsStepSystem step_system_;
     SyncTransformSystem sync_system_;
     CleanupSystem cleanup_system_;
+    PipelineConfig config_;
     PipelineStats stats_;
 };
 
