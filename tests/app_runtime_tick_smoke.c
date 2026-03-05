@@ -21,8 +21,11 @@ int main(void) {
     AppCommand cmd;
     AppEvent ev;
     int saw_command = 0;
-    int saw_tick = 0;
-    int saw_state_changed = 0;
+    int tick_count = 0;
+    unsigned int prev_frame_index = 0;
+    int state_change_count = 0;
+    int saw_running_state = 0;
+    int saw_paused_state = 0;
 
     callbacks.toggle_run = cb_toggle_run;
     callbacks.step_once = cb_noop;
@@ -44,23 +47,29 @@ int main(void) {
 
     app_runtime_report_tick(&runtime, NULL, 0, 0.25f);
     app_runtime_report_tick(&runtime, NULL, 1, 0.20f);
+    app_runtime_report_tick(&runtime, NULL, 0, 0.18f);
     while (app_runtime_pop_event(&runtime, &ev)) {
         if (ev.type == APP_EVENT_COMMAND_EXECUTED && ev.command_type == APP_CMD_TOGGLE_RUN) {
             saw_command = 1;
         } else if (ev.type == APP_EVENT_RUNTIME_TICK) {
-            saw_tick = 1;
+            tick_count++;
             if (!ev.runtime_snapshot.valid || ev.runtime_snapshot.frame_index == 0) {
                 printf("[FAIL] runtime tick snapshot invalid\n");
                 return 3;
             }
-        } else if (ev.type == APP_EVENT_RUNTIME_STATE_CHANGED) {
-            if (ev.runtime_snapshot.running) {
-                saw_state_changed = 1;
+            if (ev.runtime_snapshot.frame_index <= prev_frame_index) {
+                printf("[FAIL] runtime tick frame index not increasing\n");
+                return 6;
             }
+            prev_frame_index = ev.runtime_snapshot.frame_index;
+        } else if (ev.type == APP_EVENT_RUNTIME_STATE_CHANGED) {
+            state_change_count++;
+            if (ev.runtime_snapshot.running) saw_running_state = 1;
+            if (!ev.runtime_snapshot.running) saw_paused_state = 1;
         }
     }
-    if (!saw_command || !saw_tick || !saw_state_changed) {
-        printf("[FAIL] expected command/tick/state-change events\n");
+    if (!saw_command || tick_count != 3 || state_change_count != 2 || !saw_running_state || !saw_paused_state) {
+        printf("[FAIL] expected command/tick/state-change event sequence\n");
         return 4;
     }
 

@@ -113,6 +113,20 @@ typedef struct {
 } BodyClipboard;
 
 typedef struct {
+    unsigned int frame_index;
+    int body_count;
+    int constraint_count;
+    int contact_count;
+    float step_ms;
+} RuntimeTickHistoryEntry;
+
+typedef struct {
+    unsigned int frame_index;
+    unsigned int tick_ms;
+    int running;
+} RuntimeStateHistoryEntry;
+
+typedef struct {
     PhysicsEngine* engine;
     SceneConfig scenes[SCENE_COUNT];
     int scene_index;
@@ -154,6 +168,12 @@ typedef struct {
     int runtime_constraint_count;
     int runtime_contact_count;
     int runtime_state_change_count;
+    RuntimeTickHistoryEntry runtime_tick_history[8];
+    int runtime_tick_history_head;
+    int runtime_tick_history_count;
+    RuntimeStateHistoryEntry runtime_state_history[8];
+    int runtime_state_history_head;
+    int runtime_state_history_count;
     unsigned int fps_last_tick_ms;
     int fps_accum_frames;
     int last_contact_count;
@@ -1930,6 +1950,10 @@ static void apply_scene(int scene_index) {
     g_state.runtime_constraint_count = 0;
     g_state.runtime_contact_count = 0;
     g_state.runtime_state_change_count = 0;
+    g_state.runtime_tick_history_head = 0;
+    g_state.runtime_tick_history_count = 0;
+    g_state.runtime_state_history_head = 0;
+    g_state.runtime_state_history_count = 0;
     g_state.last_collision_capture_ms = 0;
     clear_collision_events();
     g_state.scene_needs_stage_fit = 1;
@@ -2881,7 +2905,7 @@ static void render_right_debug_section(D2D1_RECT_F debug_rect) {
     g_debug_viewport_rect = rc(debug_rect.left + 8.0f, debug_rect.top + 40.0f, debug_rect.right - 14.0f, debug_rect.bottom - 8.0f);
     debug_content_right = g_debug_viewport_rect.right - 2.0f;
     debug_view_h = g_debug_viewport_rect.bottom - g_debug_viewport_rect.top;
-    debug_content_h = 292.0f;
+    debug_content_h = 538.0f;
     g_state.debug_scroll_max = 0;
     if (debug_content_h > debug_view_h) {
         g_state.debug_scroll_max = (int)(debug_content_h - debug_view_h + 0.5f);
@@ -2932,6 +2956,49 @@ static void render_right_debug_section(D2D1_RECT_F debug_rect) {
         swprintf(line, 128, L"状态变更事件: %d", g_state.runtime_state_change_count);
         draw_text(line, rc(rt_rect.left + 8.0f, rt_rect.top + 84.0f, rt_rect.right - 8.0f, rt_rect.top + 104.0f), g_ui.fmt_info,
                   rgba(0.90f, 0.94f, 0.99f, 1.0f));
+    }
+    draw_text(L"最近帧(最新3条)", rc(debug_rect.left + 12.0f, debug_offset_y + 292.0f, debug_rect.left + 180.0f, debug_offset_y + 314.0f),
+              g_ui.fmt_info, rgba(0.70f, 0.78f, 0.90f, 1.0f));
+    {
+        int i;
+        int rows = (g_state.runtime_tick_history_count < 3) ? g_state.runtime_tick_history_count : 3;
+        D2D1_RECT_F hist_rect = rc(debug_rect.left + 10.0f, debug_offset_y + 320.0f, debug_content_right, debug_offset_y + 398.0f);
+        draw_card_round(hist_rect, 5.0f, rgba(0.20f, 0.25f, 0.33f, 1.0f), rgba(0.33f, 0.40f, 0.52f, 1.0f));
+        if (rows <= 0) {
+            draw_text(L"暂无帧快照记录", rc(hist_rect.left + 8.0f, hist_rect.top + 6.0f, hist_rect.right - 8.0f, hist_rect.top + 26.0f),
+                      g_ui.fmt_info, rgba(0.66f, 0.74f, 0.84f, 1.0f));
+        } else {
+            for (i = 0; i < rows; i++) {
+                int idx = (g_state.runtime_tick_history_head + g_state.runtime_tick_history_count - 1 - i + 8) % 8;
+                RuntimeTickHistoryEntry entry = g_state.runtime_tick_history[idx];
+                swprintf(line, 128, L"#%u 对象:%d 约束:%d 接触:%d %.2fms",
+                         entry.frame_index, entry.body_count, entry.constraint_count, entry.contact_count, entry.step_ms);
+                draw_text(line, rc(hist_rect.left + 8.0f, hist_rect.top + 6.0f + i * 22.0f, hist_rect.right - 8.0f, hist_rect.top + 26.0f + i * 22.0f),
+                          g_ui.fmt_info, rgba(0.90f, 0.94f, 0.99f, 1.0f));
+            }
+        }
+    }
+    draw_text(L"状态时间线(最新3条)", rc(debug_rect.left + 12.0f, debug_offset_y + 410.0f, debug_rect.left + 188.0f, debug_offset_y + 432.0f),
+              g_ui.fmt_info, rgba(0.70f, 0.78f, 0.90f, 1.0f));
+    {
+        int i;
+        int rows = (g_state.runtime_state_history_count < 3) ? g_state.runtime_state_history_count : 3;
+        unsigned int now_ms = (unsigned int)GetTickCount();
+        D2D1_RECT_F state_rect = rc(debug_rect.left + 10.0f, debug_offset_y + 438.0f, debug_content_right, debug_offset_y + 516.0f);
+        draw_card_round(state_rect, 5.0f, rgba(0.20f, 0.25f, 0.33f, 1.0f), rgba(0.33f, 0.40f, 0.52f, 1.0f));
+        if (rows <= 0) {
+            draw_text(L"暂无状态切换记录", rc(state_rect.left + 8.0f, state_rect.top + 6.0f, state_rect.right - 8.0f, state_rect.top + 26.0f),
+                      g_ui.fmt_info, rgba(0.66f, 0.74f, 0.84f, 1.0f));
+        } else {
+            for (i = 0; i < rows; i++) {
+                int idx = (g_state.runtime_state_history_head + g_state.runtime_state_history_count - 1 - i + 8) % 8;
+                RuntimeStateHistoryEntry entry = g_state.runtime_state_history[idx];
+                unsigned int age_ms = now_ms - entry.tick_ms;
+                swprintf(line, 128, L"#%u -> %s (%ums前)", entry.frame_index, entry.running ? L"运行" : L"暂停", age_ms);
+                draw_text(line, rc(state_rect.left + 8.0f, state_rect.top + 6.0f + i * 22.0f, state_rect.right - 8.0f, state_rect.top + 26.0f + i * 22.0f),
+                          g_ui.fmt_info, rgba(0.90f, 0.94f, 0.99f, 1.0f));
+            }
+        }
     }
     ID2D1HwndRenderTarget_PopAxisAlignedClip(g_ui.target);
     if (g_state.debug_scroll_max > 0) {
@@ -4471,6 +4538,40 @@ static void app_cmd_spawn_box(void* user) {
     trace_spawn_step("key.2.end", "");
 }
 
+static void runtime_push_tick_history(const AppRuntimeSnapshot* snapshot) {
+    int idx;
+    if (snapshot == NULL || !snapshot->valid) return;
+    if (g_state.runtime_tick_history_count < 8) {
+        idx = (g_state.runtime_tick_history_head + g_state.runtime_tick_history_count) % 8;
+        g_state.runtime_tick_history_count++;
+    } else {
+        g_state.runtime_tick_history_head = (g_state.runtime_tick_history_head + 1) % 8;
+        idx = (g_state.runtime_tick_history_head + g_state.runtime_tick_history_count - 1) % 8;
+    }
+    g_state.runtime_tick_history[idx].frame_index = snapshot->frame_index;
+    g_state.runtime_tick_history[idx].body_count = snapshot->body_count;
+    g_state.runtime_tick_history[idx].constraint_count = snapshot->constraint_count;
+    g_state.runtime_tick_history[idx].contact_count = snapshot->contact_count;
+    g_state.runtime_tick_history[idx].step_ms = snapshot->step_ms;
+}
+
+static void runtime_push_state_history(const AppRuntimeSnapshot* snapshot) {
+    int idx;
+    unsigned int now_ms;
+    if (snapshot == NULL || !snapshot->valid) return;
+    now_ms = (unsigned int)GetTickCount();
+    if (g_state.runtime_state_history_count < 8) {
+        idx = (g_state.runtime_state_history_head + g_state.runtime_state_history_count) % 8;
+        g_state.runtime_state_history_count++;
+    } else {
+        g_state.runtime_state_history_head = (g_state.runtime_state_history_head + 1) % 8;
+        idx = (g_state.runtime_state_history_head + g_state.runtime_state_history_count - 1) % 8;
+    }
+    g_state.runtime_state_history[idx].frame_index = snapshot->frame_index;
+    g_state.runtime_state_history[idx].tick_ms = now_ms;
+    g_state.runtime_state_history[idx].running = snapshot->running ? 1 : 0;
+}
+
 static void apply_runtime_snapshot_to_state(const AppRuntimeSnapshot* snapshot) {
     if (snapshot == NULL || !snapshot->valid) return;
     g_state.physics_step_ms = snapshot->step_ms;
@@ -4496,6 +4597,7 @@ static void process_app_events(void) {
             }
         } else if (ev.type == APP_EVENT_RUNTIME_TICK) {
             apply_runtime_snapshot_to_state(&ev.runtime_snapshot);
+            runtime_push_tick_history(&ev.runtime_snapshot);
             if (g_state.runtime_running && ev.runtime_snapshot.contact_count != g_state.last_contact_count) {
                 unsigned int now_ms = (unsigned int)GetTickCount();
                 if ((now_ms - g_state.last_contact_log_ms) >= 500) {
@@ -4507,6 +4609,7 @@ static void process_app_events(void) {
         } else if (ev.type == APP_EVENT_RUNTIME_STATE_CHANGED) {
             g_state.runtime_running = ev.runtime_snapshot.running ? 1 : 0;
             g_state.runtime_state_change_count++;
+            runtime_push_state_history(&ev.runtime_snapshot);
             push_console_log(L"[状态] 模拟:%s", ev.runtime_snapshot.running ? L"运行" : L"暂停");
         }
     }
@@ -5915,6 +6018,10 @@ static void init_state_defaults(void) {
     g_state.runtime_constraint_count = 0;
     g_state.runtime_contact_count = 0;
     g_state.runtime_state_change_count = 0;
+    g_state.runtime_tick_history_head = 0;
+    g_state.runtime_tick_history_count = 0;
+    g_state.runtime_state_history_head = 0;
+    g_state.runtime_state_history_count = 0;
     g_state.fps_last_tick_ms = 0;
     g_state.fps_accum_frames = 0;
     g_state.last_contact_count = 0;
