@@ -6,6 +6,8 @@ void app_runtime_init(AppRuntime* runtime, AppCommandCallbacks callbacks) {
     app_event_bus_init(&runtime->event_bus);
     app_controller_init(&runtime->controller, callbacks, &runtime->event_bus);
     runtime->last_snapshot.valid = 0;
+    runtime->last_snapshot.runtime_error_count = 0;
+    runtime->last_snapshot.runtime_error_code = PHYSICS_ERROR_NONE;
     runtime->last_snapshot.event_drop_count = 0;
     runtime->frame_index = 0;
 }
@@ -36,6 +38,8 @@ void app_runtime_report_tick(AppRuntime* runtime, PhysicsEngine* engine, int run
     runtime->last_snapshot.body_count = (engine != NULL) ? physics_engine_get_body_count(engine) : 0;
     runtime->last_snapshot.constraint_count = (engine != NULL) ? physics_engine_get_constraint_count(engine) : 0;
     runtime->last_snapshot.contact_count = (engine != NULL) ? physics_engine_get_contact_count(engine) : 0;
+    runtime->last_snapshot.runtime_error_code = (engine != NULL) ? physics_engine_get_last_error(engine) : PHYSICS_ERROR_NONE;
+    runtime->last_snapshot.runtime_error_count = (runtime->last_snapshot.runtime_error_code == PHYSICS_ERROR_NONE) ? 0 : 1;
     runtime->last_snapshot.step_ms = step_ms;
     runtime->last_snapshot.event_drop_count = app_event_bus_dropped_count(&runtime->event_bus);
 

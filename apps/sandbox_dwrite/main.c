@@ -167,6 +167,8 @@ typedef struct {
     int runtime_body_count;
     int runtime_constraint_count;
     int runtime_contact_count;
+    int runtime_error_count;
+    int runtime_error_code;
     int runtime_state_change_count;
     unsigned int runtime_event_drop_count;
     unsigned int runtime_drop_warn_ms;
@@ -182,7 +184,9 @@ typedef struct {
     unsigned int fps_last_tick_ms;
     int fps_accum_frames;
     int last_contact_count;
+    int last_runtime_error_code;
     unsigned int last_contact_log_ms;
+    unsigned int last_runtime_error_log_ms;
     unsigned int last_collision_capture_ms;
     unsigned int last_autosave_ms;
     float ui_left_ratio;
@@ -1975,6 +1979,8 @@ static void apply_scene(int scene_index) {
     g_state.runtime_body_count = 0;
     g_state.runtime_constraint_count = 0;
     g_state.runtime_contact_count = 0;
+    g_state.runtime_error_count = 0;
+    g_state.runtime_error_code = PHYSICS_ERROR_NONE;
     g_state.runtime_state_change_count = 0;
     g_state.runtime_event_drop_count = 0;
     g_state.runtime_drop_warn_ms = 0;
@@ -1985,6 +1991,8 @@ static void apply_scene(int scene_index) {
     g_state.runtime_tick_history_count = 0;
     g_state.runtime_state_history_head = 0;
     g_state.runtime_state_history_count = 0;
+    g_state.last_runtime_error_code = PHYSICS_ERROR_NONE;
+    g_state.last_runtime_error_log_ms = 0;
     g_state.last_collision_capture_ms = 0;
     clear_collision_events();
     g_state.scene_needs_stage_fit = 1;
@@ -2996,10 +3004,10 @@ static void render_right_debug_section(D2D1_RECT_F debug_rect) {
         swprintf(line, 128, L"接触: %d  单帧耗时: %.2fms", g_state.runtime_contact_count, g_state.physics_step_ms);
         draw_text(line, rc(rt_rect.left + 8.0f, rt_rect.top + 64.0f, rt_rect.right - 8.0f, rt_rect.top + 84.0f), g_ui.fmt_info,
                   rgba(0.90f, 0.94f, 0.99f, 1.0f));
-        swprintf(line, 128, L"状态变更事件: %d", g_state.runtime_state_change_count);
+        swprintf(line, 128, L"状态变更事件: %d  错误: %d", g_state.runtime_state_change_count, g_state.runtime_error_count);
         draw_text(line, rc(rt_rect.left + 8.0f, rt_rect.top + 84.0f, rt_rect.right - 8.0f, rt_rect.top + 104.0f), g_ui.fmt_info,
                   rgba(0.90f, 0.94f, 0.99f, 1.0f));
-        swprintf(line, 128, L"事件丢弃累计: %u", g_state.runtime_event_drop_count);
+        swprintf(line, 128, L"错误码: %d  事件丢弃累计: %u", g_state.runtime_error_code, g_state.runtime_event_drop_count);
         draw_text(line, rc(rt_rect.left + 8.0f, rt_rect.top + 104.0f, rt_rect.right - 8.0f, rt_rect.top + 118.0f), g_ui.fmt_info,
                   rgba(0.90f, 0.94f, 0.99f, 1.0f));
     }
@@ -4670,6 +4678,8 @@ static void apply_runtime_snapshot_to_state(const AppRuntimeSnapshot* snapshot) 
     g_state.runtime_body_count = snapshot->body_count;
     g_state.runtime_constraint_count = snapshot->constraint_count;
     g_state.runtime_contact_count = snapshot->contact_count;
+    g_state.runtime_error_count = snapshot->runtime_error_count;
+    g_state.runtime_error_code = snapshot->runtime_error_code;
     g_state.runtime_event_drop_count = snapshot->event_drop_count;
 }
 
@@ -4706,6 +4716,20 @@ static void process_app_events(void) {
                     g_state.runtime_bus_congested = 0;
                     push_console_log(L"[状态] 事件总线已恢复（累计丢弃:%u）", g_state.runtime_event_drop_count);
                 }
+            }
+            {
+                unsigned int now_ms = (unsigned int)GetTickCount();
+                if (g_state.runtime_error_count > 0) {
+                    if (g_state.runtime_error_code != g_state.last_runtime_error_code ||
+                        (now_ms - g_state.last_runtime_error_log_ms) >= 1000) {
+                        push_console_log(L"[警告] 运行时错误 code=%d", g_state.runtime_error_code);
+                        g_state.last_runtime_error_log_ms = now_ms;
+                    }
+                } else if (g_state.last_runtime_error_code != PHYSICS_ERROR_NONE) {
+                    push_console_log(L"[状态] 运行时错误已恢复");
+                    g_state.last_runtime_error_log_ms = now_ms;
+                }
+                g_state.last_runtime_error_code = g_state.runtime_error_code;
             }
             if (g_state.runtime_running && ev.runtime_snapshot.contact_count != g_state.last_contact_count) {
                 unsigned int now_ms = (unsigned int)GetTickCount();
@@ -6158,6 +6182,8 @@ static void init_state_defaults(void) {
     g_state.runtime_body_count = 0;
     g_state.runtime_constraint_count = 0;
     g_state.runtime_contact_count = 0;
+    g_state.runtime_error_count = 0;
+    g_state.runtime_error_code = PHYSICS_ERROR_NONE;
     g_state.runtime_state_change_count = 0;
     g_state.runtime_event_drop_count = 0;
     g_state.runtime_drop_warn_ms = 0;
@@ -6171,7 +6197,9 @@ static void init_state_defaults(void) {
     g_state.fps_last_tick_ms = 0;
     g_state.fps_accum_frames = 0;
     g_state.last_contact_count = 0;
+    g_state.last_runtime_error_code = PHYSICS_ERROR_NONE;
     g_state.last_contact_log_ms = 0;
+    g_state.last_runtime_error_log_ms = 0;
     g_state.last_collision_capture_ms = 0;
     g_state.last_autosave_ms = (unsigned int)GetTickCount();
     g_state.history_cursor = 0;

@@ -11,6 +11,8 @@ typedef struct {
     int body_count;
     int constraint_count;
     int contact_count;
+    int runtime_error_count;
+    int runtime_error_code;
     float step_ms;
     unsigned int event_drop_count;
 } AppRuntimeSnapshot;
