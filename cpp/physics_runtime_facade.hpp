@@ -10,6 +10,8 @@ namespace runtime {
 
 struct TickStats {
     std::size_t spawned_entities = 0;
+    std::size_t pre_synced_entities = 0;
+    std::size_t respawned_entities = 0;
     std::size_t synced_entities = 0;
     std::size_t cleaned_entities = 0;
     std::size_t mapping_errors = 0;
@@ -72,6 +74,8 @@ public:
         pipeline_.tick(registry_, engine_.view());
         snapshot.frame_index = ++frame_index_;
         snapshot.stats.spawned_entities = pipeline_.stats().spawned_entities;
+        snapshot.stats.pre_synced_entities = pipeline_.stats().pre_synced_entities;
+        snapshot.stats.respawned_entities = pipeline_.stats().respawned_entities;
         snapshot.stats.synced_entities = pipeline_.stats().synced_entities;
         snapshot.stats.cleaned_entities = pipeline_.stats().cleaned_entities;
         snapshot.stats.mapping_errors = pipeline_.stats().mapping_errors;

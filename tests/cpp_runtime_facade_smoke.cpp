@@ -21,34 +21,37 @@ int main() {
     if (snap1.stats.spawned_entities != 1u) {
         return 4;
     }
-    if (snap1.stats.synced_entities != 1u) {
+    if (snap1.stats.pre_synced_entities != 0u) {
         return 5;
     }
-    if (!snap1.bridge.ok()) {
+    if (snap1.stats.synced_entities != 1u) {
         return 6;
     }
-    if (runtime.last_snapshot().frame_index != snap1.frame_index) {
+    if (!snap1.bridge.ok()) {
         return 7;
+    }
+    if (runtime.last_snapshot().frame_index != snap1.frame_index) {
+        return 8;
     }
 
     if (!runtime.registry().queue_destroy(e)) {
-        return 8;
+        return 9;
     }
     physics2d::runtime::TickStats s2 = runtime.tick();
     if (s2.cleaned_entities != 1u) {
-        return 9;
-    }
-    if (s2.body_count != 0) {
         return 10;
     }
-    if (runtime.last_snapshot().frame_index != 2u) {
+    if (s2.body_count != 0) {
         return 11;
     }
-    if (!runtime.last_snapshot().bridge.ok()) {
+    if (runtime.last_snapshot().frame_index != 2u) {
         return 12;
     }
-    if (runtime.registry().alive(e)) {
+    if (!runtime.last_snapshot().bridge.ok()) {
         return 13;
+    }
+    if (runtime.registry().alive(e)) {
+        return 14;
     }
     return 0;
 }

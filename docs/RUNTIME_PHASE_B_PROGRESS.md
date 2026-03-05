@@ -12,9 +12,13 @@
    - mapping 错误计数
    - bridge 校验报告
 4. ECS-Physics 桥接已增强为双向映射并可校验一致性。
+5. 已完成 ECS->Physics 增量脏标记同步：
+   - Transform/BodySpec 脏更新仅同步变更体
+   - Collider 脏更新触发受控 respawn
 5. 新增并接入 smoke：
    - `cpp_runtime_facade_smoke`
    - `cpp_ecs_bridge_smoke`
+   - `cpp_ecs_dirty_sync_smoke`
 6. CI 门禁已升级：
    - Windows: `test + benchmark + arch/api checks`
    - Ubuntu: `cmake tests + benchmark + selected cpp smoke`
@@ -24,7 +28,6 @@
 2. `mingw32-make benchmark`：`PASS`。
 3. `check_arch_deps.ps1` / `check_api_surface.ps1`：通过。
 
-## 下一步（B2 后半段）
-1. 增加 ECS->Physics 增量同步路径（参数变更脏标记）。
-2. 增加 Physics->ECS 事件桥（contact/sleep/wakeup 最小集）。
-3. 为编辑器最小闭环准备 runtime 调试快照导出接口。
+## 下一步（B2 剩余）
+1. 增加 Physics->ECS 事件桥（contact/sleep/wakeup 最小集）。
+2. 将 runtime 调试快照接到编辑器最小闭环展示通路。

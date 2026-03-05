@@ -39,6 +39,11 @@ struct RuntimeBodyRef {
     RigidBody* body = nullptr;
 };
 
+struct DirtySyncStats {
+    std::size_t synced_entities = 0;
+    std::size_t respawned_entities = 0;
+};
+
 struct BridgeValidationReport {
     std::size_t runtime_refs = 0;
     std::size_t reverse_refs = 0;
@@ -58,6 +63,13 @@ struct BridgeValidationReport {
 
 class Registry {
 public:
+    enum DirtyMask : std::uint32_t {
+        DirtyNone = 0u,
+        DirtyTransform = 1u << 0,
+        DirtyBodySpec = 1u << 1,
+        DirtyCollider = 1u << 2
+    };
+
     Entity create() noexcept {
         const Entity id = next_entity_++;
         alive_.insert(id);
@@ -105,6 +117,7 @@ public:
             return;
         }
         transforms_[e] = t;
+        mark_runtime_dirty(e, DirtyTransform);
     }
 
     void add_collider_circle(Entity e, float radius) noexcept {
@@ -116,6 +129,7 @@ public:
         c.size_a = radius;
         c.size_b = radius;
         colliders_[e] = c;
+        mark_runtime_dirty(e, DirtyCollider);
     }
 
     void add_collider_box(Entity e, float width, float height) noexcept {
@@ -127,6 +141,7 @@ public:
         c.size_a = width;
         c.size_b = height;
         colliders_[e] = c;
+        mark_runtime_dirty(e, DirtyCollider);
     }
 
     void add_rigidbody_spec(Entity e, RigidBodySpec spec) noexcept {
@@ -134,6 +149,7 @@ public:
             return;
         }
         body_specs_[e] = spec;
+        mark_runtime_dirty(e, DirtyBodySpec);
     }
 
     const Transform* transform(Entity e) const noexcept {
@@ -162,6 +178,10 @@ public:
 
     std::size_t runtime_body_count() const noexcept {
         return runtime_bodies_.size();
+    }
+
+    std::size_t dirty_entity_count() const noexcept {
+        return runtime_dirty_.size();
     }
 
     bool queue_destroy(Entity e) noexcept {
@@ -248,9 +268,69 @@ public:
             rr.body = raw;
             runtime_bodies_[e] = rr;
             body_to_entity_[raw] = e;
+            runtime_dirty_.erase(e);
             spawned++;
         });
         return spawned;
+    }
+
+    DirtySyncStats pre_physics_sync_dirty(EngineView engine) noexcept {
+        DirtySyncStats stats;
+        std::unordered_set<Entity> pending;
+        for (const auto& kv : runtime_dirty_) {
+            pending.insert(kv.first);
+        }
+        for (Entity e : pending) {
+            auto rt_it = runtime_bodies_.find(e);
+            if (rt_it == runtime_bodies_.end() || rt_it->second.body == nullptr) {
+                runtime_dirty_.erase(e);
+                continue;
+            }
+            auto tr_it = transforms_.find(e);
+            auto sp_it = body_specs_.find(e);
+            auto co_it = colliders_.find(e);
+            if (tr_it == transforms_.end() || sp_it == body_specs_.end() || co_it == colliders_.end()) {
+                runtime_dirty_.erase(e);
+                continue;
+            }
+
+            std::uint32_t mask = runtime_dirty_[e];
+            RigidBody* current = rt_it->second.body;
+            if ((mask & DirtyCollider) != 0u) {
+                Body replacement;
+                if (co_it->second.kind == ColliderKind::Circle) {
+                    replacement = Body::create_circle(tr_it->second.position.x, tr_it->second.position.y, sp_it->second.mass, co_it->second.size_a);
+                } else {
+                    replacement = Body::create_box(tr_it->second.position.x, tr_it->second.position.y, sp_it->second.mass, co_it->second.size_a, co_it->second.size_b);
+                }
+                if (replacement.valid()) {
+                    RigidBody* next = replacement.get();
+                    next->angle = tr_it->second.angle;
+                    next->velocity = current->velocity;
+                    next->angular_velocity = current->angular_velocity;
+                    body_set_type(next, sp_it->second.type);
+                    body_to_entity_.erase(current);
+                    engine.remove_body(current);
+                    engine.add_body(replacement.release());
+                    rt_it->second.body = next;
+                    body_to_entity_[next] = e;
+                    current = next;
+                    stats.respawned_entities++;
+                }
+            }
+
+            if ((mask & DirtyTransform) != 0u) {
+                current->position = tr_it->second.position;
+                current->angle = tr_it->second.angle;
+                stats.synced_entities++;
+            }
+            if ((mask & DirtyBodySpec) != 0u) {
+                body_set_type(current, sp_it->second.type);
+                stats.synced_entities++;
+            }
+            runtime_dirty_.erase(e);
+        }
+        return stats;
     }
 
     std::size_t sync_transforms_from_physics() noexcept {
@@ -299,6 +379,13 @@ public:
     }
 
 private:
+    void mark_runtime_dirty(Entity e, std::uint32_t bits) noexcept {
+        if (runtime_bodies_.find(e) == runtime_bodies_.end()) {
+            return;
+        }
+        runtime_dirty_[e] |= bits;
+    }
+
     void erase_components(Entity e) noexcept {
         auto rt = runtime_bodies_.find(e);
         if (rt != runtime_bodies_.end() && rt->second.body != nullptr) {
@@ -308,6 +395,7 @@ private:
         colliders_.erase(e);
         body_specs_.erase(e);
         runtime_bodies_.erase(e);
+        runtime_dirty_.erase(e);
     }
 
     Entity next_entity_ = 1;
@@ -317,6 +405,7 @@ private:
     std::unordered_map<Entity, RigidBodySpec> body_specs_;
     std::unordered_map<Entity, RuntimeBodyRef> runtime_bodies_;
     std::unordered_map<const RigidBody*, Entity> body_to_entity_;
+    std::unordered_map<Entity, std::uint32_t> runtime_dirty_;
     std::unordered_set<Entity> destroy_queue_;
 };
 
@@ -331,6 +420,13 @@ class PhysicsStepSystem {
 public:
     void run(EngineView engine) const noexcept {
         engine.step();
+    }
+};
+
+class PrePhysicsSyncSystem {
+public:
+    DirtySyncStats run(Registry& registry, EngineView engine) const noexcept {
+        return registry.pre_physics_sync_dirty(engine);
     }
 };
 
@@ -350,6 +446,8 @@ public:
 
 struct PipelineStats {
     std::size_t spawned_entities = 0;
+    std::size_t pre_synced_entities = 0;
+    std::size_t respawned_entities = 0;
     std::size_t synced_entities = 0;
     std::size_t cleaned_entities = 0;
     std::size_t mapping_errors = 0;
@@ -357,6 +455,7 @@ struct PipelineStats {
 
 struct PipelineConfig {
     bool run_spawn = true;
+    bool run_pre_sync = true;
     bool run_step = true;
     bool run_sync = true;
     bool run_cleanup = true;
@@ -376,6 +475,13 @@ public:
         stats_.spawned_entities = 0;
         if (config_.run_spawn) {
             stats_.spawned_entities = spawn_system_.run(registry, engine);
+        }
+        stats_.pre_synced_entities = 0;
+        stats_.respawned_entities = 0;
+        if (config_.run_pre_sync) {
+            const DirtySyncStats ds = pre_sync_system_.run(registry, engine);
+            stats_.pre_synced_entities = ds.synced_entities;
+            stats_.respawned_entities = ds.respawned_entities;
         }
         if (config_.run_step) {
             step_system_.run(engine);
@@ -405,6 +511,7 @@ public:
 
 private:
     SpawnRigidBodySystem spawn_system_;
+    PrePhysicsSyncSystem pre_sync_system_;
     PhysicsStepSystem step_system_;
     SyncTransformSystem sync_system_;
     CleanupSystem cleanup_system_;
