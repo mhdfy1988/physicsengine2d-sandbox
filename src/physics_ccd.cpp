@@ -75,6 +75,8 @@ static int ccd_swept_circle_circle(const RigidBody* a, const RigidBody* b, float
     return 1;
 }
 
+extern "C" {
+
 void physics_internal_append_ccd_contacts(PhysicsEngine* engine, float dt) {
     int i;
     if (engine == NULL) return;
@@ -85,7 +87,7 @@ void physics_internal_append_ccd_contacts(PhysicsEngine* engine, float dt) {
         int ib = engine->broadphase_pairs[i].ib;
         RigidBody* a = physics_internal_body_from_id(engine, ia);
         RigidBody* b = physics_internal_body_from_id(engine, ib);
-        CollisionInfo info = {0};
+        CollisionInfo info = {};
         if (a == NULL || b == NULL) continue;
         if (a->type == BODY_STATIC && b->type == BODY_STATIC) continue;
         if (ccd_pair_already_contacted(engine, ia, ib)) continue;
@@ -93,3 +95,5 @@ void physics_internal_append_ccd_contacts(PhysicsEngine* engine, float dt) {
         (void)physics_engine_add_contact(engine, a, b, &info);
     }
 }
+
+}  // extern "C"

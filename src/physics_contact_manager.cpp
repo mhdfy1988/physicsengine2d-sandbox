@@ -13,6 +13,8 @@ static const CollisionManifold* find_persistent_contact(const PhysicsEngine* eng
     return NULL;
 }
 
+extern "C" {
+
 int physics_internal_default_build_contacts(PhysicsEngine* engine, void* user) {
     int i;
     (void)user;
@@ -22,7 +24,7 @@ int physics_internal_default_build_contacts(PhysicsEngine* engine, void* user) {
         int ib = engine->broadphase_pairs[i].ib;
         RigidBody* a = physics_internal_body_from_id(engine, ia);
         RigidBody* b = physics_internal_body_from_id(engine, ib);
-        CollisionInfo info = {0};
+        CollisionInfo info = {};
         const CollisionManifold* persisted;
         if (a == NULL || b == NULL) continue;
         if (!collision_detect(a, b, &info)) continue;
@@ -72,3 +74,5 @@ int physics_internal_default_build_contacts(PhysicsEngine* engine, void* user) {
     }
     return engine->contact_count;
 }
+
+}  // extern "C"
