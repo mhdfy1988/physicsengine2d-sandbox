@@ -36,7 +36,7 @@
 #include "application/history_service.h"
 #include "application/runtime_param_service.h"
 #include "asset_hot_reload.h"
-#include "asset_fs_poll.h"
+#include "asset_fs_watch.h"
 #include "presentation/input/input_mapping.h"
 #include "presentation/input/menu_file_edit_actions.h"
 #include "presentation/input/menu_view_physics_window_actions.h"
@@ -269,7 +269,7 @@ static SandboxState g_state = {0};
 static HWND g_app_hwnd = NULL;
 static AppRuntime g_app_runtime;
 static AssetHotReloadService g_hot_reload_service;
-static AssetFsPollState g_asset_fs_poll;
+static AssetFsWatchState g_asset_fs_watch;
 static char g_hot_reload_root_dir[ASSET_WATCH_MAX_PATH];
 static const float WORLD_SCALE = 12.0f;
 static const float WORLD_ORIGIN_X = 20.0f;
@@ -2179,7 +2179,7 @@ static int hot_reload_register_source_path(const char* source_path) {
     if (source_path == NULL || source_path[0] == '\0') return 0;
     if (!hot_reload_is_supported_extension(source_path)) return 0;
     if (!asset_hot_reload_register_source(&g_hot_reload_service, source_path, "sandbox:auto", guid)) return 0;
-    if (!asset_fs_poll_watch_path(&g_asset_fs_poll, source_path)) return 0;
+    if (!asset_fs_watch_watch_path(&g_asset_fs_watch, source_path)) return 0;
     return 1;
 }
 
@@ -2220,7 +2220,7 @@ static void init_hot_reload_pipeline(void) {
     int i;
     int root_found = 0;
     asset_hot_reload_service_init(&g_hot_reload_service, HOT_RELOAD_DEBOUNCE_MS);
-    asset_fs_poll_init(&g_asset_fs_poll);
+    asset_fs_watch_init(&g_asset_fs_watch);
     g_hot_reload_root_dir[0] = '\0';
     g_state.hot_reload_enabled = 0;
     for (i = 0; i < (int)(sizeof(roots) / sizeof(roots[0])); i++) {
@@ -2229,17 +2229,22 @@ static void init_hot_reload_pipeline(void) {
             strncpy(g_hot_reload_root_dir, roots[i], sizeof(g_hot_reload_root_dir) - 1);
             g_hot_reload_root_dir[sizeof(g_hot_reload_root_dir) - 1] = '\0';
             hot_reload_register_tree_recursive(roots[i], 0);
+            asset_fs_watch_watch_directory(&g_asset_fs_watch, roots[i]);
             root_found = 1;
             break;
         }
     }
-    g_state.hot_reload_watch_count = g_asset_fs_poll.count;
+    g_state.hot_reload_watch_count = asset_fs_watch_get_watch_count(&g_asset_fs_watch);
     g_state.hot_reload_enabled = (g_state.hot_reload_watch_count > 0) ? 1 : 0;
     g_state.hot_reload_last_discover_ms = (unsigned int)GetTickCount();
     if (!root_found) {
         push_console_log(L"[热重载] 未找到 assets 目录，已跳过监听初始化");
     } else if (g_state.hot_reload_enabled) {
-        push_console_log(L"[热重载] 已监听 %d 个资源文件（轮询+增量导入）", g_state.hot_reload_watch_count);
+        if (asset_fs_watch_is_native_active(&g_asset_fs_watch)) {
+            push_console_log(L"[热重载] 已监听 %d 个资源文件（原生监听触发 + 轮询增量导入）", g_state.hot_reload_watch_count);
+        } else {
+            push_console_log(L"[热重载] 已监听 %d 个资源文件（轮询+增量导入）", g_state.hot_reload_watch_count);
+        }
     } else {
         push_console_log(L"[热重载] assets 目录无可导入资源，监听待机");
     }
@@ -2253,16 +2258,16 @@ static void hot_reload_tick_runtime(void) {
     if (g_hot_reload_root_dir[0] != '\0' &&
         (g_state.hot_reload_last_discover_ms == 0 ||
          (now_ms - g_state.hot_reload_last_discover_ms) >= HOT_RELOAD_DISCOVER_INTERVAL_MS)) {
-        int prev_watch_count = g_asset_fs_poll.count;
+        int prev_watch_count = asset_fs_watch_get_watch_count(&g_asset_fs_watch);
         hot_reload_register_tree_recursive(g_hot_reload_root_dir, 0);
-        g_state.hot_reload_watch_count = g_asset_fs_poll.count;
+        g_state.hot_reload_watch_count = asset_fs_watch_get_watch_count(&g_asset_fs_watch);
         g_state.hot_reload_last_discover_ms = now_ms;
-        if (g_asset_fs_poll.count > prev_watch_count) {
+        if (g_state.hot_reload_watch_count > prev_watch_count) {
             push_console_log(L"[热重载] 新增监听 %d 项（总计:%d）",
-                             g_asset_fs_poll.count - prev_watch_count,
-                             g_asset_fs_poll.count);
+                             g_state.hot_reload_watch_count - prev_watch_count,
+                             g_state.hot_reload_watch_count);
         }
-        if (g_asset_fs_poll.count > 0) {
+        if (g_state.hot_reload_watch_count > 0) {
             g_state.hot_reload_enabled = 1;
         }
     }
@@ -2272,9 +2277,9 @@ static void hot_reload_tick_runtime(void) {
         return;
     }
     g_state.hot_reload_last_scan_ms = now_ms;
-    if (!asset_fs_poll_scan(&g_asset_fs_poll, &g_hot_reload_service, (long long)now_ms, &change_count)) {
+    if (!asset_fs_watch_scan(&g_asset_fs_watch, &g_hot_reload_service, (long long)now_ms, &change_count)) {
         if (g_state.hot_reload_last_warn_ms == 0 || (now_ms - g_state.hot_reload_last_warn_ms) >= 1000) {
-            push_console_log(L"[警告] 热重载轮询扫描失败");
+            push_console_log(L"[警告] 热重载文件扫描失败");
             g_state.hot_reload_last_warn_ms = now_ms;
         }
         return;
@@ -6436,6 +6441,7 @@ static int run_message_loop(void) {
 
 static int shutdown_and_get_exit_code(int exit_code) {
     if (g_state.engine) physics_engine_free(g_state.engine);
+    asset_fs_watch_shutdown(&g_asset_fs_watch);
     save_ui_layout();
     shutdown_ui();
     CoUninitialize();
