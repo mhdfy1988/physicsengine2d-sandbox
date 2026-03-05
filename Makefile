@@ -23,7 +23,7 @@ SANDBOX_SRCS = $(APPDIR_DWRITE)/main.c $(APPDIR_DWRITE)/infrastructure/project_t
 SANDBOX_ICON_RC = $(APPDIR_DWRITE)/app_icon.rc
 SANDBOX_ICON_ICO = assets/icons/physics_sandbox.ico
 SANDBOX_ICON_OBJ = $(OBJDIR)/app_icon.res.o
-TEST_SRC = $(TESTDIR)/regression_tests.c $(TESTDIR)/regression_collision_core_tests.c $(TESTDIR)/regression_event_snapshot_tests.c $(TESTDIR)/regression_pipeline_error_tests.c $(TESTDIR)/regression_sleep_broadphase_tests.c $(TESTDIR)/regression_stress_constraint_tests.c $(TESTDIR)/regression_engine_feature_tests.c
+TEST_SRC = $(TESTDIR)/regression_tests.c $(TESTDIR)/regression_collision_core_tests.c $(TESTDIR)/regression_event_snapshot_tests.c $(TESTDIR)/regression_pipeline_error_tests.c $(TESTDIR)/regression_sleep_broadphase_tests.c $(TESTDIR)/regression_stress_constraint_tests.c $(TESTDIR)/regression_engine_feature_tests.c $(TESTDIR)/equivalence/equivalence_api_tests.c
 BENCH_SRC = $(TESTDIR)/benchmark_suite.c
 INVARIANT_SRC = $(TESTDIR)/invariant_tests.c
 

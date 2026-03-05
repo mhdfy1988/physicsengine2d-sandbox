@@ -30,7 +30,9 @@
     X(regression_test_contact_event_order_stable_after_sort) \
     X(regression_test_broadphase_bvh_reports_unsupported) \
     X(regression_test_snapshot_replay_determinism) \
-    X(regression_test_snapshot_applies_mass_inertia)
+    X(regression_test_snapshot_applies_mass_inertia) \
+    X(regression_test_equivalence_runtime_setters) \
+    X(regression_test_equivalence_remove_body_paths)
 
 #define DECLARE_REGRESSION_TEST(fn) int fn(void);
 REGRESSION_TEST_LIST(DECLARE_REGRESSION_TEST)

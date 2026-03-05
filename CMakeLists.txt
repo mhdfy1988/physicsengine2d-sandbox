@@ -132,6 +132,7 @@ if(BUILD_TESTS)
         tests/regression_sleep_broadphase_tests.c
         tests/regression_stress_constraint_tests.c
         tests/regression_engine_feature_tests.c
+        tests/equivalence/equivalence_api_tests.c
     )
     add_executable(physics_bench tests/benchmark_suite.c)
     add_executable(physics_invariants tests/invariant_tests.c)
