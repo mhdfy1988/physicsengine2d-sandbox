@@ -12,6 +12,7 @@ option(BUILD_SANDBOX "Deprecated alias for BUILD_EDITOR" ON)
 option(BUILD_TESTS "Build regression test executable" OFF)
 option(BUILD_CPP_COMPAT "Build C++ compatibility smoke target" ON)
 option(BUILD_CPP_WRAPPER "Build C++ RAII wrapper smoke target" ON)
+option(PHYSICS_USE_CPP_KERNEL "Enable incremental C++ kernel implementation path" ON)
 if(DEFINED BUILD_SANDBOX)
     set(BUILD_EDITOR ${BUILD_SANDBOX})
 endif()
@@ -48,7 +49,7 @@ set(PHYSICS2D_SOURCES
     src/physics_pipeline_api.c
     src/physics_snapshot.c
     src/physics_world.c
-    src/physics_memory.c
+    src/physics_memory.cpp
     src/physics_ids.c
     src/physics_parallel.c
     src/physics_broadphase.c
@@ -65,6 +66,11 @@ set(PHYSICS2D_SOURCES
 add_library(physics2d STATIC ${PHYSICS2D_SOURCES})
 add_library(physics_core ALIAS physics2d)
 target_include_directories(physics2d PUBLIC ${CMAKE_SOURCE_DIR}/include)
+if(PHYSICS_USE_CPP_KERNEL)
+    target_compile_definitions(physics2d PUBLIC PHYSICS_USE_CPP_KERNEL=1)
+else()
+    target_compile_definitions(physics2d PUBLIC PHYSICS_USE_CPP_KERNEL=0)
+endif()
 if(NOT MSVC)
     target_link_libraries(physics2d PUBLIC m)
 endif()

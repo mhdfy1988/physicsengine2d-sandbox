@@ -3,7 +3,15 @@
 
 struct PhysicsEngine;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void physics_internal_scratch_reset(struct PhysicsEngine* engine);
 void* physics_internal_scratch_alloc(struct PhysicsEngine* engine, int bytes, int alignment);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

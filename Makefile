@@ -1,6 +1,8 @@
 CC = gcc
+CXX = g++
 AR = ar
 CFLAGS = -Wall -Wextra -Wpedantic -std=c99 -finput-charset=UTF-8 -fexec-charset=UTF-8 -Iinclude
+CXXFLAGS = -Wall -Wextra -Wpedantic -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8 -Iinclude -DPHYSICS_USE_CPP_KERNEL=1
 LDFLAGS = -lm
 DEPFLAGS = -MMD -MP
 SRCDIR = src
@@ -10,8 +12,11 @@ BINDIR = bin
 OBJDIR = obj
 LIBDIR = lib
 
-SOURCES = $(SRCDIR)/math.c $(SRCDIR)/shape.c $(SRCDIR)/body.c $(SRCDIR)/constraint.c $(SRCDIR)/collision.c $(SRCDIR)/collision_detect.c $(SRCDIR)/physics.c $(SRCDIR)/physics_lifecycle.c $(SRCDIR)/physics_runtime_api.c $(SRCDIR)/physics_config.c $(SRCDIR)/physics_query.c $(SRCDIR)/physics_mutation.c $(SRCDIR)/physics_pipeline_api.c $(SRCDIR)/physics_snapshot.c $(SRCDIR)/physics_world.c $(SRCDIR)/physics_memory.c $(SRCDIR)/physics_ids.c $(SRCDIR)/physics_parallel.c $(SRCDIR)/physics_broadphase.c $(SRCDIR)/physics_contact_manager.c $(SRCDIR)/physics_ccd.c $(SRCDIR)/physics_raycast.c $(SRCDIR)/physics_step.c $(SRCDIR)/physics_collision_pipeline.c $(SRCDIR)/physics_resolve.c $(SRCDIR)/physics_solver.c $(SRCDIR)/physics_integrate.c
-OBJECTS = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(SOURCES))
+C_SOURCES = $(SRCDIR)/math.c $(SRCDIR)/shape.c $(SRCDIR)/body.c $(SRCDIR)/constraint.c $(SRCDIR)/collision.c $(SRCDIR)/collision_detect.c $(SRCDIR)/physics.c $(SRCDIR)/physics_lifecycle.c $(SRCDIR)/physics_runtime_api.c $(SRCDIR)/physics_config.c $(SRCDIR)/physics_query.c $(SRCDIR)/physics_mutation.c $(SRCDIR)/physics_pipeline_api.c $(SRCDIR)/physics_snapshot.c $(SRCDIR)/physics_world.c $(SRCDIR)/physics_ids.c $(SRCDIR)/physics_parallel.c $(SRCDIR)/physics_broadphase.c $(SRCDIR)/physics_contact_manager.c $(SRCDIR)/physics_ccd.c $(SRCDIR)/physics_raycast.c $(SRCDIR)/physics_step.c $(SRCDIR)/physics_collision_pipeline.c $(SRCDIR)/physics_resolve.c $(SRCDIR)/physics_solver.c $(SRCDIR)/physics_integrate.c
+CPP_SOURCES = $(SRCDIR)/physics_memory.cpp
+C_OBJECTS = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(C_SOURCES))
+CPP_OBJECTS = $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(CPP_SOURCES))
+OBJECTS = $(C_OBJECTS) $(CPP_OBJECTS)
 DEPS = $(OBJECTS:.o=.d)
 
 SANDBOX_SRCS = $(APPDIR_DWRITE)/main.c $(APPDIR_DWRITE)/infrastructure/project_tree.c $(APPDIR_DWRITE)/infrastructure/snapshot_repo.c $(APPDIR_DWRITE)/infrastructure/ui_layout_repo.c $(APPDIR_DWRITE)/presentation/render/ui_icons.c $(APPDIR_DWRITE)/presentation/render/ui_text.c $(APPDIR_DWRITE)/presentation/render/ui_primitives.c $(APPDIR_DWRITE)/presentation/render/ui_widgets.c $(APPDIR_DWRITE)/domain/app_command.c $(APPDIR_DWRITE)/infrastructure/app_event_bus.c $(APPDIR_DWRITE)/application/app_controller.c $(APPDIR_DWRITE)/application/app_runtime.c $(APPDIR_DWRITE)/application/scene_catalog.c $(APPDIR_DWRITE)/application/scene_builder.c $(APPDIR_DWRITE)/application/history_service.c $(APPDIR_DWRITE)/application/runtime_param_service.c $(APPDIR_DWRITE)/presentation/input/input_mapping.c $(APPDIR_DWRITE)/presentation/input/menu_file_edit_actions.c $(APPDIR_DWRITE)/presentation/input/menu_view_physics_window_actions.c $(APPDIR_DWRITE)/presentation/input/menu_help_actions.c $(APPDIR_DWRITE)/presentation/input/menu_model.c
@@ -44,6 +49,9 @@ $(LIBDIR):
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+$(OBJDIR)/%.o: $(SRCDIR)/%.cpp | $(OBJDIR)
+	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c $< -o $@
 
 $(CORE_LIB): $(OBJECTS) | $(LIBDIR)
 	$(AR) rcs $@ $^

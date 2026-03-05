@@ -1,7 +1,8 @@
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 #include "physics_internal.h"
+
+extern "C" {
 
 void physics_internal_scratch_reset(PhysicsEngine* engine) {
     if (engine == NULL) return;
@@ -21,3 +22,4 @@ void* physics_internal_scratch_alloc(PhysicsEngine* engine, int bytes, int align
     return (void*)(engine->scratch.buffer + aligned_used);
 }
 
+}  // extern "C"
