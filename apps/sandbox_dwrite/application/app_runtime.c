@@ -1,4 +1,5 @@
 #include <stddef.h>
+#include <string.h>
 #include "app_runtime.h"
 
 static int app_runtime_error_severity_from_code(int code) {
@@ -18,6 +19,12 @@ void app_runtime_init(AppRuntime* runtime, AppCommandCallbacks callbacks) {
     runtime->last_snapshot.runtime_error_code = PHYSICS_ERROR_NONE;
     runtime->last_snapshot.runtime_error_item_count = 0;
     runtime->last_snapshot.event_drop_count = 0;
+    runtime->last_hot_reload.valid = 0;
+    runtime->last_hot_reload.ready_batch_count = 0;
+    runtime->last_hot_reload.affected_count = 0;
+    runtime->last_hot_reload.imported_count = 0;
+    runtime->last_hot_reload.failed_count = 0;
+    runtime->last_hot_reload.imported_guid_count = 0;
     runtime->pending_error_count = 0;
     runtime->frame_index = 0;
 }
@@ -41,6 +48,7 @@ void app_runtime_report_tick(AppRuntime* runtime, PhysicsEngine* engine, int run
     if (runtime == 0) return;
     had_prev = runtime->last_snapshot.valid;
     prev_running = runtime->last_snapshot.running;
+    memset(&event_data, 0, sizeof(event_data));
     runtime->frame_index++;
     runtime->last_snapshot.valid = 1;
     runtime->last_snapshot.frame_index = runtime->frame_index;
@@ -80,6 +88,7 @@ void app_runtime_report_tick(AppRuntime* runtime, PhysicsEngine* engine, int run
     }
 
     if (had_prev && prev_running != runtime->last_snapshot.running) {
+        memset(&event_data, 0, sizeof(event_data));
         event_data.type = APP_EVENT_RUNTIME_STATE_CHANGED;
         event_data.runtime_snapshot = runtime->last_snapshot;
         state_published = app_event_bus_publish(&runtime->event_bus, event_data);
@@ -89,9 +98,45 @@ void app_runtime_report_tick(AppRuntime* runtime, PhysicsEngine* engine, int run
     }
 }
 
+void app_runtime_report_hot_reload(AppRuntime* runtime, const AssetHotReloadTickReport* report) {
+    AppEvent event_data;
+    int i;
+    if (runtime == 0 || report == 0) return;
+    memset(&runtime->last_hot_reload, 0, sizeof(runtime->last_hot_reload));
+    runtime->last_hot_reload.valid = 1;
+    runtime->last_hot_reload.ready_batch_count = report->ready_batch.count;
+    runtime->last_hot_reload.affected_count = report->pipeline_report.affected_count;
+    runtime->last_hot_reload.imported_count = report->pipeline_report.imported_count;
+    runtime->last_hot_reload.failed_count = report->pipeline_report.failed_count;
+    runtime->last_hot_reload.imported_guid_count = report->pipeline_report.imported_count;
+    if (runtime->last_hot_reload.imported_guid_count > APP_HOT_RELOAD_MAX_IMPORTED) {
+        runtime->last_hot_reload.imported_guid_count = APP_HOT_RELOAD_MAX_IMPORTED;
+    }
+    for (i = 0; i < runtime->last_hot_reload.imported_guid_count; i++) {
+        strncpy(runtime->last_hot_reload.imported_guids[i],
+                report->pipeline_report.imported_guids[i],
+                ASSET_DB_MAX_GUID - 1);
+        runtime->last_hot_reload.imported_guids[i][ASSET_DB_MAX_GUID - 1] = '\0';
+    }
+
+    memset(&event_data, 0, sizeof(event_data));
+    event_data.type = APP_EVENT_HOT_RELOAD_BATCH;
+    event_data.command_type = APP_CMD_NONE;
+    event_data.runtime_snapshot = runtime->last_snapshot;
+    event_data.hot_reload_snapshot = runtime->last_hot_reload;
+    if (!app_event_bus_publish(&runtime->event_bus, event_data)) {
+        runtime->last_snapshot.event_drop_count = app_event_bus_dropped_count(&runtime->event_bus);
+    }
+}
+
 const AppRuntimeSnapshot* app_runtime_get_last_snapshot(const AppRuntime* runtime) {
     if (runtime == 0) return 0;
     return &runtime->last_snapshot;
+}
+
+const AppHotReloadSnapshot* app_runtime_get_last_hot_reload(const AppRuntime* runtime) {
+    if (runtime == 0) return 0;
+    return &runtime->last_hot_reload;
 }
 
 void app_runtime_set_runtime_errors(AppRuntime* runtime, const AppRuntimeErrorItem* errors, int error_count) {

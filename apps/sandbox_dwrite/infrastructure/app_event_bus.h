@@ -3,6 +3,7 @@
 
 #include "../domain/app_command.h"
 #include "physics.h"
+#include "asset_database.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,17 +51,31 @@ typedef struct {
     unsigned int event_drop_count;
 } AppRuntimeSnapshot;
 
+enum { APP_HOT_RELOAD_MAX_IMPORTED = 16 };
+
+typedef struct {
+    int valid;
+    int ready_batch_count;
+    int affected_count;
+    int imported_count;
+    int failed_count;
+    int imported_guid_count;
+    char imported_guids[APP_HOT_RELOAD_MAX_IMPORTED][ASSET_DB_MAX_GUID];
+} AppHotReloadSnapshot;
+
 typedef enum {
     APP_EVENT_NONE = 0,
     APP_EVENT_COMMAND_EXECUTED,
     APP_EVENT_RUNTIME_TICK,
-    APP_EVENT_RUNTIME_STATE_CHANGED
+    APP_EVENT_RUNTIME_STATE_CHANGED,
+    APP_EVENT_HOT_RELOAD_BATCH
 } AppEventType;
 
 typedef struct {
     AppEventType type;
     AppCommandType command_type;
     AppRuntimeSnapshot runtime_snapshot;
+    AppHotReloadSnapshot hot_reload_snapshot;
 } AppEvent;
 
 enum { APP_EVENT_QUEUE_CAP = 128 };

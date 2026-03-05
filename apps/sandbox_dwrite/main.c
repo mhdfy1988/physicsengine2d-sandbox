@@ -19,6 +19,7 @@
 #include <time.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <string.h>
 
 #include "physics.h"
 #include "infrastructure/project_tree.h"
@@ -34,6 +35,8 @@
 #include "application/scene_builder.h"
 #include "application/history_service.h"
 #include "application/runtime_param_service.h"
+#include "asset_hot_reload.h"
+#include "asset_fs_poll.h"
 #include "presentation/input/input_mapping.h"
 #include "presentation/input/menu_file_edit_actions.h"
 #include "presentation/input/menu_view_physics_window_actions.h"
@@ -177,6 +180,19 @@ typedef struct {
     unsigned int runtime_drop_last_seen;
     unsigned int runtime_drop_last_growth_ms;
     int runtime_bus_congested;
+    int hot_reload_enabled;
+    int hot_reload_watch_count;
+    int hot_reload_scan_change_count;
+    int hot_reload_ready_batch_count;
+    int hot_reload_affected_count;
+    int hot_reload_imported_count;
+    int hot_reload_failed_count;
+    unsigned int hot_reload_total_imported;
+    unsigned int hot_reload_total_failed;
+    unsigned int hot_reload_last_scan_ms;
+    unsigned int hot_reload_last_discover_ms;
+    unsigned int hot_reload_last_event_ms;
+    unsigned int hot_reload_last_warn_ms;
     RuntimeTickHistoryEntry runtime_tick_history[8];
     int runtime_tick_history_head;
     int runtime_tick_history_count;
@@ -252,6 +268,9 @@ static UiApp g_ui = {0};
 static SandboxState g_state = {0};
 static HWND g_app_hwnd = NULL;
 static AppRuntime g_app_runtime;
+static AssetHotReloadService g_hot_reload_service;
+static AssetFsPollState g_asset_fs_poll;
+static char g_hot_reload_root_dir[ASSET_WATCH_MAX_PATH];
 static const float WORLD_SCALE = 12.0f;
 static const float WORLD_ORIGIN_X = 20.0f;
 static const float WORLD_ORIGIN_Y = 20.0f;
@@ -259,6 +278,10 @@ enum { EXPLORER_MAX_ITEMS = 512 };
 enum { DEBUG_EVENT_ROWS_MAX = 24 };
 enum { INSPECTOR_MAX_ROWS = 12 };
 enum { RUNTIME_HISTORY_ROWS_MAX = 3 };
+enum { HOT_RELOAD_SCAN_INTERVAL_MS = 250 };
+enum { HOT_RELOAD_DISCOVER_INTERVAL_MS = 3000 };
+enum { HOT_RELOAD_DEBOUNCE_MS = 180 };
+static const char* HOT_RELOAD_CACHE_ROOT = "Cache/imported";
 
 typedef struct {
     D2D1_RECT_F modal_rect;
@@ -521,6 +544,12 @@ static int compute_stage_rect_from_layout(HWND hwnd, D2D1_RECT_F* out_stage_rect
 static Vec2 clamp_spawn_inside_stage(Vec2 p, float bound_radius);
 static int finite_positive(float v, float min_v);
 static void trace_spawn_step(const char* stage, const char* fmt, ...);
+static int hot_reload_is_supported_extension(const char* source_path);
+static void hot_reload_normalize_path(char* path);
+static int hot_reload_register_source_path(const char* source_path);
+static void hot_reload_register_tree_recursive(const char* root_dir, int depth);
+static void init_hot_reload_pipeline(void);
+static void hot_reload_tick_runtime(void);
 
 static D2D1_RECT_F rc(float l, float t, float r, float b) {
     D2D1_RECT_F v = {l, t, r, b};
@@ -2131,6 +2160,140 @@ static int file_exists_utf8_path(const char* path) {
     attr = GetFileAttributesW(wpath);
     if (attr == INVALID_FILE_ATTRIBUTES) return 0;
     return ((attr & FILE_ATTRIBUTE_DIRECTORY) == 0);
+}
+
+static int hot_reload_is_supported_extension(const char* source_path) {
+    return asset_importer_kind_from_path(source_path) != ASSET_IMPORT_KIND_UNKNOWN;
+}
+
+static void hot_reload_normalize_path(char* path) {
+    size_t i;
+    if (path == NULL) return;
+    for (i = 0; path[i] != '\0'; i++) {
+        if (path[i] == '\\') path[i] = '/';
+    }
+}
+
+static int hot_reload_register_source_path(const char* source_path) {
+    char guid[ASSET_DB_MAX_GUID];
+    if (source_path == NULL || source_path[0] == '\0') return 0;
+    if (!hot_reload_is_supported_extension(source_path)) return 0;
+    if (!asset_hot_reload_register_source(&g_hot_reload_service, source_path, "sandbox:auto", guid)) return 0;
+    if (!asset_fs_poll_watch_path(&g_asset_fs_poll, source_path)) return 0;
+    return 1;
+}
+
+static void hot_reload_register_tree_recursive(const char* root_dir, int depth) {
+    char search_pattern[ASSET_WATCH_MAX_PATH];
+    char full_path[ASSET_WATCH_MAX_PATH];
+    char normalized_path[ASSET_WATCH_MAX_PATH];
+    WIN32_FIND_DATAA find_data;
+    HANDLE find_handle;
+    if (root_dir == NULL || root_dir[0] == '\0') return;
+    if (depth > 16) return;
+    if (snprintf(search_pattern, sizeof(search_pattern), "%s\\*", root_dir) <= 0 ||
+        strlen(search_pattern) >= sizeof(search_pattern)) {
+        return;
+    }
+    find_handle = FindFirstFileA(search_pattern, &find_data);
+    if (find_handle == INVALID_HANDLE_VALUE) return;
+    do {
+        if (strcmp(find_data.cFileName, ".") == 0 || strcmp(find_data.cFileName, "..") == 0) continue;
+        if (snprintf(full_path, sizeof(full_path), "%s\\%s", root_dir, find_data.cFileName) <= 0 ||
+            strlen(full_path) >= sizeof(full_path)) {
+            continue;
+        }
+        if ((find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+            hot_reload_register_tree_recursive(full_path, depth + 1);
+        } else {
+            strncpy(normalized_path, full_path, sizeof(normalized_path) - 1);
+            normalized_path[sizeof(normalized_path) - 1] = '\0';
+            hot_reload_normalize_path(normalized_path);
+            hot_reload_register_source_path(normalized_path);
+        }
+    } while (FindNextFileA(find_handle, &find_data));
+    FindClose(find_handle);
+}
+
+static void init_hot_reload_pipeline(void) {
+    const char* roots[] = {"assets", "Assets"};
+    int i;
+    int root_found = 0;
+    asset_hot_reload_service_init(&g_hot_reload_service, HOT_RELOAD_DEBOUNCE_MS);
+    asset_fs_poll_init(&g_asset_fs_poll);
+    g_hot_reload_root_dir[0] = '\0';
+    g_state.hot_reload_enabled = 0;
+    for (i = 0; i < (int)(sizeof(roots) / sizeof(roots[0])); i++) {
+        DWORD attr = GetFileAttributesA(roots[i]);
+        if (attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+            strncpy(g_hot_reload_root_dir, roots[i], sizeof(g_hot_reload_root_dir) - 1);
+            g_hot_reload_root_dir[sizeof(g_hot_reload_root_dir) - 1] = '\0';
+            hot_reload_register_tree_recursive(roots[i], 0);
+            root_found = 1;
+            break;
+        }
+    }
+    g_state.hot_reload_watch_count = g_asset_fs_poll.count;
+    g_state.hot_reload_enabled = (g_state.hot_reload_watch_count > 0) ? 1 : 0;
+    g_state.hot_reload_last_discover_ms = (unsigned int)GetTickCount();
+    if (!root_found) {
+        push_console_log(L"[热重载] 未找到 assets 目录，已跳过监听初始化");
+    } else if (g_state.hot_reload_enabled) {
+        push_console_log(L"[热重载] 已监听 %d 个资源文件（轮询+增量导入）", g_state.hot_reload_watch_count);
+    } else {
+        push_console_log(L"[热重载] assets 目录无可导入资源，监听待机");
+    }
+}
+
+static void hot_reload_tick_runtime(void) {
+    unsigned int now_ms;
+    int change_count = 0;
+    AssetHotReloadTickReport report;
+    now_ms = (unsigned int)GetTickCount();
+    if (g_hot_reload_root_dir[0] != '\0' &&
+        (g_state.hot_reload_last_discover_ms == 0 ||
+         (now_ms - g_state.hot_reload_last_discover_ms) >= HOT_RELOAD_DISCOVER_INTERVAL_MS)) {
+        int prev_watch_count = g_asset_fs_poll.count;
+        hot_reload_register_tree_recursive(g_hot_reload_root_dir, 0);
+        g_state.hot_reload_watch_count = g_asset_fs_poll.count;
+        g_state.hot_reload_last_discover_ms = now_ms;
+        if (g_asset_fs_poll.count > prev_watch_count) {
+            push_console_log(L"[热重载] 新增监听 %d 项（总计:%d）",
+                             g_asset_fs_poll.count - prev_watch_count,
+                             g_asset_fs_poll.count);
+        }
+        if (g_asset_fs_poll.count > 0) {
+            g_state.hot_reload_enabled = 1;
+        }
+    }
+    if (!g_state.hot_reload_enabled) return;
+    if (g_state.hot_reload_last_scan_ms > 0 &&
+        (now_ms - g_state.hot_reload_last_scan_ms) < HOT_RELOAD_SCAN_INTERVAL_MS) {
+        return;
+    }
+    g_state.hot_reload_last_scan_ms = now_ms;
+    if (!asset_fs_poll_scan(&g_asset_fs_poll, &g_hot_reload_service, (long long)now_ms, &change_count)) {
+        if (g_state.hot_reload_last_warn_ms == 0 || (now_ms - g_state.hot_reload_last_warn_ms) >= 1000) {
+            push_console_log(L"[警告] 热重载轮询扫描失败");
+            g_state.hot_reload_last_warn_ms = now_ms;
+        }
+        return;
+    }
+    g_state.hot_reload_scan_change_count = change_count;
+    asset_hot_reload_tick_report_init(&report);
+    if (!asset_hot_reload_tick(&g_hot_reload_service, (long long)now_ms, HOT_RELOAD_CACHE_ROOT, &report)) {
+        if (report.pipeline_ran) {
+            app_runtime_report_hot_reload(&g_app_runtime, &report);
+        }
+        if (g_state.hot_reload_last_warn_ms == 0 || (now_ms - g_state.hot_reload_last_warn_ms) >= 1000) {
+            push_console_log(L"[警告] 热重载导入流程失败");
+            g_state.hot_reload_last_warn_ms = now_ms;
+        }
+        return;
+    }
+    if (report.pipeline_ran) {
+        app_runtime_report_hot_reload(&g_app_runtime, &report);
+    }
 }
 
 static HistoryState* history_state_view(void) {
@@ -4428,7 +4591,12 @@ static void render_status_bar(D2D1_RECT_F status_rect) {
     wchar_t line[128];
     wchar_t line_right[128];
     D2D1_COLOR_F bus_color = rgba(0.66f, 0.88f, 0.66f, 1.0f);
+    D2D1_COLOR_F hot_reload_color = rgba(0.63f, 0.72f, 0.84f, 1.0f);
     const AppRuntimeSnapshot* snapshot = app_runtime_get_last_snapshot(&g_app_runtime);
+    const AppHotReloadSnapshot* hot_snapshot = app_runtime_get_last_hot_reload(&g_app_runtime);
+    int hot_imported = g_state.hot_reload_imported_count;
+    int hot_failed = g_state.hot_reload_failed_count;
+    unsigned int now_ms = (unsigned int)GetTickCount();
     int body_count = count_dynamic_bodies(g_state.engine);
     int constraint_count = (g_state.engine != NULL) ? physics_engine_get_constraint_count(g_state.engine) : 0;
     int contact_count = (g_state.engine != NULL) ? physics_engine_get_contact_count(g_state.engine) : 0;
@@ -4436,6 +4604,10 @@ static void render_status_bar(D2D1_RECT_F status_rect) {
         body_count = snapshot->body_count;
         constraint_count = snapshot->constraint_count;
         contact_count = snapshot->contact_count;
+    }
+    if (hot_snapshot != NULL && hot_snapshot->valid) {
+        hot_imported = hot_snapshot->imported_count;
+        hot_failed = hot_snapshot->failed_count;
     }
     swprintf(line, 128, L"对象:%d  约束:%d  接触:%d  回收:%d",
              body_count,
@@ -4475,9 +4647,18 @@ static void render_status_bar(D2D1_RECT_F status_rect) {
     swprintf(line, 128, L"用户:%s | v0.3", g_status_user[0] ? g_status_user : L"unknown");
     g_status_meta_rect = rc(status_rect.right - 620.0f, status_rect.top + 6.0f, status_rect.right - 392.0f, status_rect.bottom - 4.0f);
     draw_text(line, g_status_meta_rect, g_ui.fmt_info, rgba(0.55f, 0.65f, 0.79f, 1.0f));
-    swprintf(line_right, 128, L"约束调试:%s", g_state.draw_constraints ? L"开" : L"关");
-    draw_text(line_right, rc(status_rect.right - 360.0f, status_rect.top + 6.0f, status_rect.right - 220.0f, status_rect.bottom - 4.0f),
+    swprintf(line_right, 128, L"约束:%s", g_state.draw_constraints ? L"开" : L"关");
+    draw_text(line_right, rc(status_rect.right - 520.0f, status_rect.top + 6.0f, status_rect.right - 390.0f, status_rect.bottom - 4.0f),
               g_ui.fmt_info, rgba(0.66f, 0.74f, 0.85f, 1.0f));
+    if (hot_failed > 0) {
+        hot_reload_color = rgba(0.98f, 0.47f, 0.43f, 1.0f);
+    } else if (hot_imported > 0 && g_state.hot_reload_last_event_ms > 0 &&
+               (now_ms - g_state.hot_reload_last_event_ms) <= 3000) {
+        hot_reload_color = rgba(0.68f, 0.90f, 0.70f, 1.0f);
+    }
+    swprintf(line_right, 128, L"热重载:+%d/-%d", hot_imported, hot_failed);
+    draw_text(line_right, rc(status_rect.right - 386.0f, status_rect.top + 6.0f, status_rect.right - 220.0f, status_rect.bottom - 4.0f),
+              g_ui.fmt_info, hot_reload_color);
     if (g_state.runtime_bus_congested) {
         bus_color = (g_state.runtime_event_drop_count >= 100) ? rgba(0.98f, 0.42f, 0.38f, 1.0f) : rgba(0.97f, 0.78f, 0.42f, 1.0f);
         swprintf(line_right, 128, L"事件总线:拥塞(%u)", g_state.runtime_event_drop_count);
@@ -4862,6 +5043,30 @@ static void process_app_events(void) {
             g_state.runtime_state_change_count++;
             runtime_push_state_history(&ev.runtime_snapshot);
             push_console_log(L"[状态] 模拟:%s", ev.runtime_snapshot.running ? L"运行" : L"暂停");
+        } else if (ev.type == APP_EVENT_HOT_RELOAD_BATCH) {
+            unsigned int now_ms = (unsigned int)GetTickCount();
+            g_state.hot_reload_ready_batch_count = ev.hot_reload_snapshot.ready_batch_count;
+            g_state.hot_reload_affected_count = ev.hot_reload_snapshot.affected_count;
+            g_state.hot_reload_imported_count = ev.hot_reload_snapshot.imported_count;
+            g_state.hot_reload_failed_count = ev.hot_reload_snapshot.failed_count;
+            g_state.hot_reload_total_imported += (unsigned int)ev.hot_reload_snapshot.imported_count;
+            g_state.hot_reload_total_failed += (unsigned int)ev.hot_reload_snapshot.failed_count;
+            g_state.hot_reload_last_event_ms = now_ms;
+            if (ev.hot_reload_snapshot.imported_count > 0 || ev.hot_reload_snapshot.failed_count > 0) {
+                if (ev.hot_reload_snapshot.failed_count > 0) {
+                    push_tick_runtime_error(APP_RUNTIME_ERROR_CODE_PIPELINE_MAPPING_ERRORS,
+                                            APP_RUNTIME_ERROR_ERROR,
+                                            ev.hot_reload_snapshot.failed_count);
+                    push_console_log(L"[热重载] 批次完成: 导入%d 失败%d 影响%d",
+                                     ev.hot_reload_snapshot.imported_count,
+                                     ev.hot_reload_snapshot.failed_count,
+                                     ev.hot_reload_snapshot.affected_count);
+                } else {
+                    push_console_log(L"[热重载] 已重载 %d 项资源（影响:%d）",
+                                     ev.hot_reload_snapshot.imported_count,
+                                     ev.hot_reload_snapshot.affected_count);
+                }
+            }
         }
     }
 }
@@ -4907,6 +5112,7 @@ static void tick(HWND hwnd) {
     }
     app_runtime_collect_errors_for_tick();
     app_runtime_report_tick(&g_app_runtime, g_state.engine, g_state.running, g_state.physics_step_ms);
+    hot_reload_tick_runtime();
     perf_push_sample((float)g_state.fps_display, g_state.physics_step_ms);
     process_app_events();
     InvalidateRect(hwnd, NULL, FALSE);
@@ -6195,6 +6401,7 @@ static int register_main_window_class(HINSTANCE inst, WNDCLASSEXW* out_wc) {
 static void init_app_bootstrap_state(void) {
     init_state_defaults();
     init_app_runtime_callbacks();
+    init_hot_reload_pipeline();
     clear_collision_events();
     g_collision_event_filter_selected_only = 0;
     g_clipboard_body.valid = 0;
@@ -6310,6 +6517,19 @@ static void init_state_defaults(void) {
     g_state.runtime_drop_last_seen = 0;
     g_state.runtime_drop_last_growth_ms = 0;
     g_state.runtime_bus_congested = 0;
+    g_state.hot_reload_enabled = 0;
+    g_state.hot_reload_watch_count = 0;
+    g_state.hot_reload_scan_change_count = 0;
+    g_state.hot_reload_ready_batch_count = 0;
+    g_state.hot_reload_affected_count = 0;
+    g_state.hot_reload_imported_count = 0;
+    g_state.hot_reload_failed_count = 0;
+    g_state.hot_reload_total_imported = 0;
+    g_state.hot_reload_total_failed = 0;
+    g_state.hot_reload_last_scan_ms = 0;
+    g_state.hot_reload_last_discover_ms = 0;
+    g_state.hot_reload_last_event_ms = 0;
+    g_state.hot_reload_last_warn_ms = 0;
     g_state.runtime_tick_history_head = 0;
     g_state.runtime_tick_history_count = 0;
     g_state.runtime_state_history_head = 0;
