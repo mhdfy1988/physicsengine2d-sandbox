@@ -48,6 +48,8 @@ static void solve_monolithic(PhysicsEngine* engine, const PhysicsSolverContext* 
     physics_internal_solve_world_view(&view, ctx);
 }
 
+extern "C" {
+
 void physics_internal_resolve_collisions(PhysicsEngine* engine, const PhysicsSolverContext* ctx) {
     PhysicsSolverContext local_ctx;
     int body_count;
@@ -254,3 +256,5 @@ void physics_internal_resolve_collisions(PhysicsEngine* engine, const PhysicsSol
         }
     }
 }
+
+}  // extern "C"

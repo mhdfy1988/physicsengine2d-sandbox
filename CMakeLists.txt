@@ -58,7 +58,7 @@ set(PHYSICS2D_SOURCES
     src/physics_raycast.cpp
     src/physics_step.c
     src/physics_collision_pipeline.c
-    src/physics_resolve.c
+    src/physics_resolve.cpp
     src/physics_solver.c
     src/physics_integrate.cpp
 )
