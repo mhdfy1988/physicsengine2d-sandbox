@@ -1,0 +1,204 @@
+#ifndef PHYSICS_ECS_HPP
+#define PHYSICS_ECS_HPP
+
+#include <cstdint>
+#include <unordered_map>
+#include <unordered_set>
+#include "physics_body_raii.hpp"
+#include "physics_raii.hpp"
+
+namespace physics2d {
+namespace ecs {
+
+using Entity = std::uint32_t;
+constexpr Entity kInvalidEntity = 0;
+
+struct Transform {
+    Vec2 position = vec2(0.0f, 0.0f);
+    float angle = 0.0f;
+};
+
+enum class ColliderKind {
+    Circle,
+    Box
+};
+
+struct Collider {
+    ColliderKind kind = ColliderKind::Circle;
+    float size_a = 0.5f;
+    float size_b = 0.5f;
+};
+
+struct RigidBodySpec {
+    float mass = 1.0f;
+    BodyType type = BODY_DYNAMIC;
+};
+
+struct RuntimeBodyRef {
+    RigidBody* body = nullptr;
+};
+
+class Registry {
+public:
+    Entity create() noexcept {
+        const Entity id = next_entity_++;
+        alive_.insert(id);
+        return id;
+    }
+
+    bool destroy(Entity e) noexcept {
+        if (!alive(e)) {
+            return false;
+        }
+        if (runtime_bodies_.find(e) != runtime_bodies_.end()) {
+            return false;
+        }
+
+        erase_components(e);
+        alive_.erase(e);
+        return true;
+    }
+
+    bool destroy(Entity e, EngineView engine) noexcept {
+        if (!alive(e)) {
+            return false;
+        }
+
+        auto it = runtime_bodies_.find(e);
+        if (it != runtime_bodies_.end() && it->second.body != nullptr) {
+            engine.remove_body(it->second.body);
+            runtime_bodies_.erase(it);
+        }
+
+        erase_components(e);
+        alive_.erase(e);
+        return true;
+    }
+
+    bool alive(Entity e) const noexcept {
+        return alive_.find(e) != alive_.end();
+    }
+
+    void add_transform(Entity e, Transform t) noexcept {
+        if (!alive(e)) {
+            return;
+        }
+        transforms_[e] = t;
+    }
+
+    void add_collider_circle(Entity e, float radius) noexcept {
+        if (!alive(e)) {
+            return;
+        }
+        Collider c;
+        c.kind = ColliderKind::Circle;
+        c.size_a = radius;
+        c.size_b = radius;
+        colliders_[e] = c;
+    }
+
+    void add_collider_box(Entity e, float width, float height) noexcept {
+        if (!alive(e)) {
+            return;
+        }
+        Collider c;
+        c.kind = ColliderKind::Box;
+        c.size_a = width;
+        c.size_b = height;
+        colliders_[e] = c;
+    }
+
+    void add_rigidbody_spec(Entity e, RigidBodySpec spec) noexcept {
+        if (!alive(e)) {
+            return;
+        }
+        body_specs_[e] = spec;
+    }
+
+    const Transform* transform(Entity e) const noexcept {
+        auto it = transforms_.find(e);
+        if (it == transforms_.end()) {
+            return nullptr;
+        }
+        return &it->second;
+    }
+
+    const RuntimeBodyRef* runtime_body(Entity e) const noexcept {
+        auto it = runtime_bodies_.find(e);
+        if (it == runtime_bodies_.end()) {
+            return nullptr;
+        }
+        return &it->second;
+    }
+
+    void spawn_rigid_bodies(EngineView engine) noexcept {
+        for (Entity e : alive_) {
+            if (runtime_bodies_.find(e) != runtime_bodies_.end()) {
+                continue;
+            }
+
+            auto tr_it = transforms_.find(e);
+            auto co_it = colliders_.find(e);
+            auto sp_it = body_specs_.find(e);
+            if (tr_it == transforms_.end() || co_it == colliders_.end() || sp_it == body_specs_.end()) {
+                continue;
+            }
+
+            const Transform& tr = tr_it->second;
+            const Collider& co = co_it->second;
+            const RigidBodySpec& spec = sp_it->second;
+
+            Body body;
+            if (co.kind == ColliderKind::Circle) {
+                body = Body::create_circle(tr.position.x, tr.position.y, spec.mass, co.size_a);
+            } else {
+                body = Body::create_box(tr.position.x, tr.position.y, spec.mass, co.size_a, co.size_b);
+            }
+            if (!body.valid()) {
+                continue;
+            }
+
+            body.set_type(spec.type);
+            RigidBody* raw = body.get();
+            engine.add_body(body.release());
+
+            RuntimeBodyRef rr;
+            rr.body = raw;
+            runtime_bodies_[e] = rr;
+        }
+    }
+
+    void sync_transforms_from_physics() noexcept {
+        for (auto& kv : runtime_bodies_) {
+            Entity e = kv.first;
+            RigidBody* body = kv.second.body;
+            auto tr_it = transforms_.find(e);
+            if (tr_it == transforms_.end() || body == nullptr) {
+                continue;
+            }
+
+            tr_it->second.position = body->position;
+            tr_it->second.angle = body->angle;
+        }
+    }
+
+private:
+    void erase_components(Entity e) noexcept {
+        transforms_.erase(e);
+        colliders_.erase(e);
+        body_specs_.erase(e);
+        runtime_bodies_.erase(e);
+    }
+
+    Entity next_entity_ = 1;
+    std::unordered_set<Entity> alive_;
+    std::unordered_map<Entity, Transform> transforms_;
+    std::unordered_map<Entity, Collider> colliders_;
+    std::unordered_map<Entity, RigidBodySpec> body_specs_;
+    std::unordered_map<Entity, RuntimeBodyRef> runtime_bodies_;
+};
+
+}  // namespace ecs
+}  // namespace physics2d
+
+#endif

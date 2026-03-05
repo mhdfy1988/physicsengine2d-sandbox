@@ -36,6 +36,10 @@ public:
         physics_engine_add_body(ptr_, body);
     }
 
+    void remove_body(RigidBody* body) noexcept {
+        physics_engine_remove_body(ptr_, body);
+    }
+
     Status status() const noexcept {
         return status_from_engine(ptr_);
     }

@@ -164,6 +164,7 @@ if(BUILD_CPP_WRAPPER)
     physics_add_cpp_smoke(physics_cpp_snapshot_smoke tests/cpp_snapshot_smoke.cpp TRUE)
     physics_add_cpp_smoke(physics_cpp_single_include_smoke tests/cpp_single_include_smoke.cpp TRUE)
     physics_add_cpp_smoke(physics_cpp_engine_view_smoke tests/cpp_engine_view_smoke.cpp TRUE)
+    physics_add_cpp_smoke(physics_cpp_ecs_smoke tests/cpp_ecs_smoke.cpp TRUE)
 endif()
 
 set_target_properties(physics2d PROPERTIES

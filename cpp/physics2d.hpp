@@ -6,5 +6,6 @@
 #include "physics_world_raii.hpp"
 #include "physics_body_raii.hpp"
 #include "physics_snapshot.hpp"
+#include "physics_ecs.hpp"
 
 #endif
