@@ -168,6 +168,7 @@ typedef struct {
     int runtime_constraint_count;
     int runtime_contact_count;
     int runtime_state_change_count;
+    unsigned int runtime_event_drop_count;
     RuntimeTickHistoryEntry runtime_tick_history[8];
     int runtime_tick_history_head;
     int runtime_tick_history_count;
@@ -1971,6 +1972,7 @@ static void apply_scene(int scene_index) {
     g_state.runtime_constraint_count = 0;
     g_state.runtime_contact_count = 0;
     g_state.runtime_state_change_count = 0;
+    g_state.runtime_event_drop_count = 0;
     g_state.runtime_tick_history_head = 0;
     g_state.runtime_tick_history_count = 0;
     g_state.runtime_state_history_head = 0;
@@ -2984,6 +2986,9 @@ static void render_right_debug_section(D2D1_RECT_F debug_rect) {
                   rgba(0.90f, 0.94f, 0.99f, 1.0f));
         swprintf(line, 128, L"状态变更事件: %d", g_state.runtime_state_change_count);
         draw_text(line, rc(rt_rect.left + 8.0f, rt_rect.top + 84.0f, rt_rect.right - 8.0f, rt_rect.top + 104.0f), g_ui.fmt_info,
+                  rgba(0.90f, 0.94f, 0.99f, 1.0f));
+        swprintf(line, 128, L"事件丢弃累计: %u", g_state.runtime_event_drop_count);
+        draw_text(line, rc(rt_rect.left + 8.0f, rt_rect.top + 104.0f, rt_rect.right - 8.0f, rt_rect.top + 118.0f), g_ui.fmt_info,
                   rgba(0.90f, 0.94f, 0.99f, 1.0f));
     }
     draw_text(L"最近帧(最新3条)", rc(debug_rect.left + 12.0f, debug_offset_y + 292.0f, debug_rect.left + 180.0f, debug_offset_y + 314.0f),
@@ -4627,6 +4632,7 @@ static void apply_runtime_snapshot_to_state(const AppRuntimeSnapshot* snapshot) 
     g_state.runtime_body_count = snapshot->body_count;
     g_state.runtime_constraint_count = snapshot->constraint_count;
     g_state.runtime_contact_count = snapshot->contact_count;
+    g_state.runtime_event_drop_count = snapshot->event_drop_count;
 }
 
 static void process_app_events(void) {
@@ -6091,6 +6097,7 @@ static void init_state_defaults(void) {
     g_state.runtime_constraint_count = 0;
     g_state.runtime_contact_count = 0;
     g_state.runtime_state_change_count = 0;
+    g_state.runtime_event_drop_count = 0;
     g_state.runtime_tick_history_head = 0;
     g_state.runtime_tick_history_count = 0;
     g_state.runtime_state_history_head = 0;

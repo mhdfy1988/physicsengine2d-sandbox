@@ -80,6 +80,18 @@ int main(void) {
             return 5;
         }
     }
+    {
+        int i;
+        const AppRuntimeSnapshot* snap;
+        for (i = 0; i < 300; i++) {
+            app_runtime_report_tick(&runtime, NULL, (i & 1) ? 1 : 0, 0.1f);
+        }
+        snap = app_runtime_get_last_snapshot(&runtime);
+        if (snap == NULL || snap->event_drop_count == 0) {
+            printf("[FAIL] runtime event drop counter unavailable\n");
+            return 7;
+        }
+    }
 
     printf("[PASS] app runtime tick smoke\n");
     return 0;

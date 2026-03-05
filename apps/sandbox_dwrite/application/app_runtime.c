@@ -6,6 +6,7 @@ void app_runtime_init(AppRuntime* runtime, AppCommandCallbacks callbacks) {
     app_event_bus_init(&runtime->event_bus);
     app_controller_init(&runtime->controller, callbacks, &runtime->event_bus);
     runtime->last_snapshot.valid = 0;
+    runtime->last_snapshot.event_drop_count = 0;
     runtime->frame_index = 0;
 }
 
@@ -21,6 +22,8 @@ int app_runtime_pop_event(AppRuntime* runtime, AppEvent* out_event) {
 
 void app_runtime_report_tick(AppRuntime* runtime, PhysicsEngine* engine, int running, float step_ms) {
     AppEvent event_data;
+    int tick_published;
+    int state_published;
     int had_prev;
     int prev_running;
     if (runtime == 0) return;
@@ -34,15 +37,23 @@ void app_runtime_report_tick(AppRuntime* runtime, PhysicsEngine* engine, int run
     runtime->last_snapshot.constraint_count = (engine != NULL) ? physics_engine_get_constraint_count(engine) : 0;
     runtime->last_snapshot.contact_count = (engine != NULL) ? physics_engine_get_contact_count(engine) : 0;
     runtime->last_snapshot.step_ms = step_ms;
+    runtime->last_snapshot.event_drop_count = app_event_bus_dropped_count(&runtime->event_bus);
 
     event_data.type = APP_EVENT_RUNTIME_TICK;
     event_data.command_type = APP_CMD_NONE;
     event_data.runtime_snapshot = runtime->last_snapshot;
-    app_event_bus_publish(&runtime->event_bus, event_data);
+    tick_published = app_event_bus_publish(&runtime->event_bus, event_data);
+    if (!tick_published) {
+        runtime->last_snapshot.event_drop_count = app_event_bus_dropped_count(&runtime->event_bus);
+    }
 
     if (had_prev && prev_running != runtime->last_snapshot.running) {
         event_data.type = APP_EVENT_RUNTIME_STATE_CHANGED;
-        app_event_bus_publish(&runtime->event_bus, event_data);
+        event_data.runtime_snapshot = runtime->last_snapshot;
+        state_published = app_event_bus_publish(&runtime->event_bus, event_data);
+        if (!state_published) {
+            runtime->last_snapshot.event_drop_count = app_event_bus_dropped_count(&runtime->event_bus);
+        }
     }
 }
 
