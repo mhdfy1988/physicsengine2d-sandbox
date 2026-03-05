@@ -4177,14 +4177,16 @@ static void render_status_bar(D2D1_RECT_F status_rect) {
     wchar_t line[128];
     wchar_t line_right[128];
     const AppRuntimeSnapshot* snapshot = app_runtime_get_last_snapshot(&g_app_runtime);
+    int body_count = count_dynamic_bodies(g_state.engine);
     int constraint_count = (g_state.engine != NULL) ? physics_engine_get_constraint_count(g_state.engine) : 0;
     int contact_count = (g_state.engine != NULL) ? physics_engine_get_contact_count(g_state.engine) : 0;
     if (snapshot != NULL && snapshot->valid) {
+        body_count = snapshot->body_count;
         constraint_count = snapshot->constraint_count;
         contact_count = snapshot->contact_count;
     }
     swprintf(line, 128, L"对象:%d  约束:%d  接触:%d  回收:%d",
-             count_dynamic_bodies(g_state.engine),
+             body_count,
              constraint_count,
              contact_count,
              g_state.recycled_count);
@@ -4469,6 +4471,16 @@ static void app_cmd_spawn_box(void* user) {
     trace_spawn_step("key.2.end", "");
 }
 
+static void apply_runtime_snapshot_to_state(const AppRuntimeSnapshot* snapshot) {
+    if (snapshot == NULL || !snapshot->valid) return;
+    g_state.physics_step_ms = snapshot->step_ms;
+    g_state.runtime_frame_index = snapshot->frame_index;
+    g_state.runtime_running = snapshot->running ? 1 : 0;
+    g_state.runtime_body_count = snapshot->body_count;
+    g_state.runtime_constraint_count = snapshot->constraint_count;
+    g_state.runtime_contact_count = snapshot->contact_count;
+}
+
 static void process_app_events(void) {
     AppEvent ev;
     while (app_runtime_pop_event(&g_app_runtime, &ev)) {
@@ -4483,12 +4495,7 @@ static void process_app_events(void) {
                 push_console_log(L"[创建] 已生成方块对象");
             }
         } else if (ev.type == APP_EVENT_RUNTIME_TICK) {
-            g_state.physics_step_ms = ev.runtime_snapshot.step_ms;
-            g_state.runtime_frame_index = ev.runtime_snapshot.frame_index;
-            g_state.runtime_running = ev.runtime_snapshot.running ? 1 : 0;
-            g_state.runtime_body_count = ev.runtime_snapshot.body_count;
-            g_state.runtime_constraint_count = ev.runtime_snapshot.constraint_count;
-            g_state.runtime_contact_count = ev.runtime_snapshot.contact_count;
+            apply_runtime_snapshot_to_state(&ev.runtime_snapshot);
             if (g_state.runtime_running && ev.runtime_snapshot.contact_count != g_state.last_contact_count) {
                 unsigned int now_ms = (unsigned int)GetTickCount();
                 if ((now_ms - g_state.last_contact_log_ms) >= 500) {
