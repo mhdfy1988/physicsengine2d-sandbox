@@ -823,6 +823,21 @@ static const wchar_t* runtime_error_severity_label(int severity) {
     return L"warning";
 }
 
+static void app_runtime_collect_errors_for_tick(void) {
+    AppRuntimeErrorItem items[APP_RUNTIME_MAX_ERRORS];
+    int n = 0;
+    int code = (g_state.engine != NULL) ? physics_engine_get_last_error(g_state.engine) : PHYSICS_ERROR_NONE;
+    if (code != PHYSICS_ERROR_NONE) {
+        items[0].code = code;
+        items[0].severity = (code == PHYSICS_ERROR_INVALID_ARGUMENT || code == PHYSICS_ERROR_CAPACITY_EXCEEDED)
+                                ? APP_RUNTIME_ERROR_ERROR
+                                : APP_RUNTIME_ERROR_WARNING;
+        items[0].count = 1;
+        n = 1;
+    }
+    app_runtime_set_runtime_errors(&g_app_runtime, items, n);
+}
+
 static void export_perf_report_csv(void) {
     FILE* fp = fopen("perf_report.csv", "w");
     int i;
@@ -4841,6 +4856,7 @@ static void tick(HWND hwnd) {
             }
         }
     }
+    app_runtime_collect_errors_for_tick();
     app_runtime_report_tick(&g_app_runtime, g_state.engine, g_state.running, g_state.physics_step_ms);
     perf_push_sample((float)g_state.fps_display, g_state.physics_step_ms);
     process_app_events();
