@@ -171,6 +171,8 @@ typedef struct {
     unsigned int runtime_event_drop_count;
     unsigned int runtime_drop_warn_ms;
     unsigned int runtime_drop_last_seen;
+    unsigned int runtime_drop_last_growth_ms;
+    int runtime_bus_congested;
     RuntimeTickHistoryEntry runtime_tick_history[8];
     int runtime_tick_history_head;
     int runtime_tick_history_count;
@@ -1977,6 +1979,8 @@ static void apply_scene(int scene_index) {
     g_state.runtime_event_drop_count = 0;
     g_state.runtime_drop_warn_ms = 0;
     g_state.runtime_drop_last_seen = 0;
+    g_state.runtime_drop_last_growth_ms = 0;
+    g_state.runtime_bus_congested = 0;
     g_state.runtime_tick_history_head = 0;
     g_state.runtime_tick_history_count = 0;
     g_state.runtime_state_history_head = 0;
@@ -3673,7 +3677,7 @@ static void layout_top_toolbar_buttons(D2D1_RECT_F toolbar_rect) {
 
 static void render_top_toolbar_buttons(void) {
     draw_toolbar_icon_button(g_top_run_rect, g_state.running ? TB_ICON_PAUSE : TB_ICON_RUN, g_state.running, point_in_rect(g_state.mouse_screen, g_top_run_rect));
-    if (g_state.runtime_event_drop_count > 0) {
+    if (g_state.runtime_bus_congested) {
         D2D1_RECT_F badge_rect = runtime_bus_badge_rect();
         D2D1_ELLIPSE badge = {0};
         badge.point = pt((badge_rect.left + badge_rect.right) * 0.5f, (badge_rect.top + badge_rect.bottom) * 0.5f);
@@ -4333,10 +4337,10 @@ static void render_status_bar(D2D1_RECT_F status_rect) {
              g_state.recycled_count);
     {
         const wchar_t* tip = L"";
-        if (g_state.runtime_event_drop_count > 0 && point_in_rect(g_state.mouse_screen, runtime_bus_badge_rect())) {
+        if (g_state.runtime_bus_congested && point_in_rect(g_state.mouse_screen, runtime_bus_badge_rect())) {
             tip = L"点击红点可快速打开告警日志";
         } else if (point_in_rect(g_state.mouse_screen, g_top_run_rect)) {
-            tip = (g_state.runtime_event_drop_count > 0) ? L"运行/暂停模拟（事件总线拥塞，点击下方面板查看告警）" : L"运行/暂停模拟";
+            tip = g_state.runtime_bus_congested ? L"运行/暂停模拟（事件总线拥塞，点击下方面板查看告警）" : L"运行/暂停模拟";
         }
         else if (point_in_rect(g_state.mouse_screen, g_top_step_rect)) tip = L"单步执行一帧";
         else if (point_in_rect(g_state.mouse_screen, g_top_reset_rect)) tip = L"重置当前场景";
@@ -4367,7 +4371,7 @@ static void render_status_bar(D2D1_RECT_F status_rect) {
     swprintf(line_right, 128, L"约束调试:%s", g_state.draw_constraints ? L"开" : L"关");
     draw_text(line_right, rc(status_rect.right - 360.0f, status_rect.top + 6.0f, status_rect.right - 220.0f, status_rect.bottom - 4.0f),
               g_ui.fmt_info, rgba(0.66f, 0.74f, 0.85f, 1.0f));
-    if (g_state.runtime_event_drop_count > 0) {
+    if (g_state.runtime_bus_congested) {
         bus_color = (g_state.runtime_event_drop_count >= 100) ? rgba(0.98f, 0.42f, 0.38f, 1.0f) : rgba(0.97f, 0.78f, 0.42f, 1.0f);
         swprintf(line_right, 128, L"事件总线:拥塞(%u)", g_state.runtime_event_drop_count);
     } else {
@@ -4689,10 +4693,18 @@ static void process_app_events(void) {
             if (g_state.runtime_event_drop_count > prev_drop) {
                 unsigned int now_ms = (unsigned int)GetTickCount();
                 unsigned int delta_drop = g_state.runtime_event_drop_count - prev_drop;
+                g_state.runtime_bus_congested = 1;
+                g_state.runtime_drop_last_growth_ms = now_ms;
                 if ((now_ms - g_state.runtime_drop_warn_ms) >= 1000 || g_state.runtime_drop_last_seen == 0) {
                     push_console_log(L"[警告] 事件总线丢弃 +%u (累计:%u)", delta_drop, g_state.runtime_event_drop_count);
                     g_state.runtime_drop_warn_ms = now_ms;
                     g_state.runtime_drop_last_seen = g_state.runtime_event_drop_count;
+                }
+            } else if (g_state.runtime_bus_congested) {
+                unsigned int now_ms = (unsigned int)GetTickCount();
+                if (g_state.runtime_drop_last_growth_ms > 0 && (now_ms - g_state.runtime_drop_last_growth_ms) >= 3000) {
+                    g_state.runtime_bus_congested = 0;
+                    push_console_log(L"[状态] 事件总线已恢复（累计丢弃:%u）", g_state.runtime_event_drop_count);
                 }
             }
             if (g_state.runtime_running && ev.runtime_snapshot.contact_count != g_state.last_contact_count) {
@@ -5123,7 +5135,7 @@ static int handle_layout_lbuttondown(HWND hwnd) {
 }
 
 static int handle_top_toolbar_lbuttondown(HWND hwnd) {
-    if (g_state.runtime_event_drop_count > 0 && point_in_rect(g_state.mouse_screen, runtime_bus_badge_rect())) {
+    if (g_state.runtime_bus_congested && point_in_rect(g_state.mouse_screen, runtime_bus_badge_rect())) {
         focus_console_log_panel(3);
         push_console_log(L"[状态] 已定位到事件总线告警日志");
         InvalidateRect(hwnd, NULL, FALSE);
@@ -6150,6 +6162,8 @@ static void init_state_defaults(void) {
     g_state.runtime_event_drop_count = 0;
     g_state.runtime_drop_warn_ms = 0;
     g_state.runtime_drop_last_seen = 0;
+    g_state.runtime_drop_last_growth_ms = 0;
+    g_state.runtime_bus_congested = 0;
     g_state.runtime_tick_history_head = 0;
     g_state.runtime_tick_history_count = 0;
     g_state.runtime_state_history_head = 0;
