@@ -12,8 +12,8 @@ BINDIR = bin
 OBJDIR = obj
 LIBDIR = lib
 
-C_SOURCES = $(SRCDIR)/math.c $(SRCDIR)/shape.c $(SRCDIR)/body.c $(SRCDIR)/constraint.c $(SRCDIR)/collision.c $(SRCDIR)/collision_detect.c $(SRCDIR)/physics.c $(SRCDIR)/physics_lifecycle.c $(SRCDIR)/physics_runtime_api.c $(SRCDIR)/physics_config.c $(SRCDIR)/physics_query.c $(SRCDIR)/physics_mutation.c $(SRCDIR)/physics_pipeline_api.c $(SRCDIR)/physics_snapshot.c $(SRCDIR)/physics_world.c $(SRCDIR)/physics_ids.c $(SRCDIR)/physics_parallel.c $(SRCDIR)/physics_broadphase.c $(SRCDIR)/physics_contact_manager.c $(SRCDIR)/physics_ccd.c $(SRCDIR)/physics_raycast.c $(SRCDIR)/physics_step.c $(SRCDIR)/physics_collision_pipeline.c $(SRCDIR)/physics_resolve.c $(SRCDIR)/physics_solver.c $(SRCDIR)/physics_integrate.c
-CPP_SOURCES = $(SRCDIR)/physics_memory.cpp
+C_SOURCES = $(SRCDIR)/math.c $(SRCDIR)/shape.c $(SRCDIR)/body.c $(SRCDIR)/constraint.c $(SRCDIR)/collision.c $(SRCDIR)/collision_detect.c $(SRCDIR)/physics.c $(SRCDIR)/physics_lifecycle.c $(SRCDIR)/physics_runtime_api.c $(SRCDIR)/physics_config.c $(SRCDIR)/physics_query.c $(SRCDIR)/physics_mutation.c $(SRCDIR)/physics_pipeline_api.c $(SRCDIR)/physics_snapshot.c $(SRCDIR)/physics_world.c $(SRCDIR)/physics_broadphase.c $(SRCDIR)/physics_contact_manager.c $(SRCDIR)/physics_ccd.c $(SRCDIR)/physics_raycast.c $(SRCDIR)/physics_step.c $(SRCDIR)/physics_collision_pipeline.c $(SRCDIR)/physics_resolve.c $(SRCDIR)/physics_solver.c $(SRCDIR)/physics_integrate.c
+CPP_SOURCES = $(SRCDIR)/physics_memory.cpp $(SRCDIR)/physics_ids.cpp $(SRCDIR)/physics_parallel.cpp
 C_OBJECTS = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(C_SOURCES))
 CPP_OBJECTS = $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(CPP_SOURCES))
 OBJECTS = $(C_OBJECTS) $(CPP_OBJECTS)
@@ -47,10 +47,10 @@ $(OBJDIR):
 $(LIBDIR):
 	if not exist $(LIBDIR) mkdir $(LIBDIR)
 
-$(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
+$(C_OBJECTS): $(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
-$(OBJDIR)/%.o: $(SRCDIR)/%.cpp | $(OBJDIR)
+$(CPP_OBJECTS): $(OBJDIR)/%.o: $(SRCDIR)/%.cpp | $(OBJDIR)
 	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c $< -o $@
 
 $(CORE_LIB): $(OBJECTS) | $(LIBDIR)

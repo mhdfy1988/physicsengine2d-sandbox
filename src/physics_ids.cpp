@@ -1,6 +1,8 @@
 #include <stddef.h>
 #include "physics_internal.h"
 
+extern "C" {
+
 PhysicsBodyId physics_internal_body_id_of(const PhysicsEngine* engine, const RigidBody* body) {
     int i;
     if (engine == NULL || body == NULL) return PHYSICS_BODY_ID_INVALID;
@@ -48,3 +50,5 @@ const CollisionManifold* physics_internal_contact_from_id_const(const PhysicsEng
     if (id < 0 || id >= engine->contact_count) return NULL;
     return &engine->contacts[id];
 }
+
+}  // extern "C"

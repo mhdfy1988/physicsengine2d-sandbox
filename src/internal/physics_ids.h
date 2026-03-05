@@ -7,6 +7,10 @@
 
 struct PhysicsEngine;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef int PhysicsBodyId;
 typedef int PhysicsConstraintId;
 typedef int PhysicsContactId;
@@ -24,5 +28,9 @@ Constraint* physics_internal_constraint_from_id(struct PhysicsEngine* engine, Ph
 const Constraint* physics_internal_constraint_from_id_const(const struct PhysicsEngine* engine, PhysicsConstraintId id);
 CollisionManifold* physics_internal_contact_from_id(struct PhysicsEngine* engine, PhysicsContactId id);
 const CollisionManifold* physics_internal_contact_from_id_const(const struct PhysicsEngine* engine, PhysicsContactId id);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

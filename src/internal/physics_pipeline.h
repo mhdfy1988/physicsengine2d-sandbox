@@ -3,6 +3,10 @@
 
 #include "../../include/physics.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     Vec2 min;
     Vec2 max;
@@ -52,5 +56,9 @@ void physics_internal_parallel_for(PhysicsEngine* engine, int count, int grain, 
 void physics_internal_update_velocities(PhysicsEngine* engine, float dt);
 void physics_internal_update_positions(PhysicsEngine* engine, float dt);
 void physics_internal_clear_forces(PhysicsEngine* engine);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

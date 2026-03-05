@@ -50,8 +50,8 @@ set(PHYSICS2D_SOURCES
     src/physics_snapshot.c
     src/physics_world.c
     src/physics_memory.cpp
-    src/physics_ids.c
-    src/physics_parallel.c
+    src/physics_ids.cpp
+    src/physics_parallel.cpp
     src/physics_broadphase.c
     src/physics_contact_manager.c
     src/physics_ccd.c

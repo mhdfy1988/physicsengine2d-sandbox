@@ -27,6 +27,8 @@ static DWORD WINAPI parallel_worker_proc(LPVOID param) {
 }
 #endif
 
+extern "C" {
+
 void physics_internal_parallel_for(PhysicsEngine* engine, int count, int grain, PhysicsParallelForFn fn, void* user) {
     int i;
     int chunk;
@@ -89,3 +91,5 @@ void physics_internal_parallel_for(PhysicsEngine* engine, int count, int grain, 
         fn(i, end, user);
     }
 }
+
+}  // extern "C"

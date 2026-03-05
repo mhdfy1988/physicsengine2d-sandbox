@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include "internal/physics_world_state.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 RigidBody* physics_internal_raycast(PhysicsEngine* engine, Vec2 start, Vec2 end);
 void physics_internal_emit_event(PhysicsEngine* engine, PhysicsEventType type, int ivalue, double dvalue,
                                  const char* message, const CollisionManifold* contact);
@@ -13,5 +17,9 @@ static inline void physics_internal_set_error_code(PhysicsEngine* engine, Physic
 }
 void physics_internal_sanitize_config(PhysicsConfig* config);
 void physics_internal_sanitize_experimental_config(PhysicsExperimentalConfig* config);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
