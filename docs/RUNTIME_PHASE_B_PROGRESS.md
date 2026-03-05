@@ -39,6 +39,9 @@
 11. editor 运行控制进一步事件化：
     - 新增 `APP_CMD_STEP_ONCE`
     - `N` 键与菜单单步都通过 `AppRuntime` 分发，不再走 main 直连分支。
+12. 新增 `APP_EVENT_RUNTIME_STATE_CHANGED`：
+    - 由 `AppRuntime` 在 running 状态变化时发布
+    - 编辑器日志统一消费该事件输出“运行/暂停”状态变化。
 
 ## 当前状态
 1. `mingw32-make test`：`PASS (31/31)`。
@@ -46,4 +49,4 @@
 3. `check_arch_deps.ps1` / `check_api_surface.ps1`：通过。
 
 ## 下一步（B2 收口）
-1. 把“暂停/单步/恢复”状态变化补充为统一 runtime 事件条目（供 UI/日志面板直接消费）。
+1. 将 runtime tick/state 事件进一步映射到调试面板可视指标（而不只状态栏与日志）。

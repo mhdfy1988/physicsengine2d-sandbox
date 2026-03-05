@@ -17,7 +17,8 @@ typedef struct {
 typedef enum {
     APP_EVENT_NONE = 0,
     APP_EVENT_COMMAND_EXECUTED,
-    APP_EVENT_RUNTIME_TICK
+    APP_EVENT_RUNTIME_TICK,
+    APP_EVENT_RUNTIME_STATE_CHANGED
 } AppEventType;
 
 typedef struct {

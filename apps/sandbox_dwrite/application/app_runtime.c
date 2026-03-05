@@ -21,7 +21,11 @@ int app_runtime_pop_event(AppRuntime* runtime, AppEvent* out_event) {
 
 void app_runtime_report_tick(AppRuntime* runtime, PhysicsEngine* engine, int running, float step_ms) {
     AppEvent event_data;
+    int had_prev;
+    int prev_running;
     if (runtime == 0) return;
+    had_prev = runtime->last_snapshot.valid;
+    prev_running = runtime->last_snapshot.running;
     runtime->frame_index++;
     runtime->last_snapshot.valid = 1;
     runtime->last_snapshot.frame_index = runtime->frame_index;
@@ -35,6 +39,11 @@ void app_runtime_report_tick(AppRuntime* runtime, PhysicsEngine* engine, int run
     event_data.command_type = APP_CMD_NONE;
     event_data.runtime_snapshot = runtime->last_snapshot;
     app_event_bus_publish(&runtime->event_bus, event_data);
+
+    if (had_prev && prev_running != runtime->last_snapshot.running) {
+        event_data.type = APP_EVENT_RUNTIME_STATE_CHANGED;
+        app_event_bus_publish(&runtime->event_bus, event_data);
+    }
 }
 
 const AppRuntimeSnapshot* app_runtime_get_last_snapshot(const AppRuntime* runtime) {

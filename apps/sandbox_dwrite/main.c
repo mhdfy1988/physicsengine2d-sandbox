@@ -4440,9 +4440,7 @@ static void process_app_events(void) {
     AppEvent ev;
     while (app_runtime_pop_event(&g_app_runtime, &ev)) {
         if (ev.type == APP_EVENT_COMMAND_EXECUTED) {
-            if (ev.command_type == APP_CMD_TOGGLE_RUN) {
-                push_console_log(L"[状态] 模拟:%s", g_state.running ? L"运行" : L"暂停");
-            } else if (ev.command_type == APP_CMD_STEP_ONCE) {
+            if (ev.command_type == APP_CMD_STEP_ONCE) {
                 push_console_log(L"[状态] 单步执行 1 帧");
             } else if (ev.command_type == APP_CMD_RESET_SCENE) {
                 push_console_log(L"[状态] 已重置当前场景");
@@ -4461,6 +4459,8 @@ static void process_app_events(void) {
                 }
                 g_state.last_contact_count = ev.runtime_snapshot.contact_count;
             }
+        } else if (ev.type == APP_EVENT_RUNTIME_STATE_CHANGED) {
+            push_console_log(L"[状态] 模拟:%s", ev.runtime_snapshot.running ? L"运行" : L"暂停");
         }
     }
 }

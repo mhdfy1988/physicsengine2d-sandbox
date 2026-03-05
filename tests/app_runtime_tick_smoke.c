@@ -22,6 +22,7 @@ int main(void) {
     AppEvent ev;
     int saw_command = 0;
     int saw_tick = 0;
+    int saw_state_changed = 0;
 
     callbacks.toggle_run = cb_toggle_run;
     callbacks.step_once = cb_noop;
@@ -41,20 +42,25 @@ int main(void) {
         return 2;
     }
 
-    app_runtime_report_tick(&runtime, NULL, 1, 0.25f);
+    app_runtime_report_tick(&runtime, NULL, 0, 0.25f);
+    app_runtime_report_tick(&runtime, NULL, 1, 0.20f);
     while (app_runtime_pop_event(&runtime, &ev)) {
         if (ev.type == APP_EVENT_COMMAND_EXECUTED && ev.command_type == APP_CMD_TOGGLE_RUN) {
             saw_command = 1;
         } else if (ev.type == APP_EVENT_RUNTIME_TICK) {
             saw_tick = 1;
-            if (!ev.runtime_snapshot.valid || ev.runtime_snapshot.frame_index == 0 || !ev.runtime_snapshot.running) {
+            if (!ev.runtime_snapshot.valid || ev.runtime_snapshot.frame_index == 0) {
                 printf("[FAIL] runtime tick snapshot invalid\n");
                 return 3;
             }
+        } else if (ev.type == APP_EVENT_RUNTIME_STATE_CHANGED) {
+            if (ev.runtime_snapshot.running) {
+                saw_state_changed = 1;
+            }
         }
     }
-    if (!saw_command || !saw_tick) {
-        printf("[FAIL] expected command and runtime tick events\n");
+    if (!saw_command || !saw_tick || !saw_state_changed) {
+        printf("[FAIL] expected command/tick/state-change events\n");
         return 4;
     }
 
