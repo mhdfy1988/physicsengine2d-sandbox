@@ -47,7 +47,7 @@ set(PHYSICS2D_SOURCES
     src/physics_query.c
     src/physics_mutation.c
     src/physics_pipeline_api.c
-    src/physics_snapshot.c
+    src/physics_snapshot.cpp
     src/physics_world.cpp
     src/physics_memory.cpp
     src/physics_ids.cpp
@@ -60,7 +60,7 @@ set(PHYSICS2D_SOURCES
     src/physics_collision_pipeline.c
     src/physics_resolve.c
     src/physics_solver.c
-    src/physics_integrate.c
+    src/physics_integrate.cpp
 )
 
 add_library(physics2d STATIC ${PHYSICS2D_SOURCES})

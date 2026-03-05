@@ -2,6 +2,8 @@
 #include <stddef.h>
 #include "physics_internal.h"
 
+extern "C" {
+
 void physics_internal_update_velocities(PhysicsEngine* engine, float dt) {
     int i;
     if (engine == NULL || dt <= 0.0f) {
@@ -91,3 +93,5 @@ void physics_internal_clear_forces(PhysicsEngine* engine) {
         body->torque = 0.0f;
     }
 }
+
+}  // extern "C"

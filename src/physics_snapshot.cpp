@@ -1,6 +1,8 @@
 #include <string.h>
 #include "physics_internal.h"
 
+extern "C" {
+
 int physics_engine_capture_snapshot(const PhysicsEngine* engine, PhysicsWorldSnapshot* out_snapshot) {
     int i;
     if (engine == NULL || out_snapshot == NULL) return 0;
@@ -66,3 +68,5 @@ int physics_engine_replay_from_snapshot(PhysicsEngine* engine, const PhysicsWorl
     }
     return 1;
 }
+
+}  // extern "C"
