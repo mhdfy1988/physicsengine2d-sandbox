@@ -24,3 +24,19 @@
    - `PhysicsBodySnapshot.mass/inertia` currently captured but not applied
 4. [x] Clarify `PHYSICS_BROADPHASE_BVH` behavior:
    - implement BVH path or explicitly signal unsupported mode instead of silent fallback
+
+## Maintainability Pass (Completed)
+
+1. [x] Split monolithic engine implementation into focused modules:
+   - `physics_lifecycle.c`, `physics_runtime_api.c`, `physics_config.c`
+   - `physics_query.c`, `physics_mutation.c`, `physics_pipeline_api.c`
+2. [x] Split collision detection from collision resolution:
+   - `collision_detect.c` (SAT/narrow-phase detect path)
+   - `collision.c` (impulse/position resolution path)
+3. [x] Modularize regression tests by concern and centralize registration:
+   - `REGRESSION_TEST_LIST` single source in `tests/regression_tests.h`
+4. [x] Centralize internal defaults and tuning constants:
+   - `src/internal/physics_defaults.h`
+   - `src/internal/physics_tuning.h`
+5. [x] CI hardening:
+   - GitHub Actions runs both CMake regression and Makefile regression paths
