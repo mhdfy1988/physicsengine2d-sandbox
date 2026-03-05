@@ -3,6 +3,7 @@
 
 #include <memory>
 #include "../include/physics.h"
+#include "physics_status.hpp"
 
 namespace physics2d {
 
@@ -47,6 +48,18 @@ public:
 
     void step() noexcept {
         physics_engine_step(handle_.get());
+    }
+
+    bool add_broadphase_pair(int index_a, int index_b) noexcept {
+        return physics_engine_add_broadphase_pair(handle_.get(), index_a, index_b) != 0;
+    }
+
+    void clear_error() noexcept {
+        physics_engine_clear_error(handle_.get());
+    }
+
+    Status status() const noexcept {
+        return status_from_engine(handle_.get());
     }
 
 private:
