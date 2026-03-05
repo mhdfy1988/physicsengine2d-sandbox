@@ -3,7 +3,7 @@
 
 #include <memory>
 #include "../include/physics_world.h"
-#include "physics_status.hpp"
+#include "physics_raii.hpp"
 
 namespace physics2d {
 
@@ -46,12 +46,12 @@ public:
         physics_world_step(handle_.get());
     }
 
-    PhysicsEngine* engine() const noexcept {
-        return physics_world_engine(handle_.get());
+    EngineView engine() const noexcept {
+        return EngineView(physics_world_engine(handle_.get()));
     }
 
     Status status() const noexcept {
-        return status_from_engine(engine());
+        return engine().status();
     }
 
 private:

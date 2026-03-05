@@ -7,6 +7,43 @@
 
 namespace physics2d {
 
+class EngineView {
+public:
+    EngineView() noexcept = default;
+    explicit EngineView(PhysicsEngine* raw) noexcept : ptr_(raw) {}
+
+    bool valid() const noexcept {
+        return ptr_ != nullptr;
+    }
+
+    PhysicsEngine* get() const noexcept {
+        return ptr_;
+    }
+
+    void set_gravity(Vec2 gravity) noexcept {
+        physics_engine_set_gravity(ptr_, gravity);
+    }
+
+    void step() noexcept {
+        physics_engine_step(ptr_);
+    }
+
+    int body_count() const noexcept {
+        return physics_engine_get_body_count(ptr_);
+    }
+
+    void add_body(RigidBody* body) noexcept {
+        physics_engine_add_body(ptr_, body);
+    }
+
+    Status status() const noexcept {
+        return status_from_engine(ptr_);
+    }
+
+private:
+    PhysicsEngine* ptr_ = nullptr;
+};
+
 struct EngineDeleter {
     void operator()(PhysicsEngine* engine) const noexcept {
         if (engine != nullptr) {
@@ -32,6 +69,14 @@ public:
 
     PhysicsEngine* get() const noexcept {
         return handle_.get();
+    }
+
+    EngineView view() noexcept {
+        return EngineView(handle_.get());
+    }
+
+    EngineView view() const noexcept {
+        return EngineView(handle_.get());
     }
 
     PhysicsEngine* release() noexcept {
