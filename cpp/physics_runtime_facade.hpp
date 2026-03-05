@@ -39,8 +39,48 @@ enum class RuntimeErrorCode {
     PipelineMappingErrors
 };
 
+enum class RuntimeErrorSeverity {
+    Warning,
+    Error
+};
+
+inline const char* runtime_error_code_name(RuntimeErrorCode code) noexcept {
+    switch (code) {
+        case RuntimeErrorCode::BridgeMissingReverse: return "bridge_missing_reverse";
+        case RuntimeErrorCode::BridgeStaleEntity: return "bridge_stale_entity";
+        case RuntimeErrorCode::BridgeNullBody: return "bridge_null_body";
+        case RuntimeErrorCode::BridgeDuplicateBody: return "bridge_duplicate_body";
+        case RuntimeErrorCode::BridgeRefCountMismatch: return "bridge_ref_count_mismatch";
+        case RuntimeErrorCode::PipelineMappingErrors: return "pipeline_mapping_errors";
+    }
+    return "unknown";
+}
+
+inline RuntimeErrorSeverity runtime_error_severity(RuntimeErrorCode code) noexcept {
+    switch (code) {
+        case RuntimeErrorCode::BridgeNullBody:
+        case RuntimeErrorCode::BridgeDuplicateBody:
+            return RuntimeErrorSeverity::Error;
+        case RuntimeErrorCode::BridgeMissingReverse:
+        case RuntimeErrorCode::BridgeStaleEntity:
+        case RuntimeErrorCode::BridgeRefCountMismatch:
+        case RuntimeErrorCode::PipelineMappingErrors:
+            return RuntimeErrorSeverity::Warning;
+    }
+    return RuntimeErrorSeverity::Warning;
+}
+
+inline const char* runtime_error_severity_name(RuntimeErrorSeverity severity) noexcept {
+    switch (severity) {
+        case RuntimeErrorSeverity::Warning: return "warning";
+        case RuntimeErrorSeverity::Error: return "error";
+    }
+    return "warning";
+}
+
 struct RuntimeError {
     RuntimeErrorCode code = RuntimeErrorCode::BridgeMissingReverse;
+    RuntimeErrorSeverity severity = RuntimeErrorSeverity::Warning;
     std::size_t count = 0;
     std::size_t frame_index = 0;
 };
@@ -145,6 +185,7 @@ private:
         }
         RuntimeError e;
         e.code = code;
+        e.severity = runtime_error_severity(code);
         e.count = count;
         e.frame_index = frame_index;
         last_errors_.push_back(e);

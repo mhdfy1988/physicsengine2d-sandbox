@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <string>
 #include "physics_runtime_facade.hpp"
 
 int main() {
@@ -31,8 +32,18 @@ int main() {
     }
 
     bool saw_missing_reverse = false;
+    bool saw_warning = false;
     for (const auto& err : runtime.last_errors()) {
         if (err.code == physics2d::runtime::RuntimeErrorCode::BridgeMissingReverse) {
+            const char* code_name = physics2d::runtime::runtime_error_code_name(err.code);
+            if (code_name == nullptr || std::string(code_name) != "bridge_missing_reverse") {
+                std::printf("[FAIL] runtime error code name mapping mismatch\n");
+                return 6;
+            }
+            if (err.severity == physics2d::runtime::RuntimeErrorSeverity::Warning &&
+                std::string(physics2d::runtime::runtime_error_severity_name(err.severity)) == "warning") {
+                saw_warning = true;
+            }
             saw_missing_reverse = true;
             break;
         }
@@ -40,6 +51,10 @@ int main() {
     if (!saw_missing_reverse) {
         std::printf("[FAIL] missing BridgeMissingReverse runtime error\n");
         return 5;
+    }
+    if (!saw_warning) {
+        std::printf("[FAIL] missing warning severity mapping\n");
+        return 7;
     }
 
     std::printf("[PASS] runtime error channel smoke\n");
