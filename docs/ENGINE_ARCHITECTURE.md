@@ -257,6 +257,7 @@
 4. Render2D、Animation、Audio 子系统补齐。
 5. 脚本层（Lua 或其他）桥接 ECS 数据。
 6. 性能分析与并行调度优化。
+7. 详细设计见 [PHASE_D_DETAILED_DESIGN.md](./PHASE_D_DETAILED_DESIGN.md)。
 
 ---
 
