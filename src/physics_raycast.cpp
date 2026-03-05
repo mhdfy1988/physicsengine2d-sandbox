@@ -121,6 +121,8 @@ static int raycast_polygon(RigidBody* body, Vec2 start, Vec2 end, float* out_t) 
     return 1;
 }
 
+extern "C" {
+
 RigidBody* physics_internal_raycast(PhysicsEngine* engine, Vec2 start, Vec2 end) {
     RigidBody* closest = NULL;
     float closest_t = FLT_MAX;
@@ -150,3 +152,5 @@ RigidBody* physics_internal_raycast(PhysicsEngine* engine, Vec2 start, Vec2 end)
 
     return closest;
 }
+
+}  // extern "C"

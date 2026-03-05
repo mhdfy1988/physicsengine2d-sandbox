@@ -55,7 +55,7 @@ set(PHYSICS2D_SOURCES
     src/physics_broadphase.c
     src/physics_contact_manager.c
     src/physics_ccd.c
-    src/physics_raycast.c
+    src/physics_raycast.cpp
     src/physics_step.c
     src/physics_collision_pipeline.c
     src/physics_resolve.c
