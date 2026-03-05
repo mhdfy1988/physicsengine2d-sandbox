@@ -27,6 +27,9 @@
    - `BodySleep`
    - `BodyWake`
    并通过 `runtime.last_events()` 暴露给上层。
+8. 已补充编辑器近似控制流 smoke：
+   - `cpp_runtime_pause_step_smoke`
+   覆盖暂停（不步进）/单步恢复/再次暂停行为。
 
 ## 当前状态
 1. `mingw32-make test`：`PASS (31/31)`。
@@ -35,4 +38,3 @@
 
 ## 下一步（B2 收口）
 1. 将 runtime 调试快照与事件桥接到编辑器最小闭环展示通路。
-2. 为事件桥补一组更贴近编辑器场景的回归样例（暂停/恢复/单步）。

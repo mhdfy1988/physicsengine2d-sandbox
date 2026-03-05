@@ -89,3 +89,4 @@ jobs:
           ./build/bin/physics_cpp_ecs_pipeline_smoke
           ./build/bin/physics_cpp_runtime_facade_smoke
           ./build/bin/physics_cpp_runtime_events_smoke
+          ./build/bin/physics_cpp_runtime_pause_step_smoke
