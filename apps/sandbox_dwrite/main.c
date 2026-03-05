@@ -169,6 +169,8 @@ typedef struct {
     int runtime_contact_count;
     int runtime_error_count;
     int runtime_error_code;
+    int runtime_error_item_count;
+    AppRuntimeErrorItem runtime_errors[APP_RUNTIME_MAX_ERRORS];
     int runtime_state_change_count;
     unsigned int runtime_event_drop_count;
     unsigned int runtime_drop_warn_ms;
@@ -808,6 +810,11 @@ static const wchar_t* runtime_error_label(int code) {
         case PHYSICS_ERROR_CAPACITY_EXCEEDED: return L"capacity_exceeded";
         default: return L"unknown";
     }
+}
+
+static const wchar_t* runtime_error_severity_label(int severity) {
+    if (severity == APP_RUNTIME_ERROR_ERROR) return L"error";
+    return L"warning";
 }
 
 static void export_perf_report_csv(void) {
@@ -1992,6 +1999,7 @@ static void apply_scene(int scene_index) {
     g_state.runtime_contact_count = 0;
     g_state.runtime_error_count = 0;
     g_state.runtime_error_code = PHYSICS_ERROR_NONE;
+    g_state.runtime_error_item_count = 0;
     g_state.runtime_state_change_count = 0;
     g_state.runtime_event_drop_count = 0;
     g_state.runtime_drop_warn_ms = 0;
@@ -3018,8 +3026,17 @@ static void render_right_debug_section(D2D1_RECT_F debug_rect) {
         swprintf(line, 128, L"状态变更事件: %d  错误: %d", g_state.runtime_state_change_count, g_state.runtime_error_count);
         draw_text(line, rc(rt_rect.left + 8.0f, rt_rect.top + 84.0f, rt_rect.right - 8.0f, rt_rect.top + 104.0f), g_ui.fmt_info,
                   rgba(0.90f, 0.94f, 0.99f, 1.0f));
-        swprintf(line, 128, L"错误码: %d(%s)  事件丢弃累计: %u",
-                 g_state.runtime_error_code, runtime_error_label(g_state.runtime_error_code), g_state.runtime_event_drop_count);
+        if (g_state.runtime_error_item_count > 0) {
+            swprintf(line, 128, L"首错: %d(%s,%s,x%d)  丢弃:%u",
+                     g_state.runtime_errors[0].code,
+                     runtime_error_label(g_state.runtime_errors[0].code),
+                     runtime_error_severity_label(g_state.runtime_errors[0].severity),
+                     g_state.runtime_errors[0].count,
+                     g_state.runtime_event_drop_count);
+        } else {
+            swprintf(line, 128, L"错误码: %d(%s)  事件丢弃累计: %u",
+                     g_state.runtime_error_code, runtime_error_label(g_state.runtime_error_code), g_state.runtime_event_drop_count);
+        }
         draw_text(line, rc(rt_rect.left + 8.0f, rt_rect.top + 104.0f, rt_rect.right - 8.0f, rt_rect.top + 118.0f), g_ui.fmt_info,
                   rgba(0.90f, 0.94f, 0.99f, 1.0f));
     }
@@ -4683,6 +4700,7 @@ static void runtime_push_state_history(const AppRuntimeSnapshot* snapshot) {
 }
 
 static void apply_runtime_snapshot_to_state(const AppRuntimeSnapshot* snapshot) {
+    int i;
     if (snapshot == NULL || !snapshot->valid) return;
     g_state.physics_step_ms = snapshot->step_ms;
     g_state.runtime_frame_index = snapshot->frame_index;
@@ -4692,6 +4710,12 @@ static void apply_runtime_snapshot_to_state(const AppRuntimeSnapshot* snapshot) 
     g_state.runtime_contact_count = snapshot->contact_count;
     g_state.runtime_error_count = snapshot->runtime_error_count;
     g_state.runtime_error_code = snapshot->runtime_error_code;
+    g_state.runtime_error_item_count = snapshot->runtime_error_item_count;
+    if (g_state.runtime_error_item_count < 0) g_state.runtime_error_item_count = 0;
+    if (g_state.runtime_error_item_count > APP_RUNTIME_MAX_ERRORS) g_state.runtime_error_item_count = APP_RUNTIME_MAX_ERRORS;
+    for (i = 0; i < g_state.runtime_error_item_count; i++) {
+        g_state.runtime_errors[i] = snapshot->runtime_errors[i];
+    }
     g_state.runtime_event_drop_count = snapshot->event_drop_count;
 }
 
@@ -4734,8 +4758,19 @@ static void process_app_events(void) {
                 if (g_state.runtime_error_count > 0) {
                     if (g_state.runtime_error_code != g_state.last_runtime_error_code ||
                         (now_ms - g_state.last_runtime_error_log_ms) >= 1000) {
-                        push_console_log(L"[警告] 运行时错误 code=%d (%s)",
-                                         g_state.runtime_error_code, runtime_error_label(g_state.runtime_error_code));
+                        if (g_state.runtime_error_item_count > 0) {
+                            const AppRuntimeErrorItem* err0 = &g_state.runtime_errors[0];
+                            push_console_log((err0->severity == APP_RUNTIME_ERROR_ERROR)
+                                                 ? L"[错误] 运行时错误 code=%d (%s,%s,x%d)"
+                                                 : L"[警告] 运行时错误 code=%d (%s,%s,x%d)",
+                                             err0->code,
+                                             runtime_error_label(err0->code),
+                                             runtime_error_severity_label(err0->severity),
+                                             err0->count);
+                        } else {
+                            push_console_log(L"[警告] 运行时错误 code=%d (%s)",
+                                             g_state.runtime_error_code, runtime_error_label(g_state.runtime_error_code));
+                        }
                         g_state.last_runtime_error_log_ms = now_ms;
                     }
                 } else if (g_state.last_runtime_error_code != PHYSICS_ERROR_NONE) {
@@ -6197,6 +6232,7 @@ static void init_state_defaults(void) {
     g_state.runtime_contact_count = 0;
     g_state.runtime_error_count = 0;
     g_state.runtime_error_code = PHYSICS_ERROR_NONE;
+    g_state.runtime_error_item_count = 0;
     g_state.runtime_state_change_count = 0;
     g_state.runtime_event_drop_count = 0;
     g_state.runtime_drop_warn_ms = 0;

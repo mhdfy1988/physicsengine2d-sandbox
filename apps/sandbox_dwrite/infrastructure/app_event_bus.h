@@ -4,6 +4,19 @@
 #include "../domain/app_command.h"
 #include "physics.h"
 
+enum { APP_RUNTIME_MAX_ERRORS = 4 };
+
+typedef enum {
+    APP_RUNTIME_ERROR_WARNING = 1,
+    APP_RUNTIME_ERROR_ERROR = 2
+} AppRuntimeErrorSeverity;
+
+typedef struct {
+    int code;
+    int severity;
+    int count;
+} AppRuntimeErrorItem;
+
 typedef struct {
     int valid;
     unsigned int frame_index;
@@ -13,6 +26,8 @@ typedef struct {
     int contact_count;
     int runtime_error_count;
     int runtime_error_code;
+    int runtime_error_item_count;
+    AppRuntimeErrorItem runtime_errors[APP_RUNTIME_MAX_ERRORS];
     float step_ms;
     unsigned int event_drop_count;
 } AppRuntimeSnapshot;

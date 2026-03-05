@@ -61,6 +61,10 @@ int main(void) {
                 printf("[FAIL] unexpected runtime error fields in null-engine tick\n");
                 return 8;
             }
+            if (ev.runtime_snapshot.runtime_error_item_count != 0) {
+                printf("[FAIL] unexpected runtime error item list in null-engine tick\n");
+                return 10;
+            }
             if (ev.runtime_snapshot.frame_index <= prev_frame_index) {
                 printf("[FAIL] runtime tick frame index not increasing\n");
                 return 6;
@@ -86,6 +90,10 @@ int main(void) {
         if (snap->runtime_error_count != 0 || snap->runtime_error_code != PHYSICS_ERROR_NONE) {
             printf("[FAIL] last runtime snapshot error fields unexpected\n");
             return 9;
+        }
+        if (snap->runtime_error_item_count != 0) {
+            printf("[FAIL] last runtime snapshot error item list unexpected\n");
+            return 11;
         }
     }
     {
