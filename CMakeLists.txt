@@ -46,7 +46,7 @@ set(PHYSICS2D_SOURCES
     src/physics_config.c
     src/physics_query.c
     src/physics_mutation.c
-    src/physics_pipeline_api.c
+    src/physics_pipeline_api.cpp
     src/physics_snapshot.cpp
     src/physics_world.cpp
     src/physics_memory.cpp
@@ -59,7 +59,7 @@ set(PHYSICS2D_SOURCES
     src/physics_step.cpp
     src/physics_collision_pipeline.cpp
     src/physics_resolve.cpp
-    src/physics_solver.c
+    src/physics_solver.cpp
     src/physics_integrate.cpp
 )
 

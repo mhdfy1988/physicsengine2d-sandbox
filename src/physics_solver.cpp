@@ -65,7 +65,7 @@ static void solve_contact_position_batch(int begin, int end, void* user) {
             c->angle_a == m->bodyA->angle && c->angle_b == m->bodyB->angle) {
             m->info = c->info;
         } else {
-            CollisionInfo refreshed = {0};
+            CollisionInfo refreshed = {};
             if (!collision_detect(m->bodyA, m->bodyB, &refreshed)) {
                 m->info.penetration = 0.0f;
                 if (c != NULL) c->valid = 0;
