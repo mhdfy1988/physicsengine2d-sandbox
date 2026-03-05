@@ -1,6 +1,7 @@
 #ifndef PHYSICS_ECS_HPP
 #define PHYSICS_ECS_HPP
 
+#include <cstddef>
 #include <cstdint>
 #include <unordered_map>
 #include <unordered_set>
@@ -56,6 +57,7 @@ public:
 
         erase_components(e);
         alive_.erase(e);
+        destroy_queue_.erase(e);
         return true;
     }
 
@@ -72,6 +74,7 @@ public:
 
         erase_components(e);
         alive_.erase(e);
+        destroy_queue_.erase(e);
         return true;
     }
 
@@ -129,6 +132,33 @@ public:
             return nullptr;
         }
         return &it->second;
+    }
+
+    bool queue_destroy(Entity e) noexcept {
+        if (!alive(e)) {
+            return false;
+        }
+        destroy_queue_.insert(e);
+        return true;
+    }
+
+    bool is_destroy_queued(Entity e) const noexcept {
+        return destroy_queue_.find(e) != destroy_queue_.end();
+    }
+
+    std::size_t destroy_queued_count() const noexcept {
+        return destroy_queue_.size();
+    }
+
+    std::size_t destroy_queued(EngineView engine) noexcept {
+        std::size_t removed = 0;
+        for (Entity e : destroy_queue_) {
+            if (destroy(e, engine)) {
+                removed++;
+            }
+        }
+        destroy_queue_.clear();
+        return removed;
     }
 
     void spawn_rigid_bodies(EngineView engine) noexcept {
@@ -196,6 +226,35 @@ private:
     std::unordered_map<Entity, Collider> colliders_;
     std::unordered_map<Entity, RigidBodySpec> body_specs_;
     std::unordered_map<Entity, RuntimeBodyRef> runtime_bodies_;
+    std::unordered_set<Entity> destroy_queue_;
+};
+
+class SpawnRigidBodySystem {
+public:
+    void run(Registry& registry, EngineView engine) const noexcept {
+        registry.spawn_rigid_bodies(engine);
+    }
+};
+
+class PhysicsStepSystem {
+public:
+    void run(EngineView engine) const noexcept {
+        engine.step();
+    }
+};
+
+class SyncTransformSystem {
+public:
+    void run(Registry& registry) const noexcept {
+        registry.sync_transforms_from_physics();
+    }
+};
+
+class CleanupSystem {
+public:
+    std::size_t run(Registry& registry, EngineView engine) const noexcept {
+        return registry.destroy_queued(engine);
+    }
 };
 
 }  // namespace ecs
