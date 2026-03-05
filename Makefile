@@ -26,12 +26,14 @@ SANDBOX_ICON_OBJ = $(OBJDIR)/app_icon.res.o
 TEST_SRC = $(TESTDIR)/regression_tests.c $(TESTDIR)/regression_collision_core_tests.c $(TESTDIR)/regression_event_snapshot_tests.c $(TESTDIR)/regression_pipeline_error_tests.c $(TESTDIR)/regression_sleep_broadphase_tests.c $(TESTDIR)/regression_stress_constraint_tests.c $(TESTDIR)/regression_engine_feature_tests.c $(TESTDIR)/equivalence/equivalence_api_tests.c
 BENCH_SRC = $(TESTDIR)/benchmark_suite.c
 INVARIANT_SRC = $(TESTDIR)/invariant_tests.c
+APP_RUNTIME_SMOKE_SRC = $(TESTDIR)/app_runtime_tick_smoke.c $(APPDIR_DWRITE)/domain/app_command.c $(APPDIR_DWRITE)/infrastructure/app_event_bus.c $(APPDIR_DWRITE)/application/app_controller.c $(APPDIR_DWRITE)/application/app_runtime.c
 
 CORE_LIB = $(LIBDIR)/libphysics2d.a
 SANDBOX_EXECUTABLE = $(BINDIR)/physics_sandbox
 TEST_EXECUTABLE = $(BINDIR)/physics_tests
 BENCH_EXECUTABLE = $(BINDIR)/physics_bench
 INVARIANT_EXECUTABLE = $(BINDIR)/physics_invariants
+APP_RUNTIME_SMOKE_EXECUTABLE = $(BINDIR)/app_runtime_smoke
 
 WIN_DWRITE_LIBS = -ld2d1 -ldwrite -lwindowscodecs -lole32 -luuid -lshcore -lgdi32 -luser32
 WIN_GUI_FLAGS = -mwindows
@@ -73,6 +75,9 @@ $(BENCH_EXECUTABLE): $(CORE_LIB) $(BENCH_SRC) | $(BINDIR)
 $(INVARIANT_EXECUTABLE): $(CORE_LIB) $(INVARIANT_SRC) | $(BINDIR)
 	$(CC) $(CFLAGS) $(INVARIANT_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
 
+$(APP_RUNTIME_SMOKE_EXECUTABLE): $(CORE_LIB) $(APP_RUNTIME_SMOKE_SRC) | $(BINDIR)
+	$(CC) $(CFLAGS) $(APP_RUNTIME_SMOKE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+
 core: $(CORE_LIB)
 
 sandbox: $(SANDBOX_EXECUTABLE)
@@ -80,8 +85,9 @@ sandbox: $(SANDBOX_EXECUTABLE)
 run: $(SANDBOX_EXECUTABLE)
 	./$(SANDBOX_EXECUTABLE)
 
-test: $(TEST_EXECUTABLE)
+test: $(TEST_EXECUTABLE) $(APP_RUNTIME_SMOKE_EXECUTABLE)
 	./$(TEST_EXECUTABLE)
+	./$(APP_RUNTIME_SMOKE_EXECUTABLE)
 
 benchmark: $(BENCH_EXECUTABLE)
 	./$(BENCH_EXECUTABLE)

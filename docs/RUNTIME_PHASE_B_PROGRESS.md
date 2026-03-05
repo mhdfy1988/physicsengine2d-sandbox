@@ -30,6 +30,12 @@
 8. 已补充编辑器近似控制流 smoke：
    - `cpp_runtime_pause_step_smoke`
    覆盖暂停（不步进）/单步恢复/再次暂停行为。
+9. 已把 runtime 快照接到编辑器最小闭环：
+   - `AppRuntime` 支持 `RuntimeTick` 事件与 `last_snapshot`
+   - `main.c` 每帧上报并消费快照，状态栏优先展示该快照指标。
+10. 已新增 editor 通路最小集成测试：
+    - `tests/app_runtime_tick_smoke.c`
+    - 已接入 `mingw32-make test` 与 CMake `BUILD_TESTS`。
 
 ## 当前状态
 1. `mingw32-make test`：`PASS (31/31)`。
@@ -37,4 +43,4 @@
 3. `check_arch_deps.ps1` / `check_api_surface.ps1`：通过。
 
 ## 下一步（B2 收口）
-1. 将 runtime 调试快照与事件桥接到编辑器最小闭环展示通路。
+1. 继续补 editor 侧“暂停/单步/恢复”的事件化控制与展示（目前 smoke 已覆盖 runtime 侧）。

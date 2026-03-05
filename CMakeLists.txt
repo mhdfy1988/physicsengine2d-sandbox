@@ -134,21 +134,34 @@ if(BUILD_TESTS)
         tests/regression_engine_feature_tests.c
         tests/equivalence/equivalence_api_tests.c
     )
+    add_executable(physics_app_runtime_smoke
+        tests/app_runtime_tick_smoke.c
+        apps/sandbox_dwrite/domain/app_command.c
+        apps/sandbox_dwrite/infrastructure/app_event_bus.c
+        apps/sandbox_dwrite/application/app_controller.c
+        apps/sandbox_dwrite/application/app_runtime.c
+    )
     add_executable(physics_bench tests/benchmark_suite.c)
     add_executable(physics_invariants tests/invariant_tests.c)
     target_link_libraries(physics_tests PRIVATE physics2d)
+    target_link_libraries(physics_app_runtime_smoke PRIVATE physics2d)
     target_link_libraries(physics_bench PRIVATE physics2d)
     target_link_libraries(physics_invariants PRIVATE physics2d)
     if(MSVC)
         target_compile_options(physics_tests PRIVATE /W4)
+        target_compile_options(physics_app_runtime_smoke PRIVATE /W4)
         target_compile_options(physics_bench PRIVATE /W4)
         target_compile_options(physics_invariants PRIVATE /W4)
     else()
         target_compile_options(physics_tests PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+        target_compile_options(physics_app_runtime_smoke PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
         target_compile_options(physics_bench PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
         target_compile_options(physics_invariants PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
     endif()
     set_target_properties(physics_tests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+    set_target_properties(physics_app_runtime_smoke PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
     set_target_properties(physics_bench PROPERTIES

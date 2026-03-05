@@ -2,15 +2,28 @@
 #define APP_EVENT_BUS_H
 
 #include "../domain/app_command.h"
+#include "physics.h"
+
+typedef struct {
+    int valid;
+    unsigned int frame_index;
+    int running;
+    int body_count;
+    int constraint_count;
+    int contact_count;
+    float step_ms;
+} AppRuntimeSnapshot;
 
 typedef enum {
     APP_EVENT_NONE = 0,
-    APP_EVENT_COMMAND_EXECUTED
+    APP_EVENT_COMMAND_EXECUTED,
+    APP_EVENT_RUNTIME_TICK
 } AppEventType;
 
 typedef struct {
     AppEventType type;
     AppCommandType command_type;
+    AppRuntimeSnapshot runtime_snapshot;
 } AppEvent;
 
 enum { APP_EVENT_QUEUE_CAP = 128 };

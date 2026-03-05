@@ -76,7 +76,9 @@ jobs:
         run: cmake --build build --parallel
 
       - name: Run C Regression Tests
-        run: ./build/bin/physics_tests
+        run: |
+          ./build/bin/physics_tests
+          ./build/bin/physics_app_runtime_smoke
 
       - name: Run Benchmark
         run: ./build/bin/physics_bench
