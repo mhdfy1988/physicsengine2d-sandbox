@@ -32,6 +32,7 @@
 #include "presentation/render/ui_widgets.h"
 #include "domain/app_command.h"
 #include "application/app_runtime.h"
+#include "application/editor_command_bus.h"
 #include "application/scene_catalog.h"
 #include "application/scene_builder.h"
 #include "application/history_service.h"
@@ -271,6 +272,7 @@ static UiApp g_ui = {0};
 static SandboxState g_state = {0};
 static HWND g_app_hwnd = NULL;
 static AppRuntime g_app_runtime;
+static EditorCommandCallbacks g_editor_command_bus;
 static AssetHotReloadService g_hot_reload_service;
 static AssetFsWatchState g_asset_fs_watch;
 static char g_hot_reload_root_dir[ASSET_WATCH_MAX_PATH];
@@ -571,7 +573,14 @@ static int hot_reload_register_source_path(const char* source_path);
 static void hot_reload_register_tree_recursive(const char* root_dir, int depth);
 static void init_hot_reload_pipeline(void);
 static void hot_reload_tick_runtime(void);
+static void init_editor_command_bus_callbacks(void);
+static int dispatch_editor_command(const EditorCommand* command);
+static int editor_cb_scene_rename(int scene_index, const wchar_t* name, void* user);
+static int editor_cb_scene_order_move(int direction, void* user);
+static int editor_cb_scene_order_reset(void* user);
+static int editor_cb_inspector_set_value(int row, double value, int emit_log, void* user);
 static int parse_double_strict(const wchar_t* text, double* out_v);
+static int scene_rename_apply(int scene_index, const wchar_t* input_name);
 static int inspector_commit_row_value(int row, double value, int emit_log);
 static int inspector_adjust_focused_row(int sign);
 static void begin_value_input_for_scene_name(int scene_index);
@@ -2446,6 +2455,39 @@ static void history_redo(void) {
     history_service_redo(history_state_view(), &ops);
 }
 
+static void init_editor_command_bus_callbacks(void) {
+    editor_command_bus_init(&g_editor_command_bus);
+    g_editor_command_bus.scene_rename = editor_cb_scene_rename;
+    g_editor_command_bus.scene_order_move = editor_cb_scene_order_move;
+    g_editor_command_bus.scene_order_reset = editor_cb_scene_order_reset;
+    g_editor_command_bus.inspector_set_value = editor_cb_inspector_set_value;
+    g_editor_command_bus.user = NULL;
+}
+
+static int dispatch_editor_command(const EditorCommand* command) {
+    return editor_command_bus_dispatch(&g_editor_command_bus, command);
+}
+
+static int editor_cb_scene_rename(int scene_index, const wchar_t* name, void* user) {
+    (void)user;
+    return scene_rename_apply(scene_index, name);
+}
+
+static int editor_cb_scene_order_move(int direction, void* user) {
+    (void)user;
+    return scene_order_move_selected(direction);
+}
+
+static int editor_cb_scene_order_reset(void* user) {
+    (void)user;
+    return scene_order_reset_default();
+}
+
+static int editor_cb_inspector_set_value(int row, double value, int emit_log, void* user) {
+    (void)user;
+    return inspector_commit_row_value(row, value, emit_log);
+}
+
 static void sync_scene_runtime_params(void) {
     SceneConfig* cfg;
     if (g_state.engine == NULL) return;
@@ -3171,8 +3213,8 @@ static int inspector_commit_row_value(int row, double value, int emit_log) {
     const Constraint* c = selected_constraint_ref();
     if (c != NULL && c->active) {
         if (!inspector_apply_constraint_row_value(row, value, 0)) return 0;
-        history_push_snapshot();
         if (!inspector_apply_constraint_row_value(row, value, 1)) return 0;
+        history_push_snapshot();
         if (emit_log) {
             if (row == 4) {
                 push_console_log(L"[检查器] 已更新约束.%s = %d", inspector_constraint_row_label(row), ((int)value) != 0 ? 1 : 0);
@@ -3188,8 +3230,8 @@ static int inspector_commit_row_value(int row, double value, int emit_log) {
     }
     if (g_state.selected != NULL) {
         if (!inspector_apply_body_row_value(row, value, 0)) return 0;
-        history_push_snapshot();
         if (!inspector_apply_body_row_value(row, value, 1)) return 0;
+        history_push_snapshot();
         if (emit_log) {
             push_console_log(L"[检查器] 已更新物体.%s = %.4f", inspector_body_row_label(row), value);
         }
@@ -3250,7 +3292,15 @@ static int inspector_adjust_focused_row(int sign) {
             int next_preset = (int)next;
             if (current_preset >= 0 && next_preset == current_preset) return 0;
         }
-        return inspector_commit_row_value(row, next, 0);
+        {
+            EditorCommand command_data;
+            ZeroMemory(&command_data, sizeof(command_data));
+            command_data.type = EDITOR_CMD_INSPECTOR_SET_VALUE;
+            command_data.arg_i0 = row;
+            command_data.arg_i1 = 0;
+            command_data.arg_f0 = next;
+            return dispatch_editor_command(&command_data);
+        }
     }
     if (g_state.selected != NULL) {
         RigidBody* b = g_state.selected;
@@ -3296,9 +3346,43 @@ static int inspector_adjust_focused_row(int sign) {
         if (row == 5 && fabs(next - b->angular_velocity) < 1e-6) return 0;
         if (row == 6 && fabs(next - b->damping) < 1e-6) return 0;
         if (row == 7 && b->shape != NULL && fabs(next - b->shape->restitution) < 1e-6) return 0;
-        return inspector_commit_row_value(row, next, 0);
+        {
+            EditorCommand command_data;
+            ZeroMemory(&command_data, sizeof(command_data));
+            command_data.type = EDITOR_CMD_INSPECTOR_SET_VALUE;
+            command_data.arg_i0 = row;
+            command_data.arg_i1 = 0;
+            command_data.arg_f0 = next;
+            return dispatch_editor_command(&command_data);
+        }
     }
     return 0;
+}
+
+static int scene_rename_apply(int scene_index, const wchar_t* input_name) {
+    int src_len;
+    int begin = 0;
+    int end;
+    int n = 0;
+    wchar_t name_buf[SCENE_NAME_MAX];
+    if (input_name == NULL) return 0;
+    if (scene_index < 0 || scene_index >= SCENE_COUNT) return 0;
+    src_len = (int)lstrlenW(input_name);
+    while (begin < src_len && iswspace(input_name[begin])) begin++;
+    end = src_len;
+    while (end > begin && iswspace(input_name[end - 1])) end--;
+    if (end <= begin) {
+        push_console_log(L"[警告] 场景名称不能为空");
+        return 0;
+    }
+    while ((begin + n) < end && n < (SCENE_NAME_MAX - 1)) {
+        name_buf[n] = input_name[begin + n];
+        n++;
+    }
+    name_buf[n] = L'\0';
+    lstrcpynW(g_state.scene_names[scene_index], name_buf, SCENE_NAME_MAX);
+    push_console_log(L"[场景] 已重命名 #%d: %s", scene_index + 1, scene_display_name(scene_index));
+    return 1;
 }
 
 static void begin_value_input_for_hierarchy_filter(void) {
@@ -3352,27 +3436,15 @@ static void apply_value_input(void) {
     }
     if (g_state.value_input_target == VALUE_INPUT_TARGET_SCENE_NAME) {
         int row = g_state.value_input_row;
-        int src_len;
-        int begin = 0;
-        int end;
-        int n = 0;
-        wchar_t name_buf[SCENE_NAME_MAX];
+        EditorCommand command_data;
         if (row < 0 || row >= SCENE_COUNT) return;
-        src_len = (int)lstrlenW(g_state.value_input_buf);
-        while (begin < src_len && iswspace(g_state.value_input_buf[begin])) begin++;
-        end = src_len;
-        while (end > begin && iswspace(g_state.value_input_buf[end - 1])) end--;
-        if (end <= begin) {
-            push_console_log(L"[警告] 场景名称不能为空");
-            return;
+        ZeroMemory(&command_data, sizeof(command_data));
+        command_data.type = EDITOR_CMD_SCENE_RENAME;
+        command_data.arg_i0 = row;
+        lstrcpynW(command_data.text, g_state.value_input_buf, EDITOR_COMMAND_TEXT_CAP);
+        if (!dispatch_editor_command(&command_data)) {
+            push_console_log(L"[警告] 场景名称未更新");
         }
-        while ((begin + n) < end && n < (SCENE_NAME_MAX - 1)) {
-            name_buf[n] = g_state.value_input_buf[begin + n];
-            n++;
-        }
-        name_buf[n] = L'\0';
-        lstrcpynW(g_state.scene_names[row], name_buf, SCENE_NAME_MAX);
-        push_console_log(L"[场景] 已重命名 #%d: %s", row + 1, scene_display_name(row));
         return;
     }
     if (g_state.value_input_target == VALUE_INPUT_TARGET_DEBUG_PARAM ||
@@ -3400,7 +3472,15 @@ static void apply_value_input(void) {
             push_console_log(L"[调试] 已输入模拟参数");
             return;
         }
-        if (inspector_commit_row_value(g_state.value_input_row, v, 1)) return;
+        {
+            EditorCommand command_data;
+            ZeroMemory(&command_data, sizeof(command_data));
+            command_data.type = EDITOR_CMD_INSPECTOR_SET_VALUE;
+            command_data.arg_i0 = g_state.value_input_row;
+            command_data.arg_i1 = 1;
+            command_data.arg_f0 = v;
+            if (dispatch_editor_command(&command_data)) return;
+        }
         if (csel != NULL && csel->active) {
             push_console_log(L"[警告] 约束参数未更新，请检查输入范围");
         } else if (g_state.selected != NULL) {
@@ -6499,13 +6579,26 @@ static int handle_keydown_scene_reorder(HWND hwnd, WPARAM wparam) {
     int alt_down = (GetKeyState(VK_MENU) & 0x8000) != 0;
     int changed = 0;
     int pos = -1;
+    EditorCommand command_data;
     if (!alt_down) return 0;
     if (wparam != VK_UP && wparam != VK_DOWN && wparam != VK_HOME) return 0;
     if (g_state.keyboard_focus_area != 1) return 1;
     if (g_state.selected != NULL || selected_constraint_ref() != NULL) return 1;
-    if (wparam == VK_UP) changed = scene_order_move_selected(-1);
-    if (wparam == VK_DOWN) changed = scene_order_move_selected(1);
-    if (wparam == VK_HOME) changed = scene_order_reset_default();
+    ZeroMemory(&command_data, sizeof(command_data));
+    if (wparam == VK_UP) {
+        command_data.type = EDITOR_CMD_SCENE_ORDER_MOVE;
+        command_data.arg_i0 = -1;
+        changed = dispatch_editor_command(&command_data);
+    }
+    if (wparam == VK_DOWN) {
+        command_data.type = EDITOR_CMD_SCENE_ORDER_MOVE;
+        command_data.arg_i0 = 1;
+        changed = dispatch_editor_command(&command_data);
+    }
+    if (wparam == VK_HOME) {
+        command_data.type = EDITOR_CMD_SCENE_ORDER_RESET;
+        changed = dispatch_editor_command(&command_data);
+    }
     if (changed) {
         if (wparam == VK_HOME) {
             push_console_log(L"[场景] 排序已恢复默认顺序");
@@ -6949,6 +7042,7 @@ static int register_main_window_class(HINSTANCE inst, WNDCLASSEXW* out_wc) {
 
 static void init_app_bootstrap_state(void) {
     init_state_defaults();
+    init_editor_command_bus_callbacks();
     init_app_runtime_callbacks();
     init_hot_reload_pipeline();
     clear_collision_events();

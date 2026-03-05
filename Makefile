@@ -19,7 +19,7 @@ CPP_OBJECTS = $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(CPP_SOURCES))
 OBJECTS = $(C_OBJECTS) $(CPP_OBJECTS)
 DEPS = $(OBJECTS:.o=.d)
 
-SANDBOX_SRCS = $(APPDIR_DWRITE)/main.c $(APPDIR_DWRITE)/infrastructure/project_tree.c $(APPDIR_DWRITE)/infrastructure/snapshot_repo.c $(APPDIR_DWRITE)/infrastructure/ui_layout_repo.c $(APPDIR_DWRITE)/presentation/render/ui_icons.c $(APPDIR_DWRITE)/presentation/render/ui_text.c $(APPDIR_DWRITE)/presentation/render/ui_primitives.c $(APPDIR_DWRITE)/presentation/render/ui_widgets.c $(APPDIR_DWRITE)/domain/app_command.c $(APPDIR_DWRITE)/infrastructure/app_event_bus.c $(APPDIR_DWRITE)/application/app_controller.c $(APPDIR_DWRITE)/application/app_runtime.c $(APPDIR_DWRITE)/application/scene_catalog.c $(APPDIR_DWRITE)/application/scene_builder.c $(APPDIR_DWRITE)/application/history_service.c $(APPDIR_DWRITE)/application/runtime_param_service.c $(APPDIR_DWRITE)/presentation/input/input_mapping.c $(APPDIR_DWRITE)/presentation/input/menu_file_edit_actions.c $(APPDIR_DWRITE)/presentation/input/menu_view_physics_window_actions.c $(APPDIR_DWRITE)/presentation/input/menu_help_actions.c $(APPDIR_DWRITE)/presentation/input/menu_model.c
+SANDBOX_SRCS = $(APPDIR_DWRITE)/main.c $(APPDIR_DWRITE)/infrastructure/project_tree.c $(APPDIR_DWRITE)/infrastructure/snapshot_repo.c $(APPDIR_DWRITE)/infrastructure/ui_layout_repo.c $(APPDIR_DWRITE)/presentation/render/ui_icons.c $(APPDIR_DWRITE)/presentation/render/ui_text.c $(APPDIR_DWRITE)/presentation/render/ui_primitives.c $(APPDIR_DWRITE)/presentation/render/ui_widgets.c $(APPDIR_DWRITE)/domain/app_command.c $(APPDIR_DWRITE)/infrastructure/app_event_bus.c $(APPDIR_DWRITE)/application/app_controller.c $(APPDIR_DWRITE)/application/app_runtime.c $(APPDIR_DWRITE)/application/editor_command_bus.c $(APPDIR_DWRITE)/application/scene_catalog.c $(APPDIR_DWRITE)/application/scene_builder.c $(APPDIR_DWRITE)/application/history_service.c $(APPDIR_DWRITE)/application/runtime_param_service.c $(APPDIR_DWRITE)/presentation/input/input_mapping.c $(APPDIR_DWRITE)/presentation/input/menu_file_edit_actions.c $(APPDIR_DWRITE)/presentation/input/menu_view_physics_window_actions.c $(APPDIR_DWRITE)/presentation/input/menu_help_actions.c $(APPDIR_DWRITE)/presentation/input/menu_model.c
 SANDBOX_ICON_RC = $(APPDIR_DWRITE)/app_icon.rc
 SANDBOX_ICON_ICO = assets/icons/physics_sandbox.ico
 SANDBOX_ICON_OBJ = $(OBJDIR)/app_icon.res.o
@@ -27,6 +27,7 @@ TEST_SRC = $(TESTDIR)/regression_tests.c $(TESTDIR)/regression_collision_core_te
 BENCH_SRC = $(TESTDIR)/benchmark_suite.c
 INVARIANT_SRC = $(TESTDIR)/invariant_tests.c
 APP_RUNTIME_SMOKE_SRC = $(TESTDIR)/app_runtime_tick_smoke.c $(APPDIR_DWRITE)/domain/app_command.c $(APPDIR_DWRITE)/infrastructure/app_event_bus.c $(APPDIR_DWRITE)/application/app_controller.c $(APPDIR_DWRITE)/application/app_runtime.c
+EDITOR_UNDO_REDO_SMOKE_SRC = $(TESTDIR)/editor_undo_redo_smoke.c $(APPDIR_DWRITE)/application/editor_command_bus.c $(APPDIR_DWRITE)/application/history_service.c
 SCENE_MIGRATE_SRC = tools/scene_migrate_main.c
 
 CORE_LIB = $(LIBDIR)/libphysics2d.a
@@ -35,6 +36,7 @@ TEST_EXECUTABLE = $(BINDIR)/physics_tests
 BENCH_EXECUTABLE = $(BINDIR)/physics_bench
 INVARIANT_EXECUTABLE = $(BINDIR)/physics_invariants
 APP_RUNTIME_SMOKE_EXECUTABLE = $(BINDIR)/app_runtime_smoke
+EDITOR_UNDO_REDO_SMOKE_EXECUTABLE = $(BINDIR)/editor_undo_redo_smoke
 SCENE_MIGRATE_EXECUTABLE = $(BINDIR)/scene_migrate
 
 WIN_DWRITE_LIBS = -ld2d1 -ldwrite -lwindowscodecs -lole32 -luuid -lshcore -lgdi32 -luser32
@@ -80,6 +82,9 @@ $(INVARIANT_EXECUTABLE): $(CORE_LIB) $(INVARIANT_SRC) | $(BINDIR)
 $(APP_RUNTIME_SMOKE_EXECUTABLE): $(CORE_LIB) $(APP_RUNTIME_SMOKE_SRC) | $(BINDIR)
 	$(CC) $(CFLAGS) $(APP_RUNTIME_SMOKE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
 
+$(EDITOR_UNDO_REDO_SMOKE_EXECUTABLE): $(CORE_LIB) $(EDITOR_UNDO_REDO_SMOKE_SRC) | $(BINDIR)
+	$(CC) $(CFLAGS) $(EDITOR_UNDO_REDO_SMOKE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+
 $(SCENE_MIGRATE_EXECUTABLE): $(CORE_LIB) $(SCENE_MIGRATE_SRC) | $(BINDIR)
 	$(CC) $(CFLAGS) $(SCENE_MIGRATE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
 
@@ -92,9 +97,10 @@ scene-migrate: $(SCENE_MIGRATE_EXECUTABLE)
 run: $(SANDBOX_EXECUTABLE)
 	./$(SANDBOX_EXECUTABLE)
 
-test: $(TEST_EXECUTABLE) $(APP_RUNTIME_SMOKE_EXECUTABLE)
+test: $(TEST_EXECUTABLE) $(APP_RUNTIME_SMOKE_EXECUTABLE) $(EDITOR_UNDO_REDO_SMOKE_EXECUTABLE)
 	./$(TEST_EXECUTABLE)
 	./$(APP_RUNTIME_SMOKE_EXECUTABLE)
+	./$(EDITOR_UNDO_REDO_SMOKE_EXECUTABLE)
 
 benchmark: $(BENCH_EXECUTABLE)
 	./$(BENCH_EXECUTABLE)

@@ -21,7 +21,7 @@
 - [x] Scene Tree 支持场景重命名（双击或 `F2`）
 - [x] Scene Tree 支持场景排序
 - [x] Inspector 支持核心组件字段编辑与约束校验
-- [ ] 统一命令总线驱动编辑操作
+- [x] 统一命令总线驱动编辑操作
 - [ ] Undo/Redo 覆盖核心编辑行为并有回归
 - [ ] 资产引用编辑默认走 GUID 安全路径
 
@@ -89,3 +89,11 @@
 - [x] 帮助文案与字段提示已同步可编辑范围
 - [x] 验证通过：`mingw32-make test`, `mingw32-make sandbox`, `mingw32-make benchmark`, `scripts/check_arch_deps.ps1`, `scripts/check_api_surface.ps1`, `scripts/hot_reload_smoke.ps1`, `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
 - [x] 门禁摘要：`artifacts/phase_d_gate_suite_20260306_014251/summary.md`
+
+## 2026-03-06 D2 Command Bus Snapshot
+
+- [x] 新增 `editor_command_bus` 模块并接入主编辑路径
+- [x] Scene Rename / Scene Order / Inspector Set Value 已统一走 command bus dispatch
+- [x] 新增 `tests/editor_undo_redo_smoke.c` 并接入 `mingw32-make test`
+- [x] 验证通过：`mingw32-make test`, `mingw32-make sandbox`, `mingw32-make benchmark`, `scripts/check_arch_deps.ps1`, `scripts/check_api_surface.ps1`, `scripts/hot_reload_smoke.ps1`, `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
+- [x] 门禁摘要：`artifacts/phase_d_gate_suite_20260306_015548/summary.md`
