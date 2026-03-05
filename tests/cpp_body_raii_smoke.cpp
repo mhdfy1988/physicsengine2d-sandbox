@@ -12,8 +12,8 @@ int main() {
         return 2;
     }
 
-    physics_engine_add_body(engine.get(), body.release());
-    if (physics_engine_get_body_count(engine.get()) != 1) {
+    engine.add_body(body.release());
+    if (engine.body_count() != 1) {
         return 3;
     }
 

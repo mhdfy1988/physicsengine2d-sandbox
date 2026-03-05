@@ -50,6 +50,22 @@ public:
         physics_engine_step(handle_.get());
     }
 
+    int body_count() const noexcept {
+        return physics_engine_get_body_count(handle_.get());
+    }
+
+    void add_body(RigidBody* body) noexcept {
+        physics_engine_add_body(handle_.get(), body);
+    }
+
+    void remove_body(RigidBody* body) noexcept {
+        physics_engine_remove_body(handle_.get(), body);
+    }
+
+    RigidBody* detach_body(RigidBody* body) noexcept {
+        return physics_engine_detach_body(handle_.get(), body);
+    }
+
     bool add_broadphase_pair(int index_a, int index_b) noexcept {
         return physics_engine_add_broadphase_pair(handle_.get(), index_a, index_b) != 0;
     }
