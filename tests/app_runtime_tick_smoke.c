@@ -24,6 +24,7 @@ int main(void) {
     int saw_tick = 0;
 
     callbacks.toggle_run = cb_toggle_run;
+    callbacks.step_once = cb_noop;
     callbacks.reset_scene = cb_noop;
     callbacks.spawn_circle = cb_noop;
     callbacks.spawn_box = cb_noop;

@@ -848,12 +848,10 @@ static void menu_cb_log_text(const wchar_t* text, void* user) {
 }
 
 static void menu_cb_step_once(void* user) {
+    AppCommand cmd;
     (void)user;
-    if (g_state.engine != NULL) {
-        physics_engine_step(g_state.engine);
-        cleanup_constraint_selection();
-        capture_collision_events();
-    }
+    cmd.type = APP_CMD_STEP_ONCE;
+    app_runtime_dispatch(&g_app_runtime, cmd);
 }
 
 static void menu_cb_reset_scene(void* user) {
@@ -4399,6 +4397,26 @@ static void app_cmd_toggle_run(void* user) {
     g_state.running = !g_state.running;
 }
 
+static void app_cmd_step_once(void* user) {
+    (void)user;
+    if (g_state.engine != NULL) {
+        LARGE_INTEGER q0;
+        LARGE_INTEGER q1;
+        LARGE_INTEGER fq;
+        double ms = 0.0;
+        QueryPerformanceCounter(&q0);
+        physics_engine_step(g_state.engine);
+        QueryPerformanceCounter(&q1);
+        QueryPerformanceFrequency(&fq);
+        if (fq.QuadPart > 0) {
+            ms = (double)(q1.QuadPart - q0.QuadPart) * 1000.0 / (double)fq.QuadPart;
+            g_state.physics_step_ms = (float)ms;
+        }
+        cleanup_constraint_selection();
+        capture_collision_events();
+    }
+}
+
 static void app_cmd_reset_scene(void* user) {
     (void)user;
     apply_scene(g_state.scene_index);
@@ -4424,6 +4442,8 @@ static void process_app_events(void) {
         if (ev.type == APP_EVENT_COMMAND_EXECUTED) {
             if (ev.command_type == APP_CMD_TOGGLE_RUN) {
                 push_console_log(L"[状态] 模拟:%s", g_state.running ? L"运行" : L"暂停");
+            } else if (ev.command_type == APP_CMD_STEP_ONCE) {
+                push_console_log(L"[状态] 单步执行 1 帧");
             } else if (ev.command_type == APP_CMD_RESET_SCENE) {
                 push_console_log(L"[状态] 已重置当前场景");
             } else if (ev.command_type == APP_CMD_SPAWN_CIRCLE) {
@@ -5202,30 +5222,12 @@ static int handle_keydown_log_paging(WPARAM wparam) {
 
 static int handle_keydown_runtime_controls(WPARAM wparam) {
     int changed = 0;
-    if (wparam == VK_SPACE || wparam == 'R') {
+    if (wparam == VK_SPACE || wparam == 'N' || wparam == 'R') {
         AppCommand cmd;
         if (input_try_map_keydown_command((unsigned int)wparam, &cmd)) {
             app_runtime_dispatch(&g_app_runtime, cmd);
             changed = 1;
         }
-    }
-    if (wparam == 'N' && g_state.engine) {
-        LARGE_INTEGER q0;
-        LARGE_INTEGER q1;
-        LARGE_INTEGER fq;
-        double ms = 0.0;
-        QueryPerformanceCounter(&q0);
-        physics_engine_step(g_state.engine);
-        QueryPerformanceCounter(&q1);
-        QueryPerformanceFrequency(&fq);
-        if (fq.QuadPart > 0) {
-            ms = (double)(q1.QuadPart - q0.QuadPart) * 1000.0 / (double)fq.QuadPart;
-            g_state.physics_step_ms = (float)ms;
-        }
-        cleanup_constraint_selection();
-        capture_collision_events();
-        push_console_log(L"[状态] 单步执行 1 帧");
-        changed = 1;
     }
     {
         RuntimeToggleAction action = RUNTIME_TOGGLE_NONE;
@@ -5802,6 +5804,7 @@ static int shutdown_and_get_exit_code(int exit_code) {
 static void init_app_runtime_callbacks(void) {
     AppCommandCallbacks callbacks;
     callbacks.toggle_run = app_cmd_toggle_run;
+    callbacks.step_once = app_cmd_step_once;
     callbacks.reset_scene = app_cmd_reset_scene;
     callbacks.spawn_circle = app_cmd_spawn_circle;
     callbacks.spawn_box = app_cmd_spawn_box;

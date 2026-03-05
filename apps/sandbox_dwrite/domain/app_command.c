@@ -6,6 +6,9 @@ int app_command_execute(const AppCommand* cmd, const AppCommandCallbacks* callba
         case APP_CMD_TOGGLE_RUN:
             if (callbacks->toggle_run != 0) callbacks->toggle_run(callbacks->user);
             return 1;
+        case APP_CMD_STEP_ONCE:
+            if (callbacks->step_once != 0) callbacks->step_once(callbacks->user);
+            return 1;
         case APP_CMD_RESET_SCENE:
             if (callbacks->reset_scene != 0) callbacks->reset_scene(callbacks->user);
             return 1;

@@ -14,6 +14,10 @@ int input_try_map_keydown_command(unsigned int key, AppCommand* out_cmd) {
         out_cmd->type = APP_CMD_TOGGLE_RUN;
         return 1;
     }
+    if (key == 'N') {
+        out_cmd->type = APP_CMD_STEP_ONCE;
+        return 1;
+    }
     if (key == 'R') {
         out_cmd->type = APP_CMD_RESET_SCENE;
         return 1;
