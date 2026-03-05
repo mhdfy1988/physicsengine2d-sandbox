@@ -22,6 +22,7 @@ set(PHYSICS2D_SOURCES
     src/physics_config.c
     src/physics_query.c
     src/physics_mutation.c
+    src/physics_pipeline_api.c
     src/physics_snapshot.c
     src/physics_world.c
     src/physics_memory.c
