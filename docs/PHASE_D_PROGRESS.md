@@ -2,9 +2,10 @@
 
 更新时间：2026-03-06  
 分支：`cpp-migration-baseline`  
-状态：D1 已实现（证据归档收口中）
+状态：D1 已完成（进入 D2 启动准备）
 
-> 跟踪基线：以 [PHASE_D_DETAILED_DESIGN.md](./PHASE_D_DETAILED_DESIGN.md) 和 [PHASE_D_ACCEPTANCE.md](./PHASE_D_ACCEPTANCE.md) 为准。
+> 跟踪基线：以 [PHASE_D_DETAILED_DESIGN.md](./PHASE_D_DETAILED_DESIGN.md) 和 [PHASE_D_ACCEPTANCE.md](./PHASE_D_ACCEPTANCE.md) 为准。  
+> D1 证据包：见 [PHASE_D_EVIDENCE.md](./PHASE_D_EVIDENCE.md)。
 
 ## 已完成
 
@@ -17,7 +18,7 @@
 
 ## 进行中
 
-1. D1 验收证据归档（日志与门禁快照整理）。
+1. D2 第一条可交付路径选型（Scene Tree vs Inspector 先行）。
 
 ## 待完成（按里程碑）
 
@@ -26,7 +27,7 @@
 - [x] 原生文件监听后端接入 + 轮询 fallback
 - [x] 热重载错误分类升级（taxonomy）
 - [x] 无界面 smoke harness 接入
-- [ ] D1 验收证据归档
+- [x] D1 验收证据归档
 
 ### D2：编辑器核心工作流
 
@@ -62,9 +63,9 @@
 
 ## 下一次更新触发条件
 
-1. D1 证据包归档完成并补齐文档链接。
-2. D2 第一条可用编辑链路（Scene Tree 或 Inspector）完成。
-3. D2 对应验收条目首次进入可执行回归。
+1. D2 第一条可用编辑链路（Scene Tree 或 Inspector）完成。
+2. D2 对应验收条目首次进入可执行回归。
+3. D2 相关门禁新增项进入稳定执行。
 
 ## 2026-03-06 D1 Taxonomy + Headless Smoke
 

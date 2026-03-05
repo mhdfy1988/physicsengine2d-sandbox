@@ -4,7 +4,8 @@
 状态：进行中（D1）
 
 对应设计：[`PHASE_D_DETAILED_DESIGN.md`](./PHASE_D_DETAILED_DESIGN.md)  
-进度跟踪：[`PHASE_D_PROGRESS.md`](./PHASE_D_PROGRESS.md)
+进度跟踪：[`PHASE_D_PROGRESS.md`](./PHASE_D_PROGRESS.md)  
+证据归档：[`PHASE_D_EVIDENCE.md`](./PHASE_D_EVIDENCE.md)
 
 ## A. D1 热重载与开发体验基线强化
 
@@ -12,7 +13,7 @@
 - [x] sandbox 热重载运行路径已切换到 watcher 抽象层
 - [x] 热重载错误分类升级为细粒度 taxonomy
 - [x] 无界面 hot-reload smoke harness 可在 CI 执行
-- [ ] D1 证据包归档（命令、日志、关键产物）
+- [x] D1 证据包归档（命令、日志、关键产物）
 
 ## B. D2 编辑器核心工作流
 

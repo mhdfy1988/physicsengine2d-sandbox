@@ -8,6 +8,7 @@
 阶段 C 收口：[`PHASE_C_FINAL_REPORT.md`](./PHASE_C_FINAL_REPORT.md)
 进度跟踪：[`PHASE_D_PROGRESS.md`](./PHASE_D_PROGRESS.md)  
 验收清单：[`PHASE_D_ACCEPTANCE.md`](./PHASE_D_ACCEPTANCE.md)
+证据归档：[`PHASE_D_EVIDENCE.md`](./PHASE_D_EVIDENCE.md)
 
 ## 1. 文档目标
 
@@ -162,8 +163,9 @@
 1. 阶段 D 详细设计文档（本文件）。
 2. 阶段 D 进度文档（见 [PHASE_D_PROGRESS.md](./PHASE_D_PROGRESS.md)）。
 3. 阶段 D 验收清单（见 [PHASE_D_ACCEPTANCE.md](./PHASE_D_ACCEPTANCE.md)）。
-4. 阶段 D 封板报告（阶段完成时输出）。
-5. 对应测试、脚本、门禁报告与证据归档。
+4. 阶段 D 证据归档（见 [PHASE_D_EVIDENCE.md](./PHASE_D_EVIDENCE.md)）。
+5. 阶段 D 封板报告（阶段完成时输出）。
+6. 对应测试、脚本、门禁报告与证据归档。
 
 ## 12. 执行纪律
 
