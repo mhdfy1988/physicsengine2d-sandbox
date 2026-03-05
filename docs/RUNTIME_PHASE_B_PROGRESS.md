@@ -1,52 +1,47 @@
-# Runtime 架构固化阶段 B 进度
+# Runtime 阶段 B 进度
 
 更新时间：2026-03-05  
 分支：`cpp-migration-baseline`
 
 ## 已完成
-1. B 阶段详细设计文档已创建：`RUNTIME_PHASE_B_DETAILED_DESIGN.md`。
-2. Runtime Facade 已落地：`cpp/physics_runtime_facade.hpp`。
-3. Runtime Facade 支持 `TickSnapshot` 导出：
-   - 帧序号
-   - spawn/sync/cleanup 统计
-   - mapping 错误计数
-   - bridge 校验报告
-4. ECS-Physics 桥接已增强为双向映射并可校验一致性。
-5. 已完成 ECS->Physics 增量脏标记同步：
-   - Transform/BodySpec 脏更新仅同步变更体
-   - Collider 脏更新触发受控 respawn
-5. 新增并接入 smoke：
-   - `cpp_runtime_facade_smoke`
-   - `cpp_ecs_bridge_smoke`
-   - `cpp_ecs_dirty_sync_smoke`
-6. CI 门禁已升级：
-   - Windows: `test + benchmark + arch/api checks`
-   - Ubuntu: `cmake tests + benchmark + selected cpp smoke`
-7. 已增加 Physics->ECS 最小事件桥：
-   - `ContactCreated`
-   - `BodySleep`
-   - `BodyWake`
-   并通过 `runtime.last_events()` 暴露给上层。
-8. 已补充编辑器近似控制流 smoke：
-   - `cpp_runtime_pause_step_smoke`
-   覆盖暂停（不步进）/单步恢复/再次暂停行为。
-9. 已把 runtime 快照接到编辑器最小闭环：
-   - `AppRuntime` 支持 `RuntimeTick` 事件与 `last_snapshot`
-   - `main.c` 每帧上报并消费快照，状态栏优先展示该快照指标。
-10. 已新增 editor 通路最小集成测试：
-    - `tests/app_runtime_tick_smoke.c`
-    - 已接入 `mingw32-make test` 与 CMake `BUILD_TESTS`。
-11. editor 运行控制进一步事件化：
-    - 新增 `APP_CMD_STEP_ONCE`
-    - `N` 键与菜单单步都通过 `AppRuntime` 分发，不再走 main 直连分支。
-12. 新增 `APP_EVENT_RUNTIME_STATE_CHANGED`：
-    - 由 `AppRuntime` 在 running 状态变化时发布
-    - 编辑器日志统一消费该事件输出“运行/暂停”状态变化。
 
-## 当前状态
-1. `mingw32-make test`：`PASS (31/31)`。
-2. `mingw32-make benchmark`：`PASS`。
-3. `check_arch_deps.ps1` / `check_api_surface.ps1`：通过。
+1. Runtime Facade 已落地并稳定运行：
+   - `TickSnapshot`（帧序号、桥接校验、统计）
+   - `last_events()`（接触创建、睡眠、唤醒）
+   - `last_errors()`（桥接错误通道）
+2. ECS-Physics 桥接已具备基础一致性保障：
+   - 双向映射（entity -> body / body -> entity）
+   - `validate_bridge()` 校验与映射错误统计
+   - dirty sync + collider 变更触发受控 respawn
+3. 编辑器最小运行时闭环已完成：
+   - `AppRuntime` 事件化（tick/state/command）
+   - 右侧调试面板显示运行时快照、历史、错误与拥塞状态
+   - 状态栏与顶部工具栏拥塞提示（含红点跳转告警）
+4. 运行时可观测性增强：
+   - 事件总线 dropped 计数
+   - 拥塞/恢复状态机与节流日志
+   - 运行时错误码与可读标签展示
+5. 测试与CI已覆盖关键路径：
+   - 新增并接入 `cpp_runtime_error_channel_smoke`
+   - 现有 C/C++ smoke、回归、benchmark、架构/API 检查持续全绿
 
-## 下一步（B2 收口）
-1. 将 runtime tick/state 事件进一步映射到调试面板可视指标（而不只状态栏与日志）。
+## 未完成（B阶段收口项）
+
+1. C++ `RuntimeFacade::last_errors()` 到编辑器事件总线的直连：
+   - 当前编辑器仍主要消费 C 引擎 `last_error`（0/1 + code）
+   - 尚未携带“多错误列表”完整透传
+2. B阶段验收清单文档（封板版）：
+   - 需单独产出“DoD逐条对照 + 证据链接 + 残留风险”
+3. 错误通道 smoke 还需补两个场景：
+   - 错误恢复场景
+   - 多错误并发场景
+4. B阶段封板回归报告：
+   - 一次只修不加功能的收口回归与最终结论
+
+## 当前门禁状态
+
+1. `mingw32-make test`：通过（31/31 + app_runtime_smoke）
+2. `mingw32-make sandbox`：通过
+3. `mingw32-make benchmark`：通过
+4. `check_arch_deps.ps1`：通过
+5. `check_api_surface.ps1`：通过
