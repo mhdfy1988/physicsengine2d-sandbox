@@ -2538,6 +2538,10 @@ static void draw_toolbar_icon_button(D2D1_RECT_F r, ToolbarIconId icon, int acti
     ui_draw_toolbar_icon_button(g_ui.target, g_ui.brush, r, icon, active, hovered);
 }
 
+static D2D1_RECT_F runtime_bus_badge_rect(void) {
+    return rc(g_top_run_rect.right - 13.0f, g_top_run_rect.top + 3.0f, g_top_run_rect.right - 3.0f, g_top_run_rect.top + 13.0f);
+}
+
 static void draw_text_tab_button(D2D1_RECT_F rect, const wchar_t* label, int active, int hovered) {
     D2D1_RECT_F indicator;
     D2D1_COLOR_F text_color;
@@ -3670,12 +3674,17 @@ static void layout_top_toolbar_buttons(D2D1_RECT_F toolbar_rect) {
 static void render_top_toolbar_buttons(void) {
     draw_toolbar_icon_button(g_top_run_rect, g_state.running ? TB_ICON_PAUSE : TB_ICON_RUN, g_state.running, point_in_rect(g_state.mouse_screen, g_top_run_rect));
     if (g_state.runtime_event_drop_count > 0) {
+        D2D1_RECT_F badge_rect = runtime_bus_badge_rect();
         D2D1_ELLIPSE badge = {0};
-        badge.point = pt(g_top_run_rect.right - 8.0f, g_top_run_rect.top + 8.0f);
+        badge.point = pt((badge_rect.left + badge_rect.right) * 0.5f, (badge_rect.top + badge_rect.bottom) * 0.5f);
         badge.radiusX = 4.0f;
         badge.radiusY = 4.0f;
         set_brush_color(0.92f, 0.22f, 0.20f, 1.0f);
         ID2D1HwndRenderTarget_FillEllipse(g_ui.target, &badge, (ID2D1Brush*)g_ui.brush);
+        if (point_in_rect(g_state.mouse_screen, badge_rect)) {
+            set_brush_color(0.99f, 0.80f, 0.78f, 1.0f);
+            ID2D1HwndRenderTarget_DrawEllipse(g_ui.target, &badge, (ID2D1Brush*)g_ui.brush, 1.0f, NULL);
+        }
     }
     draw_toolbar_icon_button(g_top_step_rect, TB_ICON_STEP, 0, point_in_rect(g_state.mouse_screen, g_top_step_rect));
     draw_toolbar_icon_button(g_top_reset_rect, TB_ICON_RESET, 0, point_in_rect(g_state.mouse_screen, g_top_reset_rect));
@@ -4324,7 +4333,9 @@ static void render_status_bar(D2D1_RECT_F status_rect) {
              g_state.recycled_count);
     {
         const wchar_t* tip = L"";
-        if (point_in_rect(g_state.mouse_screen, g_top_run_rect)) {
+        if (g_state.runtime_event_drop_count > 0 && point_in_rect(g_state.mouse_screen, runtime_bus_badge_rect())) {
+            tip = L"点击红点可快速打开告警日志";
+        } else if (point_in_rect(g_state.mouse_screen, g_top_run_rect)) {
             tip = (g_state.runtime_event_drop_count > 0) ? L"运行/暂停模拟（事件总线拥塞，点击下方面板查看告警）" : L"运行/暂停模拟";
         }
         else if (point_in_rect(g_state.mouse_screen, g_top_step_rect)) tip = L"单步执行一帧";
@@ -5112,6 +5123,12 @@ static int handle_layout_lbuttondown(HWND hwnd) {
 }
 
 static int handle_top_toolbar_lbuttondown(HWND hwnd) {
+    if (g_state.runtime_event_drop_count > 0 && point_in_rect(g_state.mouse_screen, runtime_bus_badge_rect())) {
+        focus_console_log_panel(3);
+        push_console_log(L"[状态] 已定位到事件总线告警日志");
+        InvalidateRect(hwnd, NULL, FALSE);
+        return 1;
+    }
     if (point_in_rect(g_state.mouse_screen, g_top_run_rect)) {
         AppCommand cmd;
         if (input_try_map_toolbar_command(TOOLBAR_ACTION_TOGGLE_RUN, &cmd)) {
