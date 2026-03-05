@@ -2,7 +2,6 @@
 #define PHYSICS_INTERNAL_H
 
 #include <stddef.h>
-#include "../include/physics.h"
 #include "internal/physics_world_state.h"
 
 RigidBody* physics_internal_raycast(PhysicsEngine* engine, Vec2 start, Vec2 end);
