@@ -3669,6 +3669,14 @@ static void layout_top_toolbar_buttons(D2D1_RECT_F toolbar_rect) {
 
 static void render_top_toolbar_buttons(void) {
     draw_toolbar_icon_button(g_top_run_rect, g_state.running ? TB_ICON_PAUSE : TB_ICON_RUN, g_state.running, point_in_rect(g_state.mouse_screen, g_top_run_rect));
+    if (g_state.runtime_event_drop_count > 0) {
+        D2D1_ELLIPSE badge = {0};
+        badge.point = pt(g_top_run_rect.right - 8.0f, g_top_run_rect.top + 8.0f);
+        badge.radiusX = 4.0f;
+        badge.radiusY = 4.0f;
+        set_brush_color(0.92f, 0.22f, 0.20f, 1.0f);
+        ID2D1HwndRenderTarget_FillEllipse(g_ui.target, &badge, (ID2D1Brush*)g_ui.brush);
+    }
     draw_toolbar_icon_button(g_top_step_rect, TB_ICON_STEP, 0, point_in_rect(g_state.mouse_screen, g_top_step_rect));
     draw_toolbar_icon_button(g_top_reset_rect, TB_ICON_RESET, 0, point_in_rect(g_state.mouse_screen, g_top_reset_rect));
     draw_toolbar_icon_button(g_top_save_rect, TB_ICON_SAVE, 0, point_in_rect(g_state.mouse_screen, g_top_save_rect));
@@ -4316,7 +4324,9 @@ static void render_status_bar(D2D1_RECT_F status_rect) {
              g_state.recycled_count);
     {
         const wchar_t* tip = L"";
-        if (point_in_rect(g_state.mouse_screen, g_top_run_rect)) tip = L"运行/暂停模拟";
+        if (point_in_rect(g_state.mouse_screen, g_top_run_rect)) {
+            tip = (g_state.runtime_event_drop_count > 0) ? L"运行/暂停模拟（事件总线拥塞，点击下方面板查看告警）" : L"运行/暂停模拟";
+        }
         else if (point_in_rect(g_state.mouse_screen, g_top_step_rect)) tip = L"单步执行一帧";
         else if (point_in_rect(g_state.mouse_screen, g_top_reset_rect)) tip = L"重置当前场景";
         else if (point_in_rect(g_state.mouse_screen, g_top_save_rect)) tip = L"保存快照";
