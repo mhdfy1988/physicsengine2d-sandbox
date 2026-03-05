@@ -148,6 +148,12 @@ typedef struct {
     int ui_theme_light;
     int fps_display;
     float physics_step_ms;
+    unsigned int runtime_frame_index;
+    int runtime_running;
+    int runtime_body_count;
+    int runtime_constraint_count;
+    int runtime_contact_count;
+    int runtime_state_change_count;
     unsigned int fps_last_tick_ms;
     int fps_accum_frames;
     int last_contact_count;
@@ -1918,6 +1924,12 @@ static void apply_scene(int scene_index) {
     g_state.inspector_focused_row = 0;
     g_state.recycled_count = 0;
     g_state.last_contact_count = 0;
+    g_state.runtime_frame_index = 0;
+    g_state.runtime_running = 0;
+    g_state.runtime_body_count = 0;
+    g_state.runtime_constraint_count = 0;
+    g_state.runtime_contact_count = 0;
+    g_state.runtime_state_change_count = 0;
     g_state.last_collision_capture_ms = 0;
     clear_collision_events();
     g_state.scene_needs_stage_fit = 1;
@@ -2869,7 +2881,7 @@ static void render_right_debug_section(D2D1_RECT_F debug_rect) {
     g_debug_viewport_rect = rc(debug_rect.left + 8.0f, debug_rect.top + 40.0f, debug_rect.right - 14.0f, debug_rect.bottom - 8.0f);
     debug_content_right = g_debug_viewport_rect.right - 2.0f;
     debug_view_h = g_debug_viewport_rect.bottom - g_debug_viewport_rect.top;
-    debug_content_h = 148.0f;
+    debug_content_h = 292.0f;
     g_state.debug_scroll_max = 0;
     if (debug_content_h > debug_view_h) {
         g_state.debug_scroll_max = (int)(debug_content_h - debug_view_h + 0.5f);
@@ -2899,6 +2911,27 @@ static void render_right_debug_section(D2D1_RECT_F debug_rect) {
             draw_text(labels[di], rc(rr.left + 6.0f, rr.top + 1.0f, rr.left + 110.0f, rr.bottom - 1.0f), g_ui.fmt_info, rgba(0.74f, 0.81f, 0.91f, 1.0f));
             draw_text(line, rc(rr.left + 116.0f, rr.top + 1.0f, rr.right - 8.0f, rr.bottom - 1.0f), g_ui.fmt_info, rgba(0.92f, 0.95f, 0.99f, 1.0f));
         }
+    }
+    draw_text(L"运行时快照", rc(debug_rect.left + 12.0f, debug_offset_y + 132.0f, debug_rect.left + 128.0f, debug_offset_y + 154.0f),
+              g_ui.fmt_info, rgba(0.70f, 0.78f, 0.90f, 1.0f));
+    {
+        D2D1_RECT_F rt_rect = rc(debug_rect.left + 10.0f, debug_offset_y + 162.0f, debug_content_right, debug_offset_y + 282.0f);
+        draw_card_round(rt_rect, 5.0f, rgba(0.20f, 0.25f, 0.33f, 1.0f), rgba(0.33f, 0.40f, 0.52f, 1.0f));
+        swprintf(line, 128, L"帧序号: %u", g_state.runtime_frame_index);
+        draw_text(line, rc(rt_rect.left + 8.0f, rt_rect.top + 4.0f, rt_rect.right - 8.0f, rt_rect.top + 24.0f), g_ui.fmt_info,
+                  rgba(0.90f, 0.94f, 0.99f, 1.0f));
+        swprintf(line, 128, L"模拟状态: %s", g_state.runtime_running ? L"运行" : L"暂停");
+        draw_text(line, rc(rt_rect.left + 8.0f, rt_rect.top + 24.0f, rt_rect.right - 8.0f, rt_rect.top + 44.0f), g_ui.fmt_info,
+                  rgba(0.90f, 0.94f, 0.99f, 1.0f));
+        swprintf(line, 128, L"对象: %d  约束: %d", g_state.runtime_body_count, g_state.runtime_constraint_count);
+        draw_text(line, rc(rt_rect.left + 8.0f, rt_rect.top + 44.0f, rt_rect.right - 8.0f, rt_rect.top + 64.0f), g_ui.fmt_info,
+                  rgba(0.90f, 0.94f, 0.99f, 1.0f));
+        swprintf(line, 128, L"接触: %d  单帧耗时: %.2fms", g_state.runtime_contact_count, g_state.physics_step_ms);
+        draw_text(line, rc(rt_rect.left + 8.0f, rt_rect.top + 64.0f, rt_rect.right - 8.0f, rt_rect.top + 84.0f), g_ui.fmt_info,
+                  rgba(0.90f, 0.94f, 0.99f, 1.0f));
+        swprintf(line, 128, L"状态变更事件: %d", g_state.runtime_state_change_count);
+        draw_text(line, rc(rt_rect.left + 8.0f, rt_rect.top + 84.0f, rt_rect.right - 8.0f, rt_rect.top + 104.0f), g_ui.fmt_info,
+                  rgba(0.90f, 0.94f, 0.99f, 1.0f));
     }
     ID2D1HwndRenderTarget_PopAxisAlignedClip(g_ui.target);
     if (g_state.debug_scroll_max > 0) {
@@ -4451,7 +4484,12 @@ static void process_app_events(void) {
             }
         } else if (ev.type == APP_EVENT_RUNTIME_TICK) {
             g_state.physics_step_ms = ev.runtime_snapshot.step_ms;
-            if (g_state.running && ev.runtime_snapshot.contact_count != g_state.last_contact_count) {
+            g_state.runtime_frame_index = ev.runtime_snapshot.frame_index;
+            g_state.runtime_running = ev.runtime_snapshot.running ? 1 : 0;
+            g_state.runtime_body_count = ev.runtime_snapshot.body_count;
+            g_state.runtime_constraint_count = ev.runtime_snapshot.constraint_count;
+            g_state.runtime_contact_count = ev.runtime_snapshot.contact_count;
+            if (g_state.runtime_running && ev.runtime_snapshot.contact_count != g_state.last_contact_count) {
                 unsigned int now_ms = (unsigned int)GetTickCount();
                 if ((now_ms - g_state.last_contact_log_ms) >= 500) {
                     push_console_log(L"[碰撞] 接触数量: %d -> %d", g_state.last_contact_count, ev.runtime_snapshot.contact_count);
@@ -4460,6 +4498,8 @@ static void process_app_events(void) {
                 g_state.last_contact_count = ev.runtime_snapshot.contact_count;
             }
         } else if (ev.type == APP_EVENT_RUNTIME_STATE_CHANGED) {
+            g_state.runtime_running = ev.runtime_snapshot.running ? 1 : 0;
+            g_state.runtime_state_change_count++;
             push_console_log(L"[状态] 模拟:%s", ev.runtime_snapshot.running ? L"运行" : L"暂停");
         }
     }
@@ -5862,6 +5902,12 @@ static void init_state_defaults(void) {
     g_state.hierarchy_filter_len = 0;
     g_state.fps_display = 0;
     g_state.physics_step_ms = 0.0f;
+    g_state.runtime_frame_index = 0;
+    g_state.runtime_running = 0;
+    g_state.runtime_body_count = 0;
+    g_state.runtime_constraint_count = 0;
+    g_state.runtime_contact_count = 0;
+    g_state.runtime_state_change_count = 0;
     g_state.fps_last_tick_ms = 0;
     g_state.fps_accum_frames = 0;
     g_state.last_contact_count = 0;
