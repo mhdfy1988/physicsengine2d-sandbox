@@ -11,6 +11,7 @@ option(BUILD_EDITOR "Build DWrite interactive editor app" ON)
 option(BUILD_SANDBOX "Deprecated alias for BUILD_EDITOR" ON)
 option(BUILD_TESTS "Build regression test executable" OFF)
 option(BUILD_CPP_COMPAT "Build C++ compatibility smoke target" ON)
+option(BUILD_CPP_WRAPPER "Build C++ RAII wrapper smoke target" ON)
 if(DEFINED BUILD_SANDBOX)
     set(BUILD_EDITOR ${BUILD_SANDBOX})
 endif()
@@ -143,6 +144,20 @@ if(BUILD_CPP_COMPAT)
         target_compile_options(physics_cpp_smoke PRIVATE -Wall -Wextra -Wpedantic)
     endif()
     set_target_properties(physics_cpp_smoke PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+endif()
+
+if(BUILD_CPP_WRAPPER)
+    add_executable(physics_cpp_raii_smoke tests/cpp_raii_smoke.cpp)
+    target_include_directories(physics_cpp_raii_smoke PRIVATE ${CMAKE_SOURCE_DIR}/cpp)
+    target_link_libraries(physics_cpp_raii_smoke PRIVATE physics2d)
+    if(MSVC)
+        target_compile_options(physics_cpp_raii_smoke PRIVATE /W4)
+    else()
+        target_compile_options(physics_cpp_raii_smoke PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+    set_target_properties(physics_cpp_raii_smoke PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
 endif()
