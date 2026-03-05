@@ -7,6 +7,8 @@ typedef struct {
     AppEventBus event_bus;
     AppController controller;
     AppRuntimeSnapshot last_snapshot;
+    AppRuntimeErrorItem pending_errors[APP_RUNTIME_MAX_ERRORS];
+    int pending_error_count;
     unsigned int frame_index;
 } AppRuntime;
 
@@ -15,5 +17,6 @@ int app_runtime_dispatch(AppRuntime* runtime, AppCommand command_data);
 int app_runtime_pop_event(AppRuntime* runtime, AppEvent* out_event);
 void app_runtime_report_tick(AppRuntime* runtime, PhysicsEngine* engine, int running, float step_ms);
 const AppRuntimeSnapshot* app_runtime_get_last_snapshot(const AppRuntime* runtime);
+void app_runtime_set_runtime_errors(AppRuntime* runtime, const AppRuntimeErrorItem* errors, int error_count);
 
 #endif

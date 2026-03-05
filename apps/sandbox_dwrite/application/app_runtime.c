@@ -18,6 +18,7 @@ void app_runtime_init(AppRuntime* runtime, AppCommandCallbacks callbacks) {
     runtime->last_snapshot.runtime_error_code = PHYSICS_ERROR_NONE;
     runtime->last_snapshot.runtime_error_item_count = 0;
     runtime->last_snapshot.event_drop_count = 0;
+    runtime->pending_error_count = 0;
     runtime->frame_index = 0;
 }
 
@@ -47,14 +48,25 @@ void app_runtime_report_tick(AppRuntime* runtime, PhysicsEngine* engine, int run
     runtime->last_snapshot.body_count = (engine != NULL) ? physics_engine_get_body_count(engine) : 0;
     runtime->last_snapshot.constraint_count = (engine != NULL) ? physics_engine_get_constraint_count(engine) : 0;
     runtime->last_snapshot.contact_count = (engine != NULL) ? physics_engine_get_contact_count(engine) : 0;
-    runtime->last_snapshot.runtime_error_code = (engine != NULL) ? physics_engine_get_last_error(engine) : PHYSICS_ERROR_NONE;
-    runtime->last_snapshot.runtime_error_count = (runtime->last_snapshot.runtime_error_code == PHYSICS_ERROR_NONE) ? 0 : 1;
     runtime->last_snapshot.runtime_error_item_count = 0;
-    if (runtime->last_snapshot.runtime_error_count > 0) {
-        runtime->last_snapshot.runtime_error_item_count = 1;
-        runtime->last_snapshot.runtime_errors[0].code = runtime->last_snapshot.runtime_error_code;
-        runtime->last_snapshot.runtime_errors[0].severity = app_runtime_error_severity_from_code(runtime->last_snapshot.runtime_error_code);
-        runtime->last_snapshot.runtime_errors[0].count = 1;
+    if (runtime->pending_error_count > 0) {
+        int i;
+        runtime->last_snapshot.runtime_error_item_count = runtime->pending_error_count;
+        runtime->last_snapshot.runtime_error_count = runtime->pending_error_count;
+        runtime->last_snapshot.runtime_error_code = runtime->pending_errors[0].code;
+        for (i = 0; i < runtime->pending_error_count; i++) {
+            runtime->last_snapshot.runtime_errors[i] = runtime->pending_errors[i];
+        }
+        runtime->pending_error_count = 0;
+    } else {
+        runtime->last_snapshot.runtime_error_code = (engine != NULL) ? physics_engine_get_last_error(engine) : PHYSICS_ERROR_NONE;
+        runtime->last_snapshot.runtime_error_count = (runtime->last_snapshot.runtime_error_code == PHYSICS_ERROR_NONE) ? 0 : 1;
+        if (runtime->last_snapshot.runtime_error_count > 0) {
+            runtime->last_snapshot.runtime_error_item_count = 1;
+            runtime->last_snapshot.runtime_errors[0].code = runtime->last_snapshot.runtime_error_code;
+            runtime->last_snapshot.runtime_errors[0].severity = app_runtime_error_severity_from_code(runtime->last_snapshot.runtime_error_code);
+            runtime->last_snapshot.runtime_errors[0].count = 1;
+        }
     }
     runtime->last_snapshot.step_ms = step_ms;
     runtime->last_snapshot.event_drop_count = app_event_bus_dropped_count(&runtime->event_bus);
@@ -80,4 +92,18 @@ void app_runtime_report_tick(AppRuntime* runtime, PhysicsEngine* engine, int run
 const AppRuntimeSnapshot* app_runtime_get_last_snapshot(const AppRuntime* runtime) {
     if (runtime == 0) return 0;
     return &runtime->last_snapshot;
+}
+
+void app_runtime_set_runtime_errors(AppRuntime* runtime, const AppRuntimeErrorItem* errors, int error_count) {
+    int i;
+    if (runtime == 0) return;
+    if (errors == 0 || error_count <= 0) {
+        runtime->pending_error_count = 0;
+        return;
+    }
+    if (error_count > APP_RUNTIME_MAX_ERRORS) error_count = APP_RUNTIME_MAX_ERRORS;
+    runtime->pending_error_count = error_count;
+    for (i = 0; i < error_count; i++) {
+        runtime->pending_errors[i] = errors[i];
+    }
 }
