@@ -1,0 +1,7 @@
+schema_version|1
+project_guid|project://physics-sandbox
+project_name|PhysicsSandbox
+engine_version|phase-g
+startup_scene|scene://default
+package_count|1
+package|package.core.tools|Packages/core_tools.physicspackage|1

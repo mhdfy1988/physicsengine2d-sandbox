@@ -1,0 +1,7 @@
+schema_version|1
+prefab_guid|prefab://phase_g_nested
+base_prefab_guid|prefab://phase_g_base
+is_variant|1
+entity_count|0
+override_count|1
+override|11|1|mass|2.000000

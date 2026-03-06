@@ -35,4 +35,4 @@ This phase closed the remaining project-owned C source inventory and removed the
 ## Notes
 
 1. This closure is about project-owned source language convergence. Third-party C-facing SDK headers may still exist at the integration boundary.
-2. The next architecture work remains the shifted Phase G/H roadmap items from the master design.
+2. Phase G completed later with project/workspace/package persistence, prefab semantics, and editor plugin lifecycle coverage; the next active roadmap item is Phase H.

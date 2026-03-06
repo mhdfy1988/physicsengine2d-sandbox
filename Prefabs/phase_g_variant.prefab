@@ -1,0 +1,9 @@
+schema_version|1
+prefab_guid|prefab://phase_g_variant
+base_prefab_guid|prefab://phase_g_nested
+is_variant|1
+entity_count|0
+override_count|3
+override|21|1|mass|3.000000
+override|22|1|damping|0.950000
+override|23|99|friction|0.500000

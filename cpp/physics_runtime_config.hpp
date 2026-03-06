@@ -12,6 +12,7 @@ struct RuntimePathConfig {
     Path assets_dir;
     Path scenes_dir;
     Path prefabs_dir;
+    Path packages_dir;
     Path project_settings_dir;
     Path build_dir;
     Path cache_dir;
@@ -22,6 +23,7 @@ struct RuntimePathConfig {
         config.assets_dir = config.project_root / "Assets";
         config.scenes_dir = config.project_root / "Scenes";
         config.prefabs_dir = config.project_root / "Prefabs";
+        config.packages_dir = config.project_root / "Packages";
         config.project_settings_dir = config.project_root / "ProjectSettings";
         config.build_dir = config.project_root / "Build";
         config.cache_dir = config.project_root / "Cache";
@@ -33,6 +35,7 @@ struct RuntimePathConfig {
                ensure_directory(assets_dir) &&
                ensure_directory(scenes_dir) &&
                ensure_directory(prefabs_dir) &&
+               ensure_directory(packages_dir) &&
                ensure_directory(project_settings_dir) &&
                ensure_directory(build_dir) &&
                ensure_directory(cache_dir);
@@ -43,6 +46,7 @@ struct RuntimePathConfig {
                !assets_dir.empty() &&
                !scenes_dir.empty() &&
                !prefabs_dir.empty() &&
+               !packages_dir.empty() &&
                !project_settings_dir.empty() &&
                !build_dir.empty() &&
                !cache_dir.empty();

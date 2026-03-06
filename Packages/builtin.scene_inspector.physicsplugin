@@ -1,0 +1,6 @@
+api_version|1
+plugin_id|builtin.scene_inspector
+display_name|Scene Inspector
+plugin_version|1.0.0
+engine_version_range|>=phase-g
+capabilities|1

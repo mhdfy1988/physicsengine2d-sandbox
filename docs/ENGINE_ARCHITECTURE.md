@@ -241,7 +241,7 @@
 1. 物理内核属于 `Physics2D Backend`。
 2. C++ ECS 与 Pipeline 属于 `Core/ECS` 雏形。
 3. Sandbox 可逐步演进为 Editor 原型容器。
-4. A-F 完成后，当前主线任务转为“继续推进工程系统、Prefab 语义、插件扩展与发布工程化能力补齐”。
+4. A-H 已完成，主路线图全部封板；后续工作以维护、扩展和新需求为主。
 
 ---
 
@@ -296,7 +296,7 @@
 4. 删除阶段 E 中所有“临时保留 C 路径”的 allowlist / retention 机制。
 5. 详细设计见 [PHASE_F_DETAILED_DESIGN.md](./PHASE_F_DETAILED_DESIGN.md)。
 
-### 阶段 G：工程系统、Prefab 语义与插件扩展
+### 阶段 G：工程系统、Prefab 语义与插件扩展（已完成）
 
 1. 落地 `Project / Workspace / Package / Settings` 工程对象模型。
 2. 完成 Prefab 深层编辑语义：
@@ -310,7 +310,7 @@
    - 自定义菜单、工具窗口、构建步骤
 4. 将插件边界限制在公开扩展 API 上，禁止直接耦合内部实现。
 
-### 阶段 H：发布工程化、诊断与故障恢复
+### 阶段 H：发布工程化、诊断与故障恢复（已完成）
 
 1. 完成构建目标矩阵：
    - Editor Debug / Release
@@ -449,13 +449,14 @@
 1. `Assets/`：原始资源与导入源文件。
 2. `Scenes/`：场景数据。
 3. `Prefabs/`：预制体数据。
-4. `Build/`：构建输出。
-5. `Cache/`：中间缓存（可安全清理）。
-6. `ProjectSettings/`：项目设置。
+4. `Packages/`：可复用功能包与插件清单。
+5. `Build/`：构建输出。
+6. `Cache/`：中间缓存（可安全清理）。
+7. `ProjectSettings/`：项目设置。
 
 ### 17.3 迁移规则
 
-1. `Assets/Scenes/Prefabs/ProjectSettings` 必须纳入版本管理。
+1. `Assets/Scenes/Prefabs/Packages/ProjectSettings` 必须纳入版本管理。
 2. `Build/Cache` 默认不纳入版本管理。
 3. 项目升级由迁移工具完成，不允许手工批量改 schema。
 

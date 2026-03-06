@@ -1,0 +1,8 @@
+schema_version|1
+package_id|package.core.tools
+display_name|Core Tools
+package_version|1.0.0
+engine_version_range|>=phase-g
+plugin_count|2
+plugin|builtin.scene_inspector|Packages/builtin.scene_inspector.physicsplugin
+plugin|builtin.failing_menu|Packages/builtin.failing_menu.physicsplugin

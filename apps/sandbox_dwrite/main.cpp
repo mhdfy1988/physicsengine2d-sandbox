@@ -38,6 +38,12 @@
 #include "application/pie_lifecycle.hpp"
 #include "asset_hot_reload.hpp"
 #include "asset_fs_watch.hpp"
+#include "project_workspace.hpp"
+#include "prefab_schema.hpp"
+#include "prefab_semantics.hpp"
+#include "editor_plugin.hpp"
+#include "session_recovery.hpp"
+#include "diagnostic_bundle.hpp"
 #include "presentation/input/input_mapping.hpp"
 #include "presentation/input/menu_file_edit_actions.hpp"
 #include "presentation/input/menu_view_physics_window_actions.hpp"
@@ -296,6 +302,8 @@ static AssetHotReloadService g_hot_reload_service;
 static AssetFsWatchState g_asset_fs_watch;
 static char g_hot_reload_root_dir[ASSET_WATCH_MAX_PATH];
 static const char* PIE_EDITOR_SNAPSHOT_PATH = "pie_editor_state_snapshot.txt";
+static const char* SESSION_RECOVERY_PATH = "ProjectSettings/editor_session.physicssession";
+static const char* BUILD_METADATA_PATH = "artifacts/build/build_metadata.json";
 static const float WORLD_SCALE = 12.0f;
 static const float WORLD_ORIGIN_X = 20.0f;
 static const float WORLD_ORIGIN_Y = 20.0f;
@@ -405,6 +413,7 @@ typedef struct {
     D2D1_RECT_F debug_scroll_track_rect;
     D2D1_RECT_F debug_scroll_thumb_rect;
     D2D1_RECT_F perf_export_rect;
+    D2D1_RECT_F perf_diag_export_rect;
     D2D1_RECT_F dbg_row_rect[3];
     D2D1_RECT_F dbg_minus_rect[3];
     D2D1_RECT_F dbg_plus_rect[3];
@@ -514,6 +523,7 @@ static UiLayoutState g_layout{};
 #define g_debug_scroll_track_rect g_layout.debug_scroll_track_rect
 #define g_debug_scroll_thumb_rect g_layout.debug_scroll_thumb_rect
 #define g_perf_export_rect g_layout.perf_export_rect
+#define g_perf_diag_export_rect g_layout.perf_diag_export_rect
 #define g_dbg_row_rect g_layout.dbg_row_rect
 #define g_dbg_minus_rect g_layout.dbg_minus_rect
 #define g_dbg_plus_rect g_layout.dbg_plus_rect
@@ -557,6 +567,16 @@ static int g_debug_error_history_count;
 static HotReloadHistoryEntry g_hot_reload_history[DEBUG_HISTORY_CAP];
 static int g_hot_reload_history_head;
 static int g_hot_reload_history_count;
+static WorkspaceDocument g_workspace_doc{};
+static ProjectDocument g_project_doc{};
+static PackageDocument g_package_doc{};
+static ProjectSettingsDocument g_project_settings_doc{};
+static EditorPluginRegistry g_editor_plugin_registry{};
+static SessionRecoveryState g_session_recovery_state{};
+static int g_editor_plugin_builtin_enabled;
+static PrefabOverrideAnalysisReport g_prefab_analysis{};
+static int g_prefab_analysis_valid;
+static int g_prefab_repair_removed_count;
 static BodyClipboard g_clipboard_body;
 static wchar_t g_status_project_path[260];
 static wchar_t g_status_user[64];
@@ -2696,6 +2716,160 @@ static int file_exists_utf8_path(const char* path) {
     return ((attr & FILE_ATTRIBUTE_DIRECTORY) == 0);
 }
 
+static void utf8_to_wide_copy(const char* src, wchar_t* out, int out_cap) {
+    if (out == NULL || out_cap <= 0) return;
+    out[0] = L'\0';
+    if (src == NULL || src[0] == '\0') return;
+    MultiByteToWideChar(CP_UTF8, 0, src, -1, out, out_cap);
+}
+
+static void wide_to_utf8_copy(const wchar_t* src, char* out, int out_cap) {
+    if (out == NULL || out_cap <= 0) return;
+    out[0] = '\0';
+    if (src == NULL || src[0] == L'\0') return;
+    WideCharToMultiByte(CP_UTF8, 0, src, -1, out, out_cap, NULL, NULL);
+}
+
+static int phase_g_scene_inspector_init(void* user) {
+    int* flag = (int*)user;
+    if (flag != NULL) *flag = 1;
+    return 1;
+}
+
+static void phase_g_scene_inspector_shutdown(void* user) {
+    int* flag = (int*)user;
+    if (flag != NULL) *flag = 0;
+}
+
+static int phase_g_failing_plugin_init(void* user) {
+    (void)user;
+    return 0;
+}
+
+static void phase_g_refresh_editor_extension_state(void) {
+    WorkspaceDocument bootstrap_workspace;
+    ProjectDocument bootstrap_project;
+    PackageDocument bootstrap_package;
+    ProjectSettingsDocument bootstrap_settings;
+    ProjectWorkspaceBootstrapReport bootstrap_report{};
+    EditorPluginV1 scene_inspector{};
+    EditorPluginV1 failing_plugin{};
+    PrefabSchemaDocument layers[3];
+
+    g_editor_plugin_builtin_enabled = 0;
+    workspace_document_init(&bootstrap_workspace);
+    project_document_init(&bootstrap_project);
+    package_document_init(&bootstrap_package);
+    project_settings_document_init(&bootstrap_settings);
+    bootstrap_workspace.project_count = 1;
+    strcpy(bootstrap_workspace.active_project_guid, bootstrap_project.project_guid);
+    strcpy(bootstrap_workspace.projects[0].project_guid, bootstrap_project.project_guid);
+    strcpy(bootstrap_workspace.projects[0].project_name, bootstrap_project.project_name);
+    strcpy(bootstrap_workspace.projects[0].project_path, "ProjectSettings/project.physicsproject");
+    bootstrap_project.package_count = 1;
+    strcpy(bootstrap_project.packages[0].package_id, "package.core.tools");
+    strcpy(bootstrap_project.packages[0].package_path, "Packages/core_tools.physicspackage");
+    bootstrap_project.packages[0].enabled = 1;
+    bootstrap_package.plugin_count = 2;
+    strcpy(bootstrap_package.plugins[0].plugin_id, "builtin.scene_inspector");
+    strcpy(bootstrap_package.plugins[0].plugin_manifest, "Packages/builtin.scene_inspector.physicsplugin");
+    strcpy(bootstrap_package.plugins[1].plugin_id, "builtin.failing_menu");
+    strcpy(bootstrap_package.plugins[1].plugin_manifest, "Packages/builtin.failing_menu.physicsplugin");
+    project_workspace_bootstrap_v1(".", &bootstrap_workspace, &bootstrap_project, &bootstrap_package, &bootstrap_settings, &bootstrap_report);
+
+    workspace_document_init(&g_workspace_doc);
+    project_document_init(&g_project_doc);
+    package_document_init(&g_package_doc);
+    project_settings_document_init(&g_project_settings_doc);
+    editor_plugin_registry_init(&g_editor_plugin_registry);
+    prefab_override_analysis_init(&g_prefab_analysis);
+    g_prefab_analysis_valid = 0;
+    g_prefab_repair_removed_count = 0;
+
+    workspace_document_load_v1("ProjectSettings/workspace.physicsworkspace", &g_workspace_doc);
+    project_document_load_v1("ProjectSettings/project.physicsproject", &g_project_doc);
+    package_document_load_v1("Packages/core_tools.physicspackage", &g_package_doc);
+    project_settings_document_load_v1("ProjectSettings/editor.physicssettings", &g_project_settings_doc);
+
+    if (editor_plugin_registry_scan_v1("Packages", &g_editor_plugin_registry)) {
+        scene_inspector.init = phase_g_scene_inspector_init;
+        scene_inspector.shutdown = phase_g_scene_inspector_shutdown;
+        scene_inspector.user = &g_editor_plugin_builtin_enabled;
+        failing_plugin.init = phase_g_failing_plugin_init;
+        failing_plugin.shutdown = NULL;
+        failing_plugin.user = NULL;
+        editor_plugin_registry_attach(&g_editor_plugin_registry, "builtin.scene_inspector", &scene_inspector);
+        editor_plugin_registry_attach(&g_editor_plugin_registry, "builtin.failing_menu", &failing_plugin);
+        editor_plugin_registry_initialize_all(&g_editor_plugin_registry);
+    }
+
+    if (prefab_schema_load_v1("Prefabs/phase_g_base.prefab", &layers[0]) &&
+        prefab_schema_load_v1("Prefabs/phase_g_nested.prefab", &layers[1]) &&
+        prefab_schema_load_v1("Prefabs/phase_g_variant.prefab", &layers[2]) &&
+        prefab_semantics_analyze_variant_stack(layers, 3, &g_prefab_analysis)) {
+        PrefabSchemaDocument repaired;
+        g_prefab_analysis_valid = 1;
+        prefab_semantics_repair_variant_overrides(&layers[2], &g_prefab_analysis, &repaired, &g_prefab_repair_removed_count);
+    }
+}
+
+static void phase_g_shutdown_editor_extension_state(void) {
+    editor_plugin_registry_shutdown(&g_editor_plugin_registry);
+}
+
+static void session_recovery_persist(const wchar_t* recent_action) {
+    char action_utf8[SESSION_RECOVERY_MAX_ACTION];
+    char scene_guid[SESSION_RECOVERY_MAX_SCENE_GUID];
+    wide_to_utf8_copy(recent_action, action_utf8, SESSION_RECOVERY_MAX_ACTION);
+    snprintf(scene_guid, sizeof(scene_guid), "scene://%d", g_state.scene_index + 1);
+    session_recovery_mark_unclean(&g_session_recovery_state, "autosave_snapshot.txt", "autosave_snapshot.txt", scene_guid,
+                                  action_utf8[0] != '\0' ? action_utf8 : "tick");
+    session_recovery_state_save_v1(&g_session_recovery_state, SESSION_RECOVERY_PATH);
+}
+
+static void export_diagnostic_bundle_now(void) {
+    DiagnosticBundleRequest request;
+    DiagnosticBundleResult result{};
+    int i;
+    diagnostic_bundle_request_init(&request);
+    strcpy(request.output_root, "artifacts/diagnostics");
+    strcpy(request.label, "sandbox_manual_export");
+    strcpy(request.build_metadata_path, BUILD_METADATA_PATH);
+    request.file_count = 0;
+    if (file_exists_utf8_path("autosave_snapshot.txt") && request.file_count < DIAGNOSTIC_BUNDLE_MAX_FILES) {
+        strcpy(request.files[request.file_count].source_path, "autosave_snapshot.txt");
+        strcpy(request.files[request.file_count].bundle_name, "autosave_snapshot.txt");
+        request.file_count++;
+    }
+    if (file_exists_utf8_path("scene_snapshot.txt") && request.file_count < DIAGNOSTIC_BUNDLE_MAX_FILES) {
+        strcpy(request.files[request.file_count].source_path, "scene_snapshot.txt");
+        strcpy(request.files[request.file_count].bundle_name, "scene_snapshot.txt");
+        request.file_count++;
+    }
+    if (file_exists_utf8_path(SESSION_RECOVERY_PATH) && request.file_count < DIAGNOSTIC_BUNDLE_MAX_FILES) {
+        strcpy(request.files[request.file_count].source_path, SESSION_RECOVERY_PATH);
+        strcpy(request.files[request.file_count].bundle_name, "editor_session.physicssession");
+        request.file_count++;
+    }
+    if (file_exists_utf8_path("ProjectSettings/workspace.physicsworkspace") && request.file_count < DIAGNOSTIC_BUNDLE_MAX_FILES) {
+        strcpy(request.files[request.file_count].source_path, "ProjectSettings/workspace.physicsworkspace");
+        strcpy(request.files[request.file_count].bundle_name, "workspace.physicsworkspace");
+        request.file_count++;
+    }
+    request.log_line_count = g_console_log_count < DIAGNOSTIC_BUNDLE_MAX_LOG_LINES ? g_console_log_count : DIAGNOSTIC_BUNDLE_MAX_LOG_LINES;
+    for (i = 0; i < request.log_line_count; ++i) {
+        wchar_t* src = g_console_logs[(g_console_log_head + g_console_log_count - request.log_line_count + i + CONSOLE_LOG_CAP) % CONSOLE_LOG_CAP];
+        wide_to_utf8_copy(src, request.log_lines[i], DIAGNOSTIC_BUNDLE_MAX_LOG_CHARS);
+    }
+    if (diagnostic_bundle_export_v1(&request, &result)) {
+        wchar_t wide_bundle[DIAGNOSTIC_BUNDLE_MAX_PATH];
+        utf8_to_wide_copy(result.bundle_dir, wide_bundle, DIAGNOSTIC_BUNDLE_MAX_PATH);
+        push_console_log(L"[诊断] 已导出最小诊断包: %ls", wide_bundle);
+    } else {
+        push_console_log(L"[错误] 导出诊断包失败");
+    }
+}
+
 static int hot_reload_is_supported_extension(const char* source_path) {
     return asset_importer_kind_from_path(source_path) != ASSET_IMPORT_KIND_UNKNOWN;
 }
@@ -4655,6 +4829,7 @@ static void render_bottom_panel_tabs(D2D1_RECT_F bottom_rect) {
         g_log_scroll_track_rect = rc(0, 0, 0, 0);
         g_log_scroll_thumb_rect = rc(0, 0, 0, 0);
         g_dbg_collision_filter_rect = rc(0, 0, 0, 0);
+        g_perf_diag_export_rect = rc(0, 0, 0, 0);
         g_dbg_collision_row_count = 0;
         g_log_scroll_max = 0;
     }
@@ -4670,7 +4845,9 @@ static void render_bottom_perf_tab(D2D1_RECT_F bottom_rect) {
     g_dbg_collision_filter_rect = rc(0, 0, 0, 0);
     g_dbg_collision_row_count = 0;
     g_log_scroll_max = 0;
+    g_perf_diag_export_rect = rc(bottom_rect.right - 248.0f, bottom_rect.top + 6.0f, bottom_rect.right - 142.0f, bottom_rect.top + 28.0f);
     g_perf_export_rect = rc(bottom_rect.right - 130.0f, bottom_rect.top + 6.0f, bottom_rect.right - 36.0f, bottom_rect.top + 28.0f);
+    draw_action_button(g_perf_diag_export_rect, L"导出诊断", 0, point_in_rect(g_state.mouse_screen, g_perf_diag_export_rect));
     draw_action_button(g_perf_export_rect, L"导出CSV", 0, point_in_rect(g_state.mouse_screen, g_perf_export_rect));
     draw_card_round(graph, 6.0f, rgba(0.14f, 0.18f, 0.24f, 1.0f), rgba(0.30f, 0.38f, 0.50f, 1.0f));
     swprintf(line, 128, L"FPS: %d", g_state.fps_display);
@@ -4960,12 +5137,22 @@ static float compute_hierarchy_content_height(float row_h, const HierarchyStats*
 
 static void render_project_tree_panel(D2D1_RECT_F project_rect, float row_h) {
     int pi;
+    int plugin_initialized = 0;
+    int plugin_disabled = 0;
+    int plugin_failed = 0;
     float py;
     float project_content_h;
     float project_view_h;
     wchar_t line[128];
-    D2D1_RECT_F project_viewport = rc(project_rect.left + 10.0f, project_rect.top + 44.0f, project_rect.right - 18.0f, project_rect.bottom - 34.0f);
+    wchar_t wide_name[96];
+    wchar_t wide_project[96];
+    D2D1_RECT_F project_viewport = rc(project_rect.left + 10.0f, project_rect.top + 44.0f, project_rect.right - 18.0f, project_rect.bottom - 112.0f);
     unsigned int now_ms = (unsigned int)GetTickCount();
+    for (pi = 0; pi < g_editor_plugin_registry.plugin_count; ++pi) {
+        if (g_editor_plugin_registry.plugins[pi].state == EDITOR_PLUGIN_STATE_INITIALIZED) plugin_initialized++;
+        else if (g_editor_plugin_registry.plugins[pi].state == EDITOR_PLUGIN_STATE_FAILED) plugin_failed++;
+        else if (g_editor_plugin_registry.plugins[pi].state == EDITOR_PLUGIN_STATE_DISABLED) plugin_disabled++;
+    }
     if (project_tree_count() <= 0 || (now_ms - g_state.project_tree_last_scan_ms) > 1500) {
         project_tree_build(L".", 3);
         g_state.project_tree_last_scan_ms = now_ms;
@@ -5019,8 +5206,25 @@ static void render_project_tree_panel(D2D1_RECT_F project_rect, float row_h) {
         g_project_scroll_track_rect = rc(0, 0, 0, 0);
         g_project_scroll_thumb_rect = rc(0, 0, 0, 0);
     }
-    swprintf(line, 128, L"目录: %d  文件: %d", project_tree_dir_count(), project_tree_file_count());
-    draw_text(line, rc(project_rect.left + 12.0f, project_rect.bottom - 28.0f, project_rect.right - 12.0f, project_rect.bottom - 8.0f),
+    utf8_to_wide_copy(g_workspace_doc.workspace_name, wide_name, 96);
+    utf8_to_wide_copy(g_project_doc.project_name, wide_project, 96);
+    swprintf(line, 128, L"目录:%d  文件:%d  工作区:%ls", project_tree_dir_count(), project_tree_file_count(), wide_name[0] ? wide_name : L"-");
+    draw_text(line, rc(project_rect.left + 12.0f, project_rect.bottom - 96.0f, project_rect.right - 12.0f, project_rect.bottom - 76.0f),
+              g_ui.fmt_info, rgba(0.66f, 0.73f, 0.83f, 1.0f));
+    swprintf(line, 128, L"项目:%ls  包:%d  自动热重载:%ls", wide_project[0] ? wide_project : L"-", g_project_doc.package_count,
+             g_project_settings_doc.auto_reload_assets ? L"开" : L"关");
+    draw_text(line, rc(project_rect.left + 12.0f, project_rect.bottom - 74.0f, project_rect.right - 12.0f, project_rect.bottom - 54.0f),
+              g_ui.fmt_info, rgba(0.70f, 0.78f, 0.90f, 1.0f));
+    swprintf(line, 128, L"插件: 总%d  初始化%d  禁用%d  失败%d", g_editor_plugin_registry.plugin_count, plugin_initialized, plugin_disabled, plugin_failed);
+    draw_text(line, rc(project_rect.left + 12.0f, project_rect.bottom - 52.0f, project_rect.right - 12.0f, project_rect.bottom - 32.0f),
+              g_ui.fmt_info, rgba(0.78f, 0.86f, 0.96f, 1.0f));
+    if (g_prefab_analysis_valid) {
+        swprintf(line, 128, L"Prefab: 应用%d  冲突%d  悬挂%d  修复%d", g_prefab_analysis.applied_count, g_prefab_analysis.conflict_count,
+                 g_prefab_analysis.dangling_count, g_prefab_repair_removed_count);
+    } else {
+        swprintf(line, 128, L"Prefab: 示例语义数据未就绪");
+    }
+    draw_text(line, rc(project_rect.left + 12.0f, project_rect.bottom - 30.0f, project_rect.right - 12.0f, project_rect.bottom - 8.0f),
               g_ui.fmt_info, rgba(0.66f, 0.73f, 0.83f, 1.0f));
 }
 
@@ -6420,6 +6624,7 @@ static void tick(HWND hwnd) {
         if (g_state.engine != NULL && !pie_runtime_active() && (now_ms - g_state.last_autosave_ms) >= 30000) {
             if (save_scene_snapshot("autosave_snapshot.txt")) {
                 g_state.last_autosave_ms = now_ms;
+                session_recovery_persist(L"autosave");
             }
         }
     }
@@ -6962,6 +7167,11 @@ static int handle_bottom_console_lbuttondown(HWND hwnd) {
         }
     }
     if (!g_state.bottom_panel_collapsed && g_state.bottom_active_tab == 1) {
+        if (point_in_rect(g_state.mouse_screen, g_perf_diag_export_rect)) {
+            export_diagnostic_bundle_now();
+            InvalidateRect(hwnd, NULL, FALSE);
+            return 1;
+        }
         if (point_in_rect(g_state.mouse_screen, g_perf_export_rect)) {
             export_perf_report_csv();
             InvalidateRect(hwnd, NULL, FALSE);
@@ -7803,6 +8013,10 @@ static int init_platform_ui(void) {
 static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 static void init_app_runtime_callbacks(void);
 static void init_state_defaults(void);
+static void phase_g_refresh_editor_extension_state(void);
+static void phase_g_shutdown_editor_extension_state(void);
+static void session_recovery_persist(const wchar_t* recent_action);
+static void export_diagnostic_bundle_now(void);
 
 static int register_main_window_class(HINSTANCE inst, WNDCLASSEXW* out_wc) {
     if (out_wc == NULL) return 0;
@@ -7823,21 +8037,35 @@ static int register_main_window_class(HINSTANCE inst, WNDCLASSEXW* out_wc) {
 }
 
 static void init_app_bootstrap_state(void) {
+    int recovered_session = 0;
     init_state_defaults();
     pie_lifecycle_init(&g_pie_lifecycle, PIE_EDITOR_SNAPSHOT_PATH);
     init_editor_command_bus_callbacks();
     init_app_runtime_callbacks();
+    phase_g_refresh_editor_extension_state();
     init_hot_reload_pipeline();
     clear_debug_histories();
     clear_collision_events();
     g_collision_event_filter_selected_only = 0;
     g_clipboard_body.valid = 0;
     load_ui_layout();
+    session_recovery_state_init(&g_session_recovery_state);
+    session_recovery_state_load_v1(SESSION_RECOVERY_PATH, &g_session_recovery_state);
     push_console_log(L"[启动] 物理沙盒已启动");
     if (file_exists_utf8_path("autosave_snapshot.txt")) {
         push_console_log(L"[启动] 检测到 autosave_snapshot.txt，可在 文件 菜单恢复");
     }
     apply_scene(0);
+    if (session_recovery_should_restore(&g_session_recovery_state) &&
+        file_exists_utf8_path(g_session_recovery_state.last_snapshot_path) &&
+        load_scene_snapshot(g_session_recovery_state.last_snapshot_path)) {
+        history_reset_and_capture();
+        recovered_session = 1;
+        push_console_log(L"[恢复] 检测到未清理退出，已恢复最近工作会话");
+    }
+    if (!recovered_session) {
+        session_recovery_persist(L"startup");
+    }
 }
 
 static HWND create_main_window(HINSTANCE inst, const wchar_t* class_name) {
@@ -7863,7 +8091,10 @@ static int run_message_loop(void) {
 
 static int shutdown_and_get_exit_code(int exit_code) {
     if (g_state.engine) physics_engine_free(g_state.engine);
+    phase_g_shutdown_editor_extension_state();
     asset_fs_watch_shutdown(&g_asset_fs_watch);
+    session_recovery_mark_clean(&g_session_recovery_state, "clean exit");
+    session_recovery_state_save_v1(&g_session_recovery_state, SESSION_RECOVERY_PATH);
     save_ui_layout();
     shutdown_ui();
     CoUninitialize();

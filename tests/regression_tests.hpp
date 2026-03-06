@@ -37,6 +37,15 @@
     X(regression_test_scene_schema_migration_golden) \
     X(regression_test_prefab_schema_roundtrip) \
     X(regression_test_prefab_schema_variant_parse) \
+    X(regression_test_project_workspace_roundtrip) \
+    X(regression_test_project_workspace_bootstrap) \
+    X(regression_test_prefab_semantics_conflict_resolution) \
+    X(regression_test_prefab_semantics_dangling_override_repair) \
+    X(regression_test_editor_plugin_registry_lifecycle) \
+    X(regression_test_editor_plugin_registry_duplicate_rejected) \
+    X(regression_test_session_recovery_roundtrip) \
+    X(regression_test_session_recovery_pending_restore) \
+    X(regression_test_diagnostic_bundle_export) \
     X(regression_test_asset_meta_roundtrip) \
     X(regression_test_asset_dependency_graph) \
     X(regression_test_asset_importer_smoke) \

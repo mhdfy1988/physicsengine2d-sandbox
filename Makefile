@@ -11,7 +11,7 @@ OBJDIR = obj
 LIBDIR = lib
 
 C_SOURCES =
-CPP_SOURCES = $(SRCDIR)/content/scene_schema.cpp $(SRCDIR)/content/prefab_schema.cpp $(SRCDIR)/content/asset_database.cpp $(SRCDIR)/content/asset_invalidation.cpp $(SRCDIR)/content/asset_pipeline.cpp $(SRCDIR)/content/asset_watch.cpp $(SRCDIR)/content/asset_hot_reload.cpp $(SRCDIR)/content/asset_fs_poll.cpp $(SRCDIR)/content/asset_fs_watch.cpp $(SRCDIR)/content/asset_importer.cpp $(SRCDIR)/content/subsystem_render_audio_animation.cpp $(SRCDIR)/physics2d/math.cpp $(SRCDIR)/physics2d/shape.cpp $(SRCDIR)/physics2d/body.cpp $(SRCDIR)/physics2d/constraint.cpp $(SRCDIR)/physics2d/collision.cpp $(SRCDIR)/physics2d/collision_detect.cpp $(SRCDIR)/core/physics_memory.cpp $(SRCDIR)/core/physics_ids.cpp $(SRCDIR)/core/physics_parallel.cpp $(SRCDIR)/core/physics_world.cpp $(SRCDIR)/physics2d/physics_raycast.cpp $(SRCDIR)/core/physics_snapshot.cpp $(SRCDIR)/physics2d/physics_integrate.cpp $(SRCDIR)/physics2d/physics_resolve.cpp $(SRCDIR)/core/physics_step.cpp $(SRCDIR)/physics2d/physics_broadphase.cpp $(SRCDIR)/physics2d/physics_collision_pipeline.cpp $(SRCDIR)/physics2d/physics_contact_manager.cpp $(SRCDIR)/physics2d/physics_ccd.cpp $(SRCDIR)/c_api/physics_pipeline_api.cpp $(SRCDIR)/physics2d/physics_solver.cpp $(SRCDIR)/c_api/physics_query.cpp $(SRCDIR)/c_api/physics_mutation.cpp $(SRCDIR)/c_api/physics.cpp $(SRCDIR)/c_api/physics_lifecycle.cpp $(SRCDIR)/c_api/physics_runtime_api.cpp $(SRCDIR)/c_api/physics_config.cpp
+CPP_SOURCES = $(SRCDIR)/content/scene_schema.cpp $(SRCDIR)/content/prefab_schema.cpp $(SRCDIR)/content/prefab_semantics.cpp $(SRCDIR)/content/project_workspace.cpp $(SRCDIR)/content/editor_plugin.cpp $(SRCDIR)/content/session_recovery.cpp $(SRCDIR)/content/diagnostic_bundle.cpp $(SRCDIR)/content/asset_database.cpp $(SRCDIR)/content/asset_invalidation.cpp $(SRCDIR)/content/asset_pipeline.cpp $(SRCDIR)/content/asset_watch.cpp $(SRCDIR)/content/asset_hot_reload.cpp $(SRCDIR)/content/asset_fs_poll.cpp $(SRCDIR)/content/asset_fs_watch.cpp $(SRCDIR)/content/asset_importer.cpp $(SRCDIR)/content/subsystem_render_audio_animation.cpp $(SRCDIR)/physics2d/math.cpp $(SRCDIR)/physics2d/shape.cpp $(SRCDIR)/physics2d/body.cpp $(SRCDIR)/physics2d/constraint.cpp $(SRCDIR)/physics2d/collision.cpp $(SRCDIR)/physics2d/collision_detect.cpp $(SRCDIR)/core/physics_memory.cpp $(SRCDIR)/core/physics_ids.cpp $(SRCDIR)/core/physics_parallel.cpp $(SRCDIR)/core/physics_world.cpp $(SRCDIR)/physics2d/physics_raycast.cpp $(SRCDIR)/core/physics_snapshot.cpp $(SRCDIR)/physics2d/physics_integrate.cpp $(SRCDIR)/physics2d/physics_resolve.cpp $(SRCDIR)/core/physics_step.cpp $(SRCDIR)/physics2d/physics_broadphase.cpp $(SRCDIR)/physics2d/physics_collision_pipeline.cpp $(SRCDIR)/physics2d/physics_contact_manager.cpp $(SRCDIR)/physics2d/physics_ccd.cpp $(SRCDIR)/c_api/physics_pipeline_api.cpp $(SRCDIR)/physics2d/physics_solver.cpp $(SRCDIR)/c_api/physics_query.cpp $(SRCDIR)/c_api/physics_mutation.cpp $(SRCDIR)/c_api/physics.cpp $(SRCDIR)/c_api/physics_lifecycle.cpp $(SRCDIR)/c_api/physics_runtime_api.cpp $(SRCDIR)/c_api/physics_config.cpp
 C_OBJECTS = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(C_SOURCES))
 CPP_OBJECTS = $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(CPP_SOURCES))
 OBJECTS = $(C_OBJECTS) $(CPP_OBJECTS)
@@ -21,7 +21,7 @@ SANDBOX_SRCS = $(APPDIR_DWRITE)/main.cpp $(APPDIR_DWRITE)/infrastructure/project
 SANDBOX_ICON_RC = $(APPDIR_DWRITE)/app_icon.rc
 SANDBOX_ICON_ICO = assets/icons/physics_sandbox.ico
 SANDBOX_ICON_OBJ = $(OBJDIR)/app_icon.res.o
-TEST_SRC = $(TESTDIR)/regression_tests.cpp $(TESTDIR)/regression_collision_core_tests.cpp $(TESTDIR)/regression_event_snapshot_tests.cpp $(TESTDIR)/regression_pipeline_error_tests.cpp $(TESTDIR)/regression_sleep_broadphase_tests.cpp $(TESTDIR)/regression_stress_constraint_tests.cpp $(TESTDIR)/regression_engine_feature_tests.cpp $(TESTDIR)/equivalence/equivalence_api_tests.cpp $(TESTDIR)/regression_scene_schema_tests.cpp $(TESTDIR)/regression_prefab_schema_tests.cpp $(TESTDIR)/regression_asset_database_tests.cpp $(TESTDIR)/regression_asset_importer_tests.cpp $(TESTDIR)/regression_asset_pipeline_tests.cpp $(TESTDIR)/regression_asset_hot_reload_tests.cpp
+TEST_SRC = $(TESTDIR)/regression_tests.cpp $(TESTDIR)/regression_collision_core_tests.cpp $(TESTDIR)/regression_event_snapshot_tests.cpp $(TESTDIR)/regression_pipeline_error_tests.cpp $(TESTDIR)/regression_sleep_broadphase_tests.cpp $(TESTDIR)/regression_stress_constraint_tests.cpp $(TESTDIR)/regression_engine_feature_tests.cpp $(TESTDIR)/equivalence/equivalence_api_tests.cpp $(TESTDIR)/regression_scene_schema_tests.cpp $(TESTDIR)/regression_prefab_schema_tests.cpp $(TESTDIR)/regression_project_workspace_tests.cpp $(TESTDIR)/regression_prefab_semantics_tests.cpp $(TESTDIR)/regression_editor_plugin_tests.cpp $(TESTDIR)/regression_session_recovery_tests.cpp $(TESTDIR)/regression_asset_database_tests.cpp $(TESTDIR)/regression_asset_importer_tests.cpp $(TESTDIR)/regression_asset_pipeline_tests.cpp $(TESTDIR)/regression_asset_hot_reload_tests.cpp
 BENCH_SRC = $(TESTDIR)/benchmark_suite.cpp
 INVARIANT_SRC = $(TESTDIR)/invariant_tests.cpp
 APP_RUNTIME_SMOKE_SRC = $(TESTDIR)/app_runtime_tick_smoke.cpp $(APPDIR_DWRITE)/domain/app_command.cpp $(APPDIR_DWRITE)/infrastructure/app_event_bus.cpp $(APPDIR_DWRITE)/application/app_controller.cpp $(APPDIR_DWRITE)/application/app_runtime.cpp
@@ -34,6 +34,7 @@ PARALLEL_BENCHMARK_COMPARE_SRC = tools/parallel_benchmark_compare.cpp
 SUBSYSTEM_WORKFLOW_DEMO_SRC = tools/subsystem_workflow_demo.cpp
 PHASE_D_PROFILE_CAPTURE_SRC = tools/phase_d_profile_capture.cpp
 SCENE_MIGRATE_SRC = tools/scene_migrate_main.cpp
+RUNTIME_CLI_SRC = apps/runtime_cli/main.cpp
 
 CORE_LIB = $(LIBDIR)/libphysics2d.a
 SANDBOX_EXECUTABLE = $(BINDIR)/physics_sandbox
@@ -50,6 +51,7 @@ PARALLEL_BENCHMARK_COMPARE_EXECUTABLE = $(BINDIR)/parallel_benchmark_compare
 SUBSYSTEM_WORKFLOW_DEMO_EXECUTABLE = $(BINDIR)/subsystem_workflow_demo
 PHASE_D_PROFILE_CAPTURE_EXECUTABLE = $(BINDIR)/phase_d_profile_capture
 SCENE_MIGRATE_EXECUTABLE = $(BINDIR)/scene_migrate
+RUNTIME_CLI_EXECUTABLE = $(BINDIR)/physics_runtime_cli
 
 WIN_DWRITE_LIBS = -ld2d1 -ldwrite -lwindowscodecs -lole32 -luuid -lshcore -lgdi32 -luser32
 WIN_GUI_FLAGS = -mwindows
@@ -117,11 +119,16 @@ $(PHASE_D_PROFILE_CAPTURE_EXECUTABLE): $(CORE_LIB) $(PHASE_D_PROFILE_CAPTURE_SRC
 $(SCENE_MIGRATE_EXECUTABLE): $(CORE_LIB) $(SCENE_MIGRATE_SRC) | $(BINDIR)
 	$(CXX) $(CXXFLAGS) -Icpp $(SCENE_MIGRATE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
 
+$(RUNTIME_CLI_EXECUTABLE): $(CORE_LIB) $(RUNTIME_CLI_SRC) $(APPDIR_DWRITE)/infrastructure/snapshot_repo.cpp | $(BINDIR)
+	$(CXX) $(CXXFLAGS) -Icpp -I$(APPDIR_DWRITE)/infrastructure $(RUNTIME_CLI_SRC) $(APPDIR_DWRITE)/infrastructure/snapshot_repo.cpp $(CORE_LIB) -o $@ $(LDFLAGS)
+
 core: $(CORE_LIB)
 
 sandbox: $(SANDBOX_EXECUTABLE)
 
 scene-migrate: $(SCENE_MIGRATE_EXECUTABLE)
+
+runtime-cli: $(RUNTIME_CLI_EXECUTABLE)
 
 run: $(SANDBOX_EXECUTABLE)
 	./$(SANDBOX_EXECUTABLE)
@@ -169,4 +176,4 @@ clean:
 
 -include $(DEPS)
 
-.PHONY: all core sandbox scene-migrate run test benchmark parallel-benchmark-compare subsystem-workflow-demo phase-d-profile test-long check-core check-arch check-api check-cpp-convergence clean
+.PHONY: all core sandbox scene-migrate runtime-cli run test benchmark parallel-benchmark-compare subsystem-workflow-demo phase-d-profile test-long check-core check-arch check-api check-cpp-convergence clean

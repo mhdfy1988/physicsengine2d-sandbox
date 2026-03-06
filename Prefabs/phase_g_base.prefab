@@ -1,0 +1,7 @@
+schema_version|1
+prefab_guid|prefab://phase_g_base
+base_prefab_guid|none
+is_variant|0
+entity_count|1
+entity|1|body|box|4.000000|0.000000|1.000000|0.000000|0.000000|0.000000|0.100000|0.600000|1.500000|0.970000
+override_count|0

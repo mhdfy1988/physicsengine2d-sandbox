@@ -1,0 +1,6 @@
+api_version|1
+plugin_id|builtin.failing_menu
+display_name|Failing Menu
+plugin_version|1.0.0
+engine_version_range|>=phase-g
+capabilities|4

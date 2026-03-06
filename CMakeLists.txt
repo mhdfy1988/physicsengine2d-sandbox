@@ -63,6 +63,11 @@ set(PHYSICS2D_SOURCES
     src/c_api/physics_pipeline_api.cpp
     src/content/scene_schema.cpp
     src/content/prefab_schema.cpp
+    src/content/prefab_semantics.cpp
+    src/content/project_workspace.cpp
+    src/content/editor_plugin.cpp
+    src/content/session_recovery.cpp
+    src/content/diagnostic_bundle.cpp
     src/content/asset_database.cpp
     src/content/asset_importer.cpp
     src/content/asset_invalidation.cpp
@@ -168,6 +173,10 @@ if(BUILD_TESTS)
         tests/equivalence/equivalence_api_tests.cpp
         tests/regression_scene_schema_tests.cpp
         tests/regression_prefab_schema_tests.cpp
+        tests/regression_project_workspace_tests.cpp
+        tests/regression_prefab_semantics_tests.cpp
+        tests/regression_editor_plugin_tests.cpp
+        tests/regression_session_recovery_tests.cpp
         tests/regression_asset_database_tests.cpp
         tests/regression_asset_importer_tests.cpp
         tests/regression_asset_pipeline_tests.cpp
@@ -262,6 +271,21 @@ else()
     target_compile_options(scene_migrate PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
 endif()
 set_target_properties(scene_migrate PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+add_executable(physics_runtime_cli
+    apps/runtime_cli/main.cpp
+    apps/sandbox_dwrite/infrastructure/snapshot_repo.cpp
+)
+target_link_libraries(physics_runtime_cli PRIVATE physics2d)
+target_include_directories(physics_runtime_cli PRIVATE ${CMAKE_SOURCE_DIR}/apps/sandbox_dwrite/infrastructure)
+if(MSVC)
+    target_compile_options(physics_runtime_cli PRIVATE /W4)
+else()
+    target_compile_options(physics_runtime_cli PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+endif()
+set_target_properties(physics_runtime_cli PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 

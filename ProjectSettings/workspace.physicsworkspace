@@ -1,0 +1,5 @@
+schema_version|1
+workspace_name|PhysicsWorkspace
+active_project_guid|project://physics-sandbox
+project_count|1
+project|project://physics-sandbox|PhysicsSandbox|ProjectSettings/project.physicsproject
