@@ -13,7 +13,9 @@ PhysicsEngine2D is a C++ 2D rigid-body physics engine with a Windows Direct2D/Di
 
 Build outputs are split into:
 
-- `lib/libphysics2d.a`: reusable static library
+- `lib/libphysics_kernel.a`: standalone physics kernel
+- `lib/libphysics_runtime_support.a`: reusable non-UI runtime helpers
+- `lib/libphysics_content.a`: content/project/editor-support systems
 - `bin/physics_sandbox(.exe)`: sandbox application
 - `bin/physics_tests(.exe)`: regression test runner
 
@@ -104,29 +106,38 @@ pacman -S --needed mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-make mingw-w6
 
 ## Reusing The Core
 
-1. Build the static library:
+Preferred standalone core targets:
+
+- `physics_kernel`
+- `physics_runtime_support`
+
+1. Build the standalone core package:
+
+```bash
+powershell -ExecutionPolicy Bypass -File .\scripts\package_physics_core.ps1 -Build -Version 1.0.0
+```
+
+2. Or build the libraries directly:
 
 ```bash
 mingw32-make core
 ```
 
-2. Include a public header and link the library:
+3. Include a core-safe public header and link the standalone libraries:
 
 ```bash
-g++ your_app.cpp -I path/to/physicsengine2d-sandbox/include path/to/physicsengine2d-sandbox/lib/libphysics2d.a -lm
+g++ your_app.cpp -I path/to/package/include path/to/package/lib/libphysics_runtime_support.a path/to/package/lib/libphysics_kernel.a -lm
 ```
 
-Preferred include form:
+Core-safe include forms:
 
 ```cpp
-#include "physics.hpp"
+#include "physics_core/physics.h"
+#include "physics_core/foundation.hpp"
+#include "physics_core/raii.hpp"
 ```
 
-Legacy include form remains valid:
-
-```cpp
-#include "physics.h"
-```
+See [docs/PHYSICS_CORE_BOUNDARY.md](docs/PHYSICS_CORE_BOUNDARY.md) for the supported standalone boundary.
 
 ## Current Sandbox Focus
 
@@ -139,6 +150,7 @@ Legacy include form remains valid:
 - [docs/API_CN.md](docs/API_CN.md)
 - [docs/API_EN.md](docs/API_EN.md)
 - [docs/ENGINE_ARCHITECTURE.md](docs/ENGINE_ARCHITECTURE.md)
+- [docs/PHYSICS_CORE_BOUNDARY.md](docs/PHYSICS_CORE_BOUNDARY.md)
 
 ## Packaging
 
@@ -157,3 +169,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1 -Build -WithInsta
 Installer script:
 
 `installer/physics_sandbox.iss`
+
+Standalone core package:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\package_physics_core.ps1 -Build -Version 1.0.0
+```

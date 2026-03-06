@@ -37,6 +37,7 @@
     X(regression_test_scene_schema_migration_golden) \
     X(regression_test_prefab_schema_roundtrip) \
     X(regression_test_prefab_schema_variant_parse) \
+    X(regression_test_prefab_schema_reentrant_io) \
     X(regression_test_project_workspace_roundtrip) \
     X(regression_test_project_workspace_bootstrap) \
     X(regression_test_prefab_semantics_conflict_resolution) \

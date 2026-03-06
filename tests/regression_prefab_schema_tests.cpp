@@ -1,6 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <atomic>
+#include <memory>
+#include <string>
+#include <thread>
+#include <vector>
 
 #include "../include/prefab_schema.hpp"
 
@@ -43,6 +48,51 @@ static int file_content_equals(const char* a_path, const char* b_path) {
     fclose(fa);
     fclose(fb);
     return ok;
+}
+
+static int prefab_doc_equals(const PrefabSchemaDocument* a, const PrefabSchemaDocument* b) {
+    if (a == NULL || b == NULL) return 0;
+    return memcmp(a, b, sizeof(*a)) == 0;
+}
+
+static void build_prefab_doc(PrefabSchemaDocument* doc,
+                             const char* prefab_guid,
+                             const char* base_guid,
+                             int id_seed,
+                             int entity_count,
+                             int override_count) {
+    int i;
+    prefab_schema_document_init(doc);
+    strcpy(doc->prefab_guid, prefab_guid);
+    strcpy(doc->base_prefab_guid, base_guid);
+    doc->is_variant = (base_guid != NULL && strcmp(base_guid, "none") != 0) ? 1 : 0;
+    doc->entity_count = entity_count;
+    doc->override_count = override_count;
+
+    for (i = 0; i < entity_count; ++i) {
+        PrefabSchemaEntity* entity = &doc->entities[i];
+        entity->entity_id = id_seed + (entity_count - i);
+        snprintf(entity->name, sizeof(entity->name), "entity_%d_%d", id_seed, i);
+        entity->shape = (i % 2 == 0) ? PREFAB_SCHEMA_ENTITY_BOX : PREFAB_SCHEMA_ENTITY_CIRCLE;
+        entity->mass = 1.0f + (float)i;
+        entity->position_x = (float)(i * 2);
+        entity->position_y = (float)(i * -3);
+        entity->velocity_x = 0.25f * (float)i;
+        entity->velocity_y = -0.5f * (float)i;
+        entity->angular_velocity = 0.1f * (float)(i + 1);
+        entity->restitution = 0.05f * (float)((i % 5) + 1);
+        entity->friction = 0.1f * (float)((i % 4) + 1);
+        entity->size = 0.5f + 0.25f * (float)i;
+        entity->damping = 0.9f + 0.001f * (float)i;
+    }
+
+    for (i = 0; i < override_count; ++i) {
+        PrefabSchemaOverride* override_entry = &doc->overrides[i];
+        override_entry->override_id = id_seed + (override_count - i);
+        override_entry->entity_id = doc->entities[i % entity_count].entity_id;
+        snprintf(override_entry->field, sizeof(override_entry->field), "field_%d", i);
+        snprintf(override_entry->value, sizeof(override_entry->value), "value_%d_%d", id_seed, i);
+    }
 }
 
 int regression_test_prefab_schema_roundtrip(void) {
@@ -159,5 +209,100 @@ int regression_test_prefab_schema_variant_parse(void) {
         return 0;
     }
     printf("[PASS] prefab schema variant parsing\n");
+    return 1;
+}
+
+int regression_test_prefab_schema_reentrant_io(void) {
+    const char* source_a = "_tmp_prefab_schema_reentrant_source_a.txt";
+    const char* source_b = "_tmp_prefab_schema_reentrant_source_b.txt";
+    const char* save_a = "_tmp_prefab_schema_reentrant_save_a.txt";
+    const char* save_b = "_tmp_prefab_schema_reentrant_save_b.txt";
+    std::unique_ptr<PrefabSchemaDocument> input_a(new PrefabSchemaDocument());
+    std::unique_ptr<PrefabSchemaDocument> input_b(new PrefabSchemaDocument());
+    std::unique_ptr<PrefabSchemaDocument> expected_a(new PrefabSchemaDocument());
+    std::unique_ptr<PrefabSchemaDocument> expected_b(new PrefabSchemaDocument());
+    std::atomic<int> failures{0};
+    std::atomic<int> ready{0};
+    std::atomic<int> phase{0};
+
+    if (!input_a || !input_b || !expected_a || !expected_b) {
+        printf("[FAIL] failed to allocate prefab reentrancy fixtures\n");
+        return 0;
+    }
+
+    build_prefab_doc(input_a.get(), "prefab://thread_a", "none", 100, 32, 16);
+    build_prefab_doc(input_b.get(), "prefab://thread_b", "prefab://base_b", 200, 48, 24);
+
+    if (!prefab_schema_save_v1(input_a.get(), source_a) || !prefab_schema_save_v1(input_b.get(), source_b)) {
+        printf("[FAIL] failed to prepare prefab reentrancy fixtures\n");
+        remove(source_a);
+        remove(source_b);
+        return 0;
+    }
+    if (!prefab_schema_load_v1(source_a, expected_a.get()) || !prefab_schema_load_v1(source_b, expected_b.get())) {
+        printf("[FAIL] failed to load prefab reentrancy fixtures\n");
+        remove(source_a);
+        remove(source_b);
+        return 0;
+    }
+
+    auto wait_for_phase = [&](int expected_phase) {
+        ready.fetch_add(1, std::memory_order_relaxed);
+        while (phase.load(std::memory_order_acquire) != expected_phase) {
+            std::this_thread::yield();
+        }
+    };
+
+    auto load_worker = [&](const char* path, const PrefabSchemaDocument* expected) {
+        wait_for_phase(1);
+        for (int i = 0; i < 128; ++i) {
+            std::unique_ptr<PrefabSchemaDocument> loaded(new PrefabSchemaDocument());
+            if (!loaded || !prefab_schema_load_v1(path, loaded.get()) || !prefab_doc_equals(loaded.get(), expected)) {
+                failures.fetch_add(1, std::memory_order_relaxed);
+                break;
+            }
+        }
+    };
+
+    auto save_worker = [&](const PrefabSchemaDocument* doc, const char* output_path, const PrefabSchemaDocument* expected) {
+        wait_for_phase(1);
+        for (int i = 0; i < 128; ++i) {
+            std::unique_ptr<PrefabSchemaDocument> loaded(new PrefabSchemaDocument());
+            if (!prefab_schema_save_v1(doc, output_path) ||
+                !loaded ||
+                !prefab_schema_load_v1(output_path, loaded.get()) ||
+                !prefab_doc_equals(loaded.get(), expected)) {
+                failures.fetch_add(1, std::memory_order_relaxed);
+                break;
+            }
+        }
+    };
+
+    std::thread t1(load_worker, source_a, expected_a.get());
+    std::thread t2(load_worker, source_b, expected_b.get());
+    std::thread t3(save_worker, input_a.get(), save_a, expected_a.get());
+    std::thread t4(save_worker, input_b.get(), save_b, expected_b.get());
+
+    while (ready.load(std::memory_order_acquire) != 4) {
+        std::this_thread::yield();
+    }
+    phase.store(1, std::memory_order_release);
+
+    t1.join();
+    t2.join();
+    t3.join();
+    t4.join();
+
+    remove(source_a);
+    remove(source_b);
+    remove(save_a);
+    remove(save_b);
+
+    if (failures.load(std::memory_order_relaxed) != 0) {
+        printf("[FAIL] prefab schema reentrant io mismatch\n");
+        return 0;
+    }
+
+    printf("[PASS] prefab schema reentrant io\n");
     return 1;
 }

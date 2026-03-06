@@ -22,7 +22,7 @@
 
 #include "physics.h"
 #include "infrastructure/project_tree.hpp"
-#include "infrastructure/snapshot_repo.hpp"
+#include "runtime_snapshot_repo.hpp"
 #include "infrastructure/ui_layout_repo.hpp"
 #include "presentation/render/ui_icons.hpp"
 #include "presentation/render/ui_primitives.hpp"
@@ -36,6 +36,7 @@
 #include "application/history_service.hpp"
 #include "application/runtime_param_service.hpp"
 #include "application/pie_lifecycle.hpp"
+#include "application/editor_extension_state_service.hpp"
 #include "asset_hot_reload.hpp"
 #include "asset_fs_watch.hpp"
 #include "project_workspace.hpp"
@@ -567,24 +568,27 @@ static int g_debug_error_history_count;
 static HotReloadHistoryEntry g_hot_reload_history[DEBUG_HISTORY_CAP];
 static int g_hot_reload_history_head;
 static int g_hot_reload_history_count;
-static WorkspaceDocument g_workspace_doc{};
-static ProjectDocument g_project_doc{};
-static PackageDocument g_package_doc{};
-static ProjectSettingsDocument g_project_settings_doc{};
-static EditorPluginRegistry g_editor_plugin_registry{};
-static SessionRecoveryState g_session_recovery_state{};
+static EditorExtensionStartupResult g_editor_extension_startup_state{};
 static int g_editor_plugin_builtin_enabled;
-static PrefabOverrideAnalysisReport g_prefab_analysis{};
-static int g_prefab_analysis_valid;
-static int g_prefab_repair_removed_count;
 static BodyClipboard g_clipboard_body;
 static wchar_t g_status_project_path[260];
 static wchar_t g_status_user[64];
+static wchar_t g_startup_status_text[96];
+static int g_startup_degraded;
 static HICON g_app_icon_large = NULL;
 static HICON g_app_icon_small = NULL;
 static const float BREAK_FORCE_PRESETS[] = {0.0f, 60.0f, 120.0f, 250.0f, 500.0f, 1000.0f};
 static const int BREAK_FORCE_PRESET_COUNT = 6;
 static const char* SCENE_ASSET_GUID_NONE = "asset://none";
+#define g_workspace_doc g_editor_extension_startup_state.workspace_doc
+#define g_project_doc g_editor_extension_startup_state.project_doc
+#define g_package_doc g_editor_extension_startup_state.package_doc
+#define g_project_settings_doc g_editor_extension_startup_state.project_settings_doc
+#define g_session_recovery_state g_editor_extension_startup_state.session_recovery_state
+#define g_editor_plugin_registry g_editor_extension_startup_state.plugin_registry
+#define g_prefab_analysis g_editor_extension_startup_state.prefab_analysis
+#define g_prefab_analysis_valid g_editor_extension_startup_state.prefab_analysis_valid
+#define g_prefab_repair_removed_count g_editor_extension_startup_state.prefab_repair_removed_count
 static const wchar_t* scene_display_name(int scene_index);
 static int scene_order_index_at(int order_index);
 static int scene_order_find_position(int scene_index);
@@ -2686,7 +2690,7 @@ static int snapshot_restore_editor_metadata(const char* path) {
 static int save_scene_snapshot(const char* path) {
     int ok;
     trace_spawn_step("snapshot.save.begin", "path=%s engine=%p", (path != NULL) ? path : "(null)", (void*)g_state.engine);
-    ok = snapshot_repo_save(g_state.engine, path);
+    ok = runtime_snapshot_repo_save(g_state.engine, path);
     if (ok) {
         ok = snapshot_append_editor_metadata(path);
     }
@@ -2695,7 +2699,7 @@ static int save_scene_snapshot(const char* path) {
 }
 
 static int load_scene_snapshot(const char* path) {
-    if (!snapshot_repo_load(g_state.engine, path)) return 0;
+    if (!runtime_snapshot_repo_load(g_state.engine, path)) return 0;
     snapshot_restore_editor_metadata(path);
     g_state.selected = NULL;
     g_state.selected_constraint_index = -1;
@@ -2746,75 +2750,71 @@ static int phase_g_failing_plugin_init(void* user) {
     return 0;
 }
 
-static void phase_g_refresh_editor_extension_state(void) {
-    WorkspaceDocument bootstrap_workspace;
-    ProjectDocument bootstrap_project;
-    PackageDocument bootstrap_package;
-    ProjectSettingsDocument bootstrap_settings;
-    ProjectWorkspaceBootstrapReport bootstrap_report{};
-    EditorPluginV1 scene_inspector{};
-    EditorPluginV1 failing_plugin{};
-    static PrefabSchemaDocument layers[3];
-    static PrefabSchemaDocument repaired;
+static const wchar_t* startup_severity_label(EditorExtensionStartupSeverity severity) {
+    if (severity == EDITOR_EXTENSION_STARTUP_SEVERITY_ERROR) return L"错误";
+    if (severity == EDITOR_EXTENSION_STARTUP_SEVERITY_WARNING) return L"警告";
+    return L"信息";
+}
 
-    g_editor_plugin_builtin_enabled = 0;
-    workspace_document_init(&bootstrap_workspace);
-    project_document_init(&bootstrap_project);
-    package_document_init(&bootstrap_package);
-    project_settings_document_init(&bootstrap_settings);
-    bootstrap_workspace.project_count = 1;
-    strcpy(bootstrap_workspace.active_project_guid, bootstrap_project.project_guid);
-    strcpy(bootstrap_workspace.projects[0].project_guid, bootstrap_project.project_guid);
-    strcpy(bootstrap_workspace.projects[0].project_name, bootstrap_project.project_name);
-    strcpy(bootstrap_workspace.projects[0].project_path, "ProjectSettings/project.physicsproject");
-    bootstrap_project.package_count = 1;
-    strcpy(bootstrap_project.packages[0].package_id, "package.core.tools");
-    strcpy(bootstrap_project.packages[0].package_path, "Packages/core_tools.physicspackage");
-    bootstrap_project.packages[0].enabled = 1;
-    bootstrap_package.plugin_count = 2;
-    strcpy(bootstrap_package.plugins[0].plugin_id, "builtin.scene_inspector");
-    strcpy(bootstrap_package.plugins[0].plugin_manifest, "Packages/builtin.scene_inspector.physicsplugin");
-    strcpy(bootstrap_package.plugins[1].plugin_id, "builtin.failing_menu");
-    strcpy(bootstrap_package.plugins[1].plugin_manifest, "Packages/builtin.failing_menu.physicsplugin");
-    project_workspace_bootstrap_v1(".", &bootstrap_workspace, &bootstrap_project, &bootstrap_package, &bootstrap_settings, &bootstrap_report);
-
-    workspace_document_init(&g_workspace_doc);
-    project_document_init(&g_project_doc);
-    package_document_init(&g_package_doc);
-    project_settings_document_init(&g_project_settings_doc);
-    editor_plugin_registry_init(&g_editor_plugin_registry);
-    prefab_override_analysis_init(&g_prefab_analysis);
-    g_prefab_analysis_valid = 0;
-    g_prefab_repair_removed_count = 0;
-
-    workspace_document_load_v1("ProjectSettings/workspace.physicsworkspace", &g_workspace_doc);
-    project_document_load_v1("ProjectSettings/project.physicsproject", &g_project_doc);
-    package_document_load_v1("Packages/core_tools.physicspackage", &g_package_doc);
-    project_settings_document_load_v1("ProjectSettings/editor.physicssettings", &g_project_settings_doc);
-
-    if (editor_plugin_registry_scan_v1("Packages", &g_editor_plugin_registry)) {
-        scene_inspector.init = phase_g_scene_inspector_init;
-        scene_inspector.shutdown = phase_g_scene_inspector_shutdown;
-        scene_inspector.user = &g_editor_plugin_builtin_enabled;
-        failing_plugin.init = phase_g_failing_plugin_init;
-        failing_plugin.shutdown = NULL;
-        failing_plugin.user = NULL;
-        editor_plugin_registry_attach(&g_editor_plugin_registry, "builtin.scene_inspector", &scene_inspector);
-        editor_plugin_registry_attach(&g_editor_plugin_registry, "builtin.failing_menu", &failing_plugin);
-        editor_plugin_registry_initialize_all(&g_editor_plugin_registry);
-    }
-
-    if (prefab_schema_load_v1("Prefabs/phase_g_base.prefab", &layers[0]) &&
-        prefab_schema_load_v1("Prefabs/phase_g_nested.prefab", &layers[1]) &&
-        prefab_schema_load_v1("Prefabs/phase_g_variant.prefab", &layers[2]) &&
-        prefab_semantics_analyze_variant_stack(layers, 3, &g_prefab_analysis)) {
-        g_prefab_analysis_valid = 1;
-        prefab_semantics_repair_variant_overrides(&layers[2], &g_prefab_analysis, &repaired, &g_prefab_repair_removed_count);
+static void log_editor_extension_startup_diagnostics(void) {
+    int i;
+    for (i = 0; i < g_editor_extension_startup_state.diagnostic_count; ++i) {
+        wchar_t wide_stage[EDITOR_EXTENSION_STARTUP_MAX_STAGE];
+        wchar_t wide_path[PROJECT_WORKSPACE_MAX_PATH];
+        wchar_t wide_message[EDITOR_EXTENSION_STARTUP_MAX_MESSAGE];
+        const EditorExtensionStartupDiagnostic* diagnostic = &g_editor_extension_startup_state.diagnostics[i];
+        utf8_to_wide_copy(diagnostic->stage, wide_stage, (int)(sizeof(wide_stage) / sizeof(wide_stage[0])));
+        utf8_to_wide_copy(diagnostic->path, wide_path, (int)(sizeof(wide_path) / sizeof(wide_path[0])));
+        utf8_to_wide_copy(diagnostic->message, wide_message, (int)(sizeof(wide_message) / sizeof(wide_message[0])));
+        push_console_log(L"[启动][%ls] %ls | %ls | %ls",
+                         startup_severity_label(diagnostic->severity),
+                         wide_stage[0] ? wide_stage : L"-",
+                         wide_path[0] ? wide_path : L"-",
+                         wide_message[0] ? wide_message : L"-");
     }
 }
 
+static void phase_g_refresh_editor_extension_state(void) {
+    EditorExtensionStartupConfig config;
+    EditorPluginV1 scene_inspector{};
+    EditorPluginV1 failing_plugin{};
+    EditorExtensionBuiltinPlugin builtin_plugins[2]{};
+    int startup_ok;
+
+    g_editor_plugin_builtin_enabled = 0;
+    g_startup_status_text[0] = L'\0';
+    g_startup_degraded = 0;
+
+    editor_extension_startup_config_init(&config);
+    scene_inspector.init = phase_g_scene_inspector_init;
+    scene_inspector.shutdown = phase_g_scene_inspector_shutdown;
+    scene_inspector.user = &g_editor_plugin_builtin_enabled;
+    failing_plugin.init = phase_g_failing_plugin_init;
+    failing_plugin.shutdown = NULL;
+    failing_plugin.user = NULL;
+    strcpy(builtin_plugins[0].plugin_id, "builtin.scene_inspector");
+    strcpy(builtin_plugins[0].manifest_path, "Packages/builtin.scene_inspector.physicsplugin");
+    builtin_plugins[0].implementation = scene_inspector;
+    strcpy(builtin_plugins[1].plugin_id, "builtin.failing_menu");
+    strcpy(builtin_plugins[1].manifest_path, "Packages/builtin.failing_menu.physicsplugin");
+    builtin_plugins[1].implementation = failing_plugin;
+    config.builtin_plugins = builtin_plugins;
+    config.builtin_plugin_count = 2;
+
+    startup_ok = editor_extension_startup_run(&config, &g_editor_extension_startup_state);
+    g_startup_degraded = g_editor_extension_startup_state.degraded || !startup_ok;
+    if (!startup_ok) {
+        swprintf(g_startup_status_text, 96, L"启动:失败(%d)", g_editor_extension_startup_state.diagnostic_count);
+    } else if (g_startup_degraded) {
+        swprintf(g_startup_status_text, 96, L"启动:降级(%d)", g_editor_extension_startup_state.diagnostic_count);
+    } else {
+        swprintf(g_startup_status_text, 96, L"启动:正常");
+    }
+    log_editor_extension_startup_diagnostics();
+}
+
 static void phase_g_shutdown_editor_extension_state(void) {
-    editor_plugin_registry_shutdown(&g_editor_plugin_registry);
+    editor_extension_startup_shutdown(&g_editor_extension_startup_state);
 }
 
 static void session_recovery_persist(const wchar_t* recent_action) {
@@ -6127,9 +6127,9 @@ static void render_status_bar(D2D1_RECT_F status_rect) {
     swprintf(line, 128, L"用户:%ls | v0.3", g_status_user[0] ? g_status_user : L"unknown");
     g_status_meta_rect = rc(status_rect.right - 620.0f, status_rect.top + 6.0f, status_rect.right - 392.0f, status_rect.bottom - 4.0f);
     draw_text(line, g_status_meta_rect, g_ui.fmt_info, rgba(0.55f, 0.65f, 0.79f, 1.0f));
-    swprintf(line_right, 128, L"约束:%ls", g_state.draw_constraints ? L"开" : L"关");
+    swprintf(line_right, 128, L"%ls", g_startup_status_text[0] ? g_startup_status_text : L"启动:未知");
     draw_text(line_right, rc(status_rect.right - 520.0f, status_rect.top + 6.0f, status_rect.right - 390.0f, status_rect.bottom - 4.0f),
-              g_ui.fmt_info, rgba(0.66f, 0.74f, 0.85f, 1.0f));
+              g_ui.fmt_info, g_startup_degraded ? rgba(0.98f, 0.72f, 0.40f, 1.0f) : rgba(0.66f, 0.74f, 0.85f, 1.0f));
     if (hot_failed > 0) {
         hot_reload_color = rgba(0.98f, 0.47f, 0.43f, 1.0f);
     } else if (hot_imported > 0 && g_state.hot_reload_last_event_ms > 0 &&
@@ -7991,6 +7991,8 @@ static int handle_destroy(void) {
 static void init_status_context(void) {
     g_status_project_path[0] = L'\0';
     g_status_user[0] = L'\0';
+    g_startup_status_text[0] = L'\0';
+    g_startup_degraded = 0;
     GetCurrentDirectoryW(260, g_status_project_path);
     {
         DWORD uname_len = 63;
@@ -8049,9 +8051,8 @@ static void init_app_bootstrap_state(void) {
     g_collision_event_filter_selected_only = 0;
     g_clipboard_body.valid = 0;
     load_ui_layout();
-    session_recovery_state_init(&g_session_recovery_state);
-    session_recovery_state_load_v1(SESSION_RECOVERY_PATH, &g_session_recovery_state);
     push_console_log(L"[启动] 物理沙盒已启动");
+    push_console_log(L"[启动] %ls", g_startup_status_text[0] ? g_startup_status_text : L"启动:未知");
     if (file_exists_utf8_path("autosave_snapshot.txt")) {
         push_console_log(L"[启动] 检测到 autosave_snapshot.txt，可在 文件 菜单恢复");
     }

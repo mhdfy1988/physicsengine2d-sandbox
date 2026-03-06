@@ -1,5 +1,6 @@
+#include "runtime_snapshot_repo.hpp"
+
 #include <stdio.h>
-#include "snapshot_repo.hpp"
 
 static float body_box_size_hint(const RigidBody* b) {
     int i;
@@ -14,7 +15,7 @@ static float body_box_size_hint(const RigidBody* b) {
     return max_f(2.0f, max_x - min_x);
 }
 
-int snapshot_repo_save(const PhysicsEngine* engine, const char* path) {
+int runtime_snapshot_repo_save(const PhysicsEngine* engine, const char* path) {
     FILE* fp;
     int i;
     int dyn_count = 0;
@@ -69,7 +70,7 @@ int snapshot_repo_save(const PhysicsEngine* engine, const char* path) {
     return 1;
 }
 
-int snapshot_repo_load(PhysicsEngine* engine, const char* path) {
+int runtime_snapshot_repo_load(PhysicsEngine* engine, const char* path) {
     FILE* fp;
     int body_n = 0;
     int con_n = 0;

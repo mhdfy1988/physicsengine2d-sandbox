@@ -95,6 +95,20 @@ static PrefabSchemaEntityShape prefab_schema_shape_from_text(const char* text, i
     return PREFAB_SCHEMA_ENTITY_BOX;
 }
 
+static PrefabSchemaDocument* prefab_schema_alloc_document(void) {
+    return (PrefabSchemaDocument*)malloc(sizeof(PrefabSchemaDocument));
+}
+
+static PrefabSchemaEntity* prefab_schema_alloc_entities(int count) {
+    if (count <= 0) return NULL;
+    return (PrefabSchemaEntity*)malloc((size_t)count * sizeof(PrefabSchemaEntity));
+}
+
+static PrefabSchemaOverride* prefab_schema_alloc_overrides(int count) {
+    if (count <= 0) return NULL;
+    return (PrefabSchemaOverride*)malloc((size_t)count * sizeof(PrefabSchemaOverride));
+}
+
 void prefab_schema_document_init(PrefabSchemaDocument* doc) {
     int i;
     if (doc == NULL) return;
@@ -115,13 +129,18 @@ int prefab_schema_load_v1(const char* path, PrefabSchemaDocument* out_doc) {
     int expected_overrides = -1;
     int got_version = 0;
     int got_guid = 0;
-    static PrefabSchemaDocument doc;
+    PrefabSchemaDocument* doc;
 
     if (path == NULL || out_doc == NULL) return 0;
     fp = fopen(path, "r");
     if (fp == NULL) return 0;
+    doc = prefab_schema_alloc_document();
+    if (doc == NULL) {
+        fclose(fp);
+        return 0;
+    }
 
-    prefab_schema_document_init(&doc);
+    prefab_schema_document_init(doc);
 
     while (fgets(line, sizeof(line), fp) != NULL) {
         char* tokens[16];
@@ -131,56 +150,65 @@ int prefab_schema_load_v1(const char* path, PrefabSchemaDocument* out_doc) {
         token_count = prefab_schema_split_pipe(line, tokens, (int)(sizeof(tokens) / sizeof(tokens[0])));
         if (token_count <= 0) {
             fclose(fp);
+            free(doc);
             return 0;
         }
         if (strcmp(tokens[0], "schema_version") == 0) {
             int version = 0;
             if (token_count != 2 || !prefab_schema_parse_int(tokens[1], &version) || version != PREFAB_SCHEMA_VERSION_V1) {
                 fclose(fp);
+                free(doc);
                 return 0;
             }
-            doc.schema_version = version;
+            doc->schema_version = version;
             got_version = 1;
         } else if (strcmp(tokens[0], "prefab_guid") == 0) {
             if (token_count != 2 || tokens[1][0] == '\0') {
                 fclose(fp);
+                free(doc);
                 return 0;
             }
-            prefab_schema_copy_text(doc.prefab_guid, PREFAB_SCHEMA_MAX_GUID, tokens[1]);
+            prefab_schema_copy_text(doc->prefab_guid, PREFAB_SCHEMA_MAX_GUID, tokens[1]);
             got_guid = 1;
         } else if (strcmp(tokens[0], "base_prefab_guid") == 0) {
             if (token_count != 2) {
                 fclose(fp);
+                free(doc);
                 return 0;
             }
-            prefab_schema_copy_text(doc.base_prefab_guid, PREFAB_SCHEMA_MAX_GUID, tokens[1]);
+            prefab_schema_copy_text(doc->base_prefab_guid, PREFAB_SCHEMA_MAX_GUID, tokens[1]);
         } else if (strcmp(tokens[0], "is_variant") == 0) {
-            if (token_count != 2 || !prefab_schema_parse_int(tokens[1], &doc.is_variant)) {
+            if (token_count != 2 || !prefab_schema_parse_int(tokens[1], &doc->is_variant)) {
                 fclose(fp);
+                free(doc);
                 return 0;
             }
-            doc.is_variant = doc.is_variant ? 1 : 0;
+            doc->is_variant = doc->is_variant ? 1 : 0;
         } else if (strcmp(tokens[0], "entity_count") == 0) {
             if (token_count != 2 || !prefab_schema_parse_int(tokens[1], &expected_entities) || expected_entities < 0) {
                 fclose(fp);
+                free(doc);
                 return 0;
             }
         } else if (strcmp(tokens[0], "entity") == 0) {
             PrefabSchemaEntity* e;
             int shape_ok = 0;
-            if (token_count != 14 || doc.entity_count >= PREFAB_SCHEMA_MAX_ENTITIES) {
+            if (token_count != 14 || doc->entity_count >= PREFAB_SCHEMA_MAX_ENTITIES) {
                 fclose(fp);
+                free(doc);
                 return 0;
             }
-            e = &doc.entities[doc.entity_count];
+            e = &doc->entities[doc->entity_count];
             if (!prefab_schema_parse_int(tokens[1], &e->entity_id)) {
                 fclose(fp);
+                free(doc);
                 return 0;
             }
             prefab_schema_copy_text(e->name, PREFAB_SCHEMA_MAX_NAME, tokens[2]);
             e->shape = prefab_schema_shape_from_text(tokens[3], &shape_ok);
             if (!shape_ok) {
                 fclose(fp);
+                free(doc);
                 return 0;
             }
             if (!prefab_schema_parse_float(tokens[4], &e->mass) ||
@@ -194,50 +222,65 @@ int prefab_schema_load_v1(const char* path, PrefabSchemaDocument* out_doc) {
                 !prefab_schema_parse_float(tokens[12], &e->size) ||
                 !prefab_schema_parse_float(tokens[13], &e->damping)) {
                 fclose(fp);
+                free(doc);
                 return 0;
             }
-            doc.entity_count++;
+            doc->entity_count++;
         } else if (strcmp(tokens[0], "override_count") == 0) {
             if (token_count != 2 || !prefab_schema_parse_int(tokens[1], &expected_overrides) || expected_overrides < 0) {
                 fclose(fp);
+                free(doc);
                 return 0;
             }
         } else if (strcmp(tokens[0], "override") == 0) {
             PrefabSchemaOverride* o;
-            if (token_count != 5 || doc.override_count >= PREFAB_SCHEMA_MAX_OVERRIDES) {
+            if (token_count != 5 || doc->override_count >= PREFAB_SCHEMA_MAX_OVERRIDES) {
                 fclose(fp);
+                free(doc);
                 return 0;
             }
-            o = &doc.overrides[doc.override_count];
+            o = &doc->overrides[doc->override_count];
             if (!prefab_schema_parse_int(tokens[1], &o->override_id) ||
                 !prefab_schema_parse_int(tokens[2], &o->entity_id)) {
                 fclose(fp);
+                free(doc);
                 return 0;
             }
             prefab_schema_copy_text(o->field, PREFAB_SCHEMA_MAX_FIELD, tokens[3]);
             prefab_schema_copy_text(o->value, PREFAB_SCHEMA_MAX_VALUE, tokens[4]);
-            doc.override_count++;
+            doc->override_count++;
         } else {
             fclose(fp);
+            free(doc);
             return 0;
         }
     }
     fclose(fp);
 
-    if (!got_version || !got_guid) return 0;
-    if (expected_entities >= 0 && expected_entities != doc.entity_count) return 0;
-    if (expected_overrides >= 0 && expected_overrides != doc.override_count) return 0;
+    if (!got_version || !got_guid) {
+        free(doc);
+        return 0;
+    }
+    if (expected_entities >= 0 && expected_entities != doc->entity_count) {
+        free(doc);
+        return 0;
+    }
+    if (expected_overrides >= 0 && expected_overrides != doc->override_count) {
+        free(doc);
+        return 0;
+    }
 
-    qsort(doc.entities, (size_t)doc.entity_count, sizeof(doc.entities[0]), prefab_schema_entity_cmp);
-    qsort(doc.overrides, (size_t)doc.override_count, sizeof(doc.overrides[0]), prefab_schema_override_cmp);
-    *out_doc = doc;
+    qsort(doc->entities, (size_t)doc->entity_count, sizeof(doc->entities[0]), prefab_schema_entity_cmp);
+    qsort(doc->overrides, (size_t)doc->override_count, sizeof(doc->overrides[0]), prefab_schema_override_cmp);
+    *out_doc = *doc;
+    free(doc);
     return 1;
 }
 
 int prefab_schema_save_v1(const PrefabSchemaDocument* doc, const char* path) {
     FILE* fp;
-    static PrefabSchemaEntity entities[PREFAB_SCHEMA_MAX_ENTITIES];
-    static PrefabSchemaOverride overrides[PREFAB_SCHEMA_MAX_OVERRIDES];
+    PrefabSchemaEntity* entities = NULL;
+    PrefabSchemaOverride* overrides = NULL;
     int i;
     int entity_count;
     int override_count;
@@ -251,6 +294,14 @@ int prefab_schema_save_v1(const PrefabSchemaDocument* doc, const char* path) {
     if (override_count < 0) override_count = 0;
     if (entity_count > PREFAB_SCHEMA_MAX_ENTITIES) entity_count = PREFAB_SCHEMA_MAX_ENTITIES;
     if (override_count > PREFAB_SCHEMA_MAX_OVERRIDES) override_count = PREFAB_SCHEMA_MAX_OVERRIDES;
+    entities = prefab_schema_alloc_entities(entity_count);
+    overrides = prefab_schema_alloc_overrides(override_count);
+    if ((entity_count > 0 && entities == NULL) || (override_count > 0 && overrides == NULL)) {
+        free(entities);
+        free(overrides);
+        fclose(fp);
+        return 0;
+    }
     if (entity_count > 0) memcpy(entities, doc->entities, (size_t)entity_count * sizeof(entities[0]));
     if (override_count > 0) memcpy(overrides, doc->overrides, (size_t)override_count * sizeof(overrides[0]));
     qsort(entities, (size_t)entity_count, sizeof(entities[0]), prefab_schema_entity_cmp);
@@ -287,6 +338,8 @@ int prefab_schema_save_v1(const PrefabSchemaDocument* doc, const char* path) {
                 (o->field[0] != '\0') ? o->field : "field",
                 (o->value[0] != '\0') ? o->value : "value");
     }
+    free(entities);
+    free(overrides);
     if (fclose(fp) != 0) return 0;
     return 1;
 }

@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "physics.hpp"
-#include "snapshot_repo.hpp"
+#include "runtime_snapshot_repo.hpp"
 
 static int parse_int_arg(const char* text, int fallback) {
     char* endptr = NULL;
@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
     }
 
     if (snapshot_path != NULL) {
-        if (!snapshot_repo_load(engine, snapshot_path)) {
+        if (!runtime_snapshot_repo_load(engine, snapshot_path)) {
             printf("[FAIL] unable to load snapshot: %s\n", snapshot_path);
             physics_engine_free(engine);
             return 1;

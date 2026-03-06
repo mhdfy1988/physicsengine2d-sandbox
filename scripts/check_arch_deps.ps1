@@ -35,6 +35,15 @@ Assert-NoMatch -Pattern 'apps\/|apps\\' -Globs @('src\c_api\*.cpp', 'src\core\*.
 # Physics2D implementation must not include c_api implementation headers/paths.
 Assert-NoMatch -Pattern 'c_api\/|c_api\\' -Globs @('src\physics2d\*.cpp') -Message 'physics2d depends on c_api layer'
 
+# Pure physics kernel must not depend on content/editor systems.
+Assert-NoMatch -Pattern 'src\/content|src\\content|prefab_|asset_|project_workspace|editor_plugin|session_recovery|diagnostic_bundle' -Globs @('src\c_api\*.cpp', 'src\core\*.cpp', 'src\physics2d\*.cpp') -Message 'physics kernel depends on content/editor layer'
+
+# Public physics headers must remain content/editor free.
+Assert-NoMatch -Pattern 'prefab_|asset_|project_workspace|editor_plugin|session_recovery|diagnostic_bundle|content\/|content\\' -Globs @('include\physics2d\*.hpp', 'include\physics.h') -Message 'public physics api depends on content/editor layer'
+
+# Runtime support must not depend on app/editor layer.
+Assert-NoMatch -Pattern 'apps\/|apps\\|editor_plugin|project_workspace|prefab_|asset_|session_recovery|diagnostic_bundle' -Globs @('src\runtime_support\*.cpp') -Message 'runtime support depends on app/content-editor layer'
+
 if ($failed) {
     Write-Host "Architecture dependency checks failed."
     exit 1

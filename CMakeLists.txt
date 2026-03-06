@@ -15,9 +15,9 @@ if(DEFINED BUILD_SANDBOX)
     set(BUILD_EDITOR ${BUILD_SANDBOX})
 endif()
 
-function(physics_add_cpp_smoke target source needs_cpp_include)
+function(physics_add_cpp_smoke target source link_target)
     add_executable(${target} ${source})
-    target_link_libraries(${target} PRIVATE physics2d)
+    target_link_libraries(${target} PRIVATE ${link_target})
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4)
     else()
@@ -44,7 +44,7 @@ function(physics_enable_win32_com_cpp_compat target)
     endif()
 endfunction()
 
-set(PHYSICS2D_SOURCES
+set(PHYSICS_KERNEL_SOURCES
     src/physics2d/math.cpp
     src/physics2d/shape.cpp
     src/physics2d/body.cpp
@@ -58,22 +58,6 @@ set(PHYSICS2D_SOURCES
     src/c_api/physics_query.cpp
     src/c_api/physics_mutation.cpp
     src/c_api/physics_pipeline_api.cpp
-    src/content/scene_schema.cpp
-    src/content/prefab_schema.cpp
-    src/content/prefab_semantics.cpp
-    src/content/project_workspace.cpp
-    src/content/editor_plugin.cpp
-    src/content/session_recovery.cpp
-    src/content/diagnostic_bundle.cpp
-    src/content/asset_database.cpp
-    src/content/asset_importer.cpp
-    src/content/asset_invalidation.cpp
-    src/content/asset_pipeline.cpp
-    src/content/asset_watch.cpp
-    src/content/asset_hot_reload.cpp
-    src/content/asset_fs_poll.cpp
-    src/content/asset_fs_watch.cpp
-    src/content/subsystem_render_audio_animation.cpp
     src/core/physics_snapshot.cpp
     src/core/physics_world.cpp
     src/core/physics_memory.cpp
@@ -90,33 +74,69 @@ set(PHYSICS2D_SOURCES
     src/physics2d/physics_integrate.cpp
 )
 
-add_library(physics2d STATIC ${PHYSICS2D_SOURCES})
-add_library(physics_core ALIAS physics2d)
-target_include_directories(physics2d PUBLIC ${CMAKE_SOURCE_DIR}/include)
-target_include_directories(physics2d PRIVATE ${CMAKE_SOURCE_DIR}/src)
-if(PHYSICS_USE_CPP_KERNEL)
-    target_compile_definitions(physics2d PUBLIC PHYSICS_USE_CPP_KERNEL=1)
-else()
-    target_compile_definitions(physics2d PUBLIC PHYSICS_USE_CPP_KERNEL=0)
-endif()
-if(WIN32)
-    target_compile_definitions(physics2d PUBLIC COBJMACROS)
-endif()
-if(NOT MSVC)
-    target_link_libraries(physics2d PUBLIC m)
-endif()
+set(PHYSICS_CONTENT_SOURCES
+    src/content/scene_schema.cpp
+    src/content/prefab_schema.cpp
+    src/content/prefab_semantics.cpp
+    src/content/project_workspace.cpp
+    src/content/editor_plugin.cpp
+    src/content/session_recovery.cpp
+    src/content/diagnostic_bundle.cpp
+    src/content/asset_database.cpp
+    src/content/asset_importer.cpp
+    src/content/asset_invalidation.cpp
+    src/content/asset_pipeline.cpp
+    src/content/asset_watch.cpp
+    src/content/asset_hot_reload.cpp
+    src/content/asset_fs_poll.cpp
+    src/content/asset_fs_watch.cpp
+    src/content/subsystem_render_audio_animation.cpp
+)
 
-if(MSVC)
-    target_compile_options(physics2d PRIVATE /W4)
-else()
-    target_compile_options(physics2d PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
-endif()
+set(PHYSICS_RUNTIME_SUPPORT_SOURCES
+    src/runtime_support/snapshot_repo.cpp
+)
+
+function(physics_configure_library target)
+    target_include_directories(${target} PUBLIC ${CMAKE_SOURCE_DIR}/include)
+    target_include_directories(${target} PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    if(PHYSICS_USE_CPP_KERNEL)
+        target_compile_definitions(${target} PUBLIC PHYSICS_USE_CPP_KERNEL=1)
+    else()
+        target_compile_definitions(${target} PUBLIC PHYSICS_USE_CPP_KERNEL=0)
+    endif()
+    if(WIN32)
+        target_compile_definitions(${target} PUBLIC COBJMACROS)
+    endif()
+    if(NOT MSVC)
+        target_link_libraries(${target} PUBLIC m)
+    endif()
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4)
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+    endif()
+endfunction()
+
+add_library(physics_kernel STATIC ${PHYSICS_KERNEL_SOURCES})
+physics_configure_library(physics_kernel)
+
+add_library(physics_content STATIC ${PHYSICS_CONTENT_SOURCES})
+physics_configure_library(physics_content)
+target_link_libraries(physics_content PUBLIC physics_kernel)
+
+add_library(physics_runtime_support STATIC ${PHYSICS_RUNTIME_SUPPORT_SOURCES})
+physics_configure_library(physics_runtime_support)
+target_link_libraries(physics_runtime_support PUBLIC physics_kernel)
+
+add_library(physics2d INTERFACE)
+target_link_libraries(physics2d INTERFACE physics_kernel physics_content)
+add_library(physics_core ALIAS physics_kernel)
 
 if(BUILD_EDITOR)
     set(SANDBOX_SOURCES
         apps/sandbox_dwrite/main.cpp
         apps/sandbox_dwrite/infrastructure/project_tree.cpp
-        apps/sandbox_dwrite/infrastructure/snapshot_repo.cpp
         apps/sandbox_dwrite/infrastructure/ui_layout_repo.cpp
         apps/sandbox_dwrite/presentation/render/ui_icons.cpp
         apps/sandbox_dwrite/presentation/render/ui_text.cpp
@@ -132,6 +152,7 @@ if(BUILD_EDITOR)
         apps/sandbox_dwrite/application/scene_builder.cpp
         apps/sandbox_dwrite/application/history_service.cpp
         apps/sandbox_dwrite/application/runtime_param_service.cpp
+        apps/sandbox_dwrite/application/editor_extension_state_service.cpp
         apps/sandbox_dwrite/presentation/input/input_mapping.cpp
         apps/sandbox_dwrite/presentation/input/menu_file_edit_actions.cpp
         apps/sandbox_dwrite/presentation/input/menu_view_physics_window_actions.cpp
@@ -144,7 +165,7 @@ if(BUILD_EDITOR)
 
     add_executable(physics_sandbox WIN32 ${SANDBOX_SOURCES})
     add_executable(physics_editor ALIAS physics_sandbox)
-    target_link_libraries(physics_sandbox PRIVATE physics2d d2d1 dwrite windowscodecs ole32 uuid shcore gdi32 user32)
+    target_link_libraries(physics_sandbox PRIVATE physics2d physics_runtime_support d2d1 dwrite windowscodecs ole32 uuid shcore gdi32 user32)
     physics_force_cxx_link(physics_sandbox)
     physics_enable_win32_com_cpp_compat(physics_sandbox)
     if(MSVC)
@@ -158,6 +179,29 @@ if(BUILD_EDITOR)
 endif()
 
 if(BUILD_TESTS)
+    add_executable(physics_kernel_tests
+        tests/kernel_regression_runner.cpp
+        tests/regression_collision_core_tests.cpp
+        tests/regression_event_snapshot_tests.cpp
+        tests/regression_pipeline_error_tests.cpp
+        tests/regression_sleep_broadphase_tests.cpp
+        tests/regression_stress_constraint_tests.cpp
+        tests/regression_engine_feature_tests.cpp
+        tests/equivalence/equivalence_api_tests.cpp
+    )
+    add_executable(physics_content_tests
+        tests/content_regression_runner.cpp
+        tests/regression_scene_schema_tests.cpp
+        tests/regression_prefab_schema_tests.cpp
+        tests/regression_project_workspace_tests.cpp
+        tests/regression_prefab_semantics_tests.cpp
+        tests/regression_editor_plugin_tests.cpp
+        tests/regression_session_recovery_tests.cpp
+        tests/regression_asset_database_tests.cpp
+        tests/regression_asset_importer_tests.cpp
+        tests/regression_asset_pipeline_tests.cpp
+        tests/regression_asset_hot_reload_tests.cpp
+    )
     add_executable(physics_tests
         tests/regression_tests.cpp
         tests/regression_collision_core_tests.cpp
@@ -197,44 +241,73 @@ if(BUILD_TESTS)
     add_executable(physics_subsystem_render_audio_animation_smoke
         tests/subsystem_render_audio_animation_smoke.cpp
     )
-    physics_add_cpp_smoke(physics_cpp_script_bridge_smoke tests/cpp_script_bridge_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_foundation_smoke tests/cpp_foundation_smoke.cpp TRUE)
+    add_executable(physics_editor_extension_state_service_smoke
+        tests/editor_extension_state_service_smoke.cpp
+        apps/sandbox_dwrite/application/editor_extension_state_service.cpp
+    )
+    add_executable(physics_core_header_smoke
+        tests/physics_core_header_smoke.cpp
+    )
+    physics_add_cpp_smoke(physics_cpp_script_bridge_smoke tests/cpp_script_bridge_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_foundation_smoke tests/cpp_foundation_smoke.cpp physics_kernel)
     add_executable(physics_bench tests/benchmark_suite.cpp)
     add_executable(physics_invariants tests/invariant_tests.cpp)
+    target_link_libraries(physics_kernel_tests PRIVATE physics_kernel)
+    target_link_libraries(physics_content_tests PRIVATE physics_content)
     target_link_libraries(physics_tests PRIVATE physics2d)
     target_link_libraries(physics_app_runtime_smoke PRIVATE physics2d)
     target_link_libraries(physics_editor_undo_redo_smoke PRIVATE physics2d)
     target_link_libraries(physics_editor_pie_lifecycle_smoke PRIVATE physics2d)
     target_link_libraries(physics_subsystem_render_audio_animation_smoke PRIVATE physics2d)
+    target_link_libraries(physics_editor_extension_state_service_smoke PRIVATE physics2d)
+    target_link_libraries(physics_core_header_smoke PRIVATE physics_kernel physics_runtime_support)
     target_link_libraries(physics_bench PRIVATE physics2d)
     target_link_libraries(physics_invariants PRIVATE physics2d)
+    physics_force_cxx_link(physics_kernel_tests)
+    physics_force_cxx_link(physics_content_tests)
     physics_force_cxx_link(physics_tests)
     physics_force_cxx_link(physics_app_runtime_smoke)
     physics_force_cxx_link(physics_editor_undo_redo_smoke)
     physics_force_cxx_link(physics_editor_pie_lifecycle_smoke)
     physics_force_cxx_link(physics_subsystem_render_audio_animation_smoke)
+    physics_force_cxx_link(physics_editor_extension_state_service_smoke)
+    physics_force_cxx_link(physics_core_header_smoke)
     physics_force_cxx_link(physics_bench)
     physics_force_cxx_link(physics_invariants)
     physics_enable_win32_com_cpp_compat(physics_app_runtime_smoke)
     physics_enable_win32_com_cpp_compat(physics_editor_undo_redo_smoke)
     physics_enable_win32_com_cpp_compat(physics_editor_pie_lifecycle_smoke)
     if(MSVC)
+        target_compile_options(physics_kernel_tests PRIVATE /W4)
+        target_compile_options(physics_content_tests PRIVATE /W4)
         target_compile_options(physics_tests PRIVATE /W4)
         target_compile_options(physics_app_runtime_smoke PRIVATE /W4)
         target_compile_options(physics_editor_undo_redo_smoke PRIVATE /W4)
         target_compile_options(physics_editor_pie_lifecycle_smoke PRIVATE /W4)
         target_compile_options(physics_subsystem_render_audio_animation_smoke PRIVATE /W4)
+        target_compile_options(physics_editor_extension_state_service_smoke PRIVATE /W4)
+        target_compile_options(physics_core_header_smoke PRIVATE /W4)
         target_compile_options(physics_bench PRIVATE /W4)
         target_compile_options(physics_invariants PRIVATE /W4)
     else()
+        target_compile_options(physics_kernel_tests PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+        target_compile_options(physics_content_tests PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
         target_compile_options(physics_tests PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
         target_compile_options(physics_app_runtime_smoke PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
         target_compile_options(physics_editor_undo_redo_smoke PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
         target_compile_options(physics_editor_pie_lifecycle_smoke PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
         target_compile_options(physics_subsystem_render_audio_animation_smoke PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+        target_compile_options(physics_editor_extension_state_service_smoke PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+        target_compile_options(physics_core_header_smoke PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
         target_compile_options(physics_bench PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
         target_compile_options(physics_invariants PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
     endif()
+    set_target_properties(physics_kernel_tests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+    set_target_properties(physics_content_tests PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
     set_target_properties(physics_tests PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
@@ -248,6 +321,12 @@ if(BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
     set_target_properties(physics_subsystem_render_audio_animation_smoke PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+    set_target_properties(physics_editor_extension_state_service_smoke PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+    set_target_properties(physics_core_header_smoke PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
     set_target_properties(physics_bench PROPERTIES
@@ -271,10 +350,8 @@ set_target_properties(scene_migrate PROPERTIES
 
 add_executable(physics_runtime_cli
     apps/runtime_cli/main.cpp
-    apps/sandbox_dwrite/infrastructure/snapshot_repo.cpp
 )
-target_link_libraries(physics_runtime_cli PRIVATE physics2d)
-target_include_directories(physics_runtime_cli PRIVATE ${CMAKE_SOURCE_DIR}/apps/sandbox_dwrite/infrastructure)
+target_link_libraries(physics_runtime_cli PRIVATE physics_kernel physics_runtime_support)
 if(MSVC)
     target_compile_options(physics_runtime_cli PRIVATE /W4)
 else()
@@ -331,28 +408,28 @@ set_target_properties(phase_d_profile_capture PROPERTIES
 )
 
 if(BUILD_CPP_COMPAT)
-    physics_add_cpp_smoke(physics_cpp_smoke tests/cpp_api_smoke.cpp FALSE)
+    physics_add_cpp_smoke(physics_cpp_smoke tests/cpp_api_smoke.cpp physics_kernel)
 endif()
 
 if(BUILD_CPP_WRAPPER)
-    physics_add_cpp_smoke(physics_cpp_raii_smoke tests/cpp_raii_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_status_smoke tests/cpp_status_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_world_raii_smoke tests/cpp_world_raii_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_body_raii_smoke tests/cpp_body_raii_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_constraint_raii_smoke tests/cpp_constraint_raii_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_snapshot_smoke tests/cpp_snapshot_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_single_include_smoke tests/cpp_single_include_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_engine_view_smoke tests/cpp_engine_view_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_ecs_smoke tests/cpp_ecs_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_ecs_dirty_sync_smoke tests/cpp_ecs_dirty_sync_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_ecs_query_smoke tests/cpp_ecs_query_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_ecs_bridge_smoke tests/cpp_ecs_bridge_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_ecs_pipeline_smoke tests/cpp_ecs_pipeline_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_ecs_pipeline_config_smoke tests/cpp_ecs_pipeline_config_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_runtime_facade_smoke tests/cpp_runtime_facade_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_runtime_error_channel_smoke tests/cpp_runtime_error_channel_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_runtime_error_recovery_smoke tests/cpp_runtime_error_recovery_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_runtime_multi_error_smoke tests/cpp_runtime_multi_error_smoke.cpp TRUE)
+    physics_add_cpp_smoke(physics_cpp_raii_smoke tests/cpp_raii_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_status_smoke tests/cpp_status_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_world_raii_smoke tests/cpp_world_raii_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_body_raii_smoke tests/cpp_body_raii_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_constraint_raii_smoke tests/cpp_constraint_raii_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_snapshot_smoke tests/cpp_snapshot_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_single_include_smoke tests/cpp_single_include_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_engine_view_smoke tests/cpp_engine_view_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_ecs_smoke tests/cpp_ecs_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_ecs_dirty_sync_smoke tests/cpp_ecs_dirty_sync_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_ecs_query_smoke tests/cpp_ecs_query_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_ecs_bridge_smoke tests/cpp_ecs_bridge_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_ecs_pipeline_smoke tests/cpp_ecs_pipeline_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_ecs_pipeline_config_smoke tests/cpp_ecs_pipeline_config_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_runtime_facade_smoke tests/cpp_runtime_facade_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_runtime_error_channel_smoke tests/cpp_runtime_error_channel_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_runtime_error_recovery_smoke tests/cpp_runtime_error_recovery_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_runtime_multi_error_smoke tests/cpp_runtime_multi_error_smoke.cpp physics2d)
     add_executable(physics_cpp_runtime_app_bridge_smoke
         tests/cpp_runtime_app_bridge_smoke.cpp
         apps/sandbox_dwrite/domain/app_command.cpp
@@ -370,10 +447,16 @@ if(BUILD_CPP_WRAPPER)
     set_target_properties(physics_cpp_runtime_app_bridge_smoke PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
-    physics_add_cpp_smoke(physics_cpp_runtime_events_smoke tests/cpp_runtime_events_smoke.cpp TRUE)
-    physics_add_cpp_smoke(physics_cpp_runtime_pause_step_smoke tests/cpp_runtime_pause_step_smoke.cpp TRUE)
+    physics_add_cpp_smoke(physics_cpp_runtime_events_smoke tests/cpp_runtime_events_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_runtime_pause_step_smoke tests/cpp_runtime_pause_step_smoke.cpp physics2d)
 endif()
 
-set_target_properties(physics2d PROPERTIES
+set_target_properties(physics_kernel PROPERTIES
+    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+)
+set_target_properties(physics_content PROPERTIES
+    ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+)
+set_target_properties(physics_runtime_support PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
 )
