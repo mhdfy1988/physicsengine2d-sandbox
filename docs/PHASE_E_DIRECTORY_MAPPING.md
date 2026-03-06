@@ -26,13 +26,13 @@
 
 ### 3.1 Foundation / Core / ECS
 
-1. `cpp/physics_filesystem.hpp` -> `engine/foundation/filesystem/*`
-2. `cpp/physics_logger.hpp` -> `engine/foundation/logging/*`
-3. `cpp/physics_task_runner.hpp` -> `engine/foundation/tasks/*`
-4. `cpp/physics_runtime_config.hpp` -> `engine/foundation/config/*`
+1. `include/physics2d/physics_filesystem.hpp` -> `engine/foundation/filesystem/*`
+2. `include/physics2d/physics_logger.hpp` -> `engine/foundation/logging/*`
+3. `include/physics2d/physics_task_runner.hpp` -> `engine/foundation/tasks/*`
+4. `include/physics2d/physics_runtime_config.hpp` -> `engine/foundation/config/*`
 5. `src/core/*.cpp` -> `engine/core/*`
 6. `src/c_api/*.cpp` -> `engine/core/c_api/*`
-7. `cpp/physics_ecs*.hpp` -> `engine/ecs/*`
+7. `include/physics2d/physics_ecs*.hpp` -> `engine/ecs/*`
 
 ### 3.2 Systems
 
@@ -68,7 +68,7 @@
 
 ### 5.1 优先级 1
 
-1. `cpp/*` foundation 能力继续成组搬到 `engine/foundation/*`
+1. `include/physics2d/*` foundation / facade 能力继续成组搬到 `engine/foundation/*` 与 `engine/ecs/*`
 2. `tools/scene_migrate_main.cpp` 与后续迁移工具搬到 `tools/asset_pipeline/migrations/*`
 
 ### 5.2 优先级 2

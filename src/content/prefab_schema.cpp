@@ -115,7 +115,7 @@ int prefab_schema_load_v1(const char* path, PrefabSchemaDocument* out_doc) {
     int expected_overrides = -1;
     int got_version = 0;
     int got_guid = 0;
-    PrefabSchemaDocument doc;
+    static PrefabSchemaDocument doc;
 
     if (path == NULL || out_doc == NULL) return 0;
     fp = fopen(path, "r");
@@ -236,8 +236,8 @@ int prefab_schema_load_v1(const char* path, PrefabSchemaDocument* out_doc) {
 
 int prefab_schema_save_v1(const PrefabSchemaDocument* doc, const char* path) {
     FILE* fp;
-    PrefabSchemaEntity entities[PREFAB_SCHEMA_MAX_ENTITIES];
-    PrefabSchemaOverride overrides[PREFAB_SCHEMA_MAX_OVERRIDES];
+    static PrefabSchemaEntity entities[PREFAB_SCHEMA_MAX_ENTITIES];
+    static PrefabSchemaOverride overrides[PREFAB_SCHEMA_MAX_OVERRIDES];
     int i;
     int entity_count;
     int override_count;

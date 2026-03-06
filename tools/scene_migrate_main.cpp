@@ -1,7 +1,7 @@
 #include <cstdio>
 #include <string>
 #include "scene_schema.hpp"
-#include "../cpp/physics_filesystem.hpp"
+#include "physics2d/physics_filesystem.hpp"
 
 static void print_usage() {
     std::printf("Usage: scene_migrate --in <legacy_snapshot.txt> [--out <scene_v1.txt>] [--dry-run]\n");

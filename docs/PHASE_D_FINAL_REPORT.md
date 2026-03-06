@@ -36,7 +36,7 @@
    - `tests/subsystem_render_audio_animation_smoke.cpp`
    - `tools/subsystem_workflow_demo.cpp`
 2. Script bridge:
-   - `cpp/physics_script_bridge.hpp`
+   - `include/physics2d/physics_script_bridge.hpp`
    - `tests/cpp_script_bridge_smoke.cpp`
 3. Profiling / benchmark:
    - `tools/parallel_benchmark_compare.cpp`

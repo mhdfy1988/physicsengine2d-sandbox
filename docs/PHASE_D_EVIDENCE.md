@@ -96,7 +96,7 @@ Scope: Full Phase D closure evidence
    - `tools/subsystem_workflow_demo.cpp`
    - Archived output: `artifacts/phase_d_d4_closure_20260306_162937/subsystem_workflow_demo.log`
 4. Script bridge minimal closure:
-   - `cpp/physics_script_bridge.hpp`
+   - `include/physics2d/physics_script_bridge.hpp`
    - `tests/cpp_script_bridge_smoke.cpp`
    - Covers spawn, transform sync, velocity/impulse, and queued destroy against ECS/runtime data flow.
 

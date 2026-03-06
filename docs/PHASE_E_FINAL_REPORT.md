@@ -12,11 +12,11 @@ Its purpose was to establish the C++ convergence baseline and freeze migration b
 ## Delivered
 
 1. C++ foundation baseline:
-   - `cpp/physics_filesystem.hpp`
-   - `cpp/physics_task_runner.hpp`
-   - `cpp/physics_logger.hpp`
-   - `cpp/physics_runtime_config.hpp`
-   - `cpp/physics_foundation.hpp`
+   - `include/physics2d/physics_filesystem.hpp`
+   - `include/physics2d/physics_task_runner.hpp`
+   - `include/physics2d/physics_logger.hpp`
+   - `include/physics2d/physics_runtime_config.hpp`
+   - `include/physics2d/physics_foundation.hpp`
    - `tests/cpp_foundation_smoke.cpp`
 2. Tool / pipeline entry migration:
    - `tools/scene_migrate_main.cpp`

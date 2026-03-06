@@ -2,7 +2,7 @@
 #include <cstdio>
 #include <string>
 #include <vector>
-#include "../cpp/physics_foundation.hpp"
+#include "../include/physics2d/physics_foundation.hpp"
 
 int main() {
     using namespace physics2d::foundation;

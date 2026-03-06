@@ -2754,7 +2754,8 @@ static void phase_g_refresh_editor_extension_state(void) {
     ProjectWorkspaceBootstrapReport bootstrap_report{};
     EditorPluginV1 scene_inspector{};
     EditorPluginV1 failing_plugin{};
-    PrefabSchemaDocument layers[3];
+    static PrefabSchemaDocument layers[3];
+    static PrefabSchemaDocument repaired;
 
     g_editor_plugin_builtin_enabled = 0;
     workspace_document_init(&bootstrap_workspace);
@@ -2807,7 +2808,6 @@ static void phase_g_refresh_editor_extension_state(void) {
         prefab_schema_load_v1("Prefabs/phase_g_nested.prefab", &layers[1]) &&
         prefab_schema_load_v1("Prefabs/phase_g_variant.prefab", &layers[2]) &&
         prefab_semantics_analyze_variant_stack(layers, 3, &g_prefab_analysis)) {
-        PrefabSchemaDocument repaired;
         g_prefab_analysis_valid = 1;
         prefab_semantics_repair_variant_overrides(&layers[2], &g_prefab_analysis, &repaired, &g_prefab_repair_removed_count);
     }

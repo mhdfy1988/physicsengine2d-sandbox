@@ -332,7 +332,7 @@
 ## 2026-03-06 D4 Closure (Workflow + Script Bridge + Profiling)
 
 - Added a minimal C++ script bridge surface:
-  - `cpp/physics_script_bridge.hpp`
+  - `include/physics2d/physics_script_bridge.hpp`
   - `tests/cpp_script_bridge_smoke.cpp`
 - Added D4 demo / profiling utilities:
   - `tools/subsystem_workflow_demo.cpp`

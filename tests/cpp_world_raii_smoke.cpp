@@ -1,4 +1,4 @@
-#include "../cpp/physics_world_raii.hpp"
+#include "../include/physics2d/physics_world_raii.hpp"
 
 int main() {
     physics2d::World world = physics2d::World::create();

@@ -1,6 +1,6 @@
-#include "../cpp/physics_raii.hpp"
-#include "../cpp/physics_body_raii.hpp"
-#include "../cpp/physics_snapshot.hpp"
+#include "../include/physics2d/physics_raii.hpp"
+#include "../include/physics2d/physics_body_raii.hpp"
+#include "../include/physics2d/physics_snapshot.hpp"
 
 int main() {
     physics2d::Engine engine = physics2d::Engine::create();

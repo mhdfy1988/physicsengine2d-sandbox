@@ -1,5 +1,5 @@
 #include <cstdio>
-#include "physics_script_bridge.hpp"
+#include "physics2d/physics_script_bridge.hpp"
 
 static bool nearly_equal(float a, float b) {
     float delta = a - b;

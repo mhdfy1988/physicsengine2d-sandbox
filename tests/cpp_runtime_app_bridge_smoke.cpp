@@ -1,5 +1,5 @@
 #include <cstdio>
-#include "physics_runtime_app_bridge.hpp"
+#include "../apps/sandbox_dwrite/application/physics_runtime_app_bridge.hpp"
 
 static void noop(void* user) {
     (void)user;

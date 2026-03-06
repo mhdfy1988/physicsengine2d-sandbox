@@ -1,5 +1,5 @@
 #include <cstdio>
-#include "physics_runtime_facade.hpp"
+#include "physics2d/physics_runtime_facade.hpp"
 
 int main() {
     physics2d::runtime::RuntimeFacade runtime = physics2d::runtime::RuntimeFacade::create();

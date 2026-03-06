@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <string>
-#include "../../cpp/physics_filesystem.hpp"
+#include "physics2d/physics_filesystem.hpp"
 
 static void asset_importer_copy_text(char* out, int out_cap, const char* src) {
     if (out == NULL || out_cap <= 0) return;

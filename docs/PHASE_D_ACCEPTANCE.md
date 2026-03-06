@@ -188,7 +188,7 @@
   - smoke: `tests/subsystem_render_audio_animation_smoke.cpp`
   - demo: `tools/subsystem_workflow_demo.cpp`
 - [x] Minimal script bridge path is complete and regression-covered:
-  - bridge: `cpp/physics_script_bridge.hpp`
+  - bridge: `include/physics2d/physics_script_bridge.hpp`
   - smoke: `tests/cpp_script_bridge_smoke.cpp`
 - [x] First-pass profiling and parallel scheduling evidence is archived:
   - scheduling path: `src/core/physics_parallel.cpp`

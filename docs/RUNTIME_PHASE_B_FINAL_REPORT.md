@@ -29,7 +29,7 @@ Core runtime + bridge + observability + guardrails are in place and green in loc
    - editor snapshot multi-error protocol (`runtime_errors[]`)
    - readable runtime error logs in editor
 5. C++ -> editor bridge path prepared:
-   - `cpp/physics_runtime_app_bridge.hpp`
+   - `apps/sandbox_dwrite/application/physics_runtime_app_bridge.hpp`
    - bridge smoke test for facade error ingestion into `AppRuntime`
 6. Quality gates are active:
    - regression tests

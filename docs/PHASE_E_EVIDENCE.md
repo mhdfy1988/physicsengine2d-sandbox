@@ -24,11 +24,11 @@ Scope: Phase E closure evidence for the C++ convergence baseline
 
 ## Migration Evidence
 
-1. `cpp/physics_foundation.hpp`
-2. `cpp/physics_filesystem.hpp`
-3. `cpp/physics_task_runner.hpp`
-4. `cpp/physics_logger.hpp`
-5. `cpp/physics_runtime_config.hpp`
+1. `include/physics2d/physics_foundation.hpp`
+2. `include/physics2d/physics_filesystem.hpp`
+3. `include/physics2d/physics_task_runner.hpp`
+4. `include/physics2d/physics_logger.hpp`
+5. `include/physics2d/physics_runtime_config.hpp`
 6. `tests/cpp_foundation_smoke.cpp`
 7. `tools/scene_migrate_main.cpp`
 8. `src/content/asset_importer.cpp`

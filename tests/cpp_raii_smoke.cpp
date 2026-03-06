@@ -1,4 +1,4 @@
-#include "../cpp/physics_raii.hpp"
+#include "../include/physics2d/physics_raii.hpp"
 
 int main() {
     physics2d::Engine engine = physics2d::Engine::create();
