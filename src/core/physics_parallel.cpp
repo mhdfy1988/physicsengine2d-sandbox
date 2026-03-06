@@ -9,12 +9,13 @@ typedef struct {
     int count;
     int chunk;
     volatile LONG next_begin;
+    volatile LONG pending_workers;
+    HANDLE done_event;
     PhysicsParallelForFn fn;
     void* user;
 } ParallelDispatchCtx;
 
-static DWORD WINAPI parallel_worker_proc(LPVOID param) {
-    ParallelDispatchCtx* ctx = (ParallelDispatchCtx*)param;
+static void parallel_worker_run(ParallelDispatchCtx* ctx) {
     for (;;) {
         LONG begin = InterlockedExchangeAdd(&ctx->next_begin, (LONG)ctx->chunk);
         int end;
@@ -22,6 +23,14 @@ static DWORD WINAPI parallel_worker_proc(LPVOID param) {
         end = (int)begin + ctx->chunk;
         if (end > ctx->count) end = ctx->count;
         ctx->fn((int)begin, end, ctx->user);
+    }
+}
+
+static DWORD WINAPI parallel_worker_proc(LPVOID param) {
+    ParallelDispatchCtx* ctx = (ParallelDispatchCtx*)param;
+    parallel_worker_run(ctx);
+    if (ctx->done_event != NULL && InterlockedDecrement(&ctx->pending_workers) == 0) {
+        SetEvent(ctx->done_event);
     }
     return 0;
 }
@@ -49,38 +58,55 @@ void physics_internal_parallel_for(PhysicsEngine* engine, int count, int grain, 
 
     chunk = grain;
     if (workers > 1) {
+        int max_useful_workers;
         int suggested = (count + workers - 1) / workers;
         if (suggested > chunk) {
             chunk = suggested;
         }
+        max_useful_workers = (count + chunk - 1) / chunk;
+        if (max_useful_workers < 1) max_useful_workers = 1;
+        if (workers > max_useful_workers) {
+            workers = max_useful_workers;
+        }
+        if (workers < 1) workers = 1;
     }
     if (chunk < 1) chunk = 1;
 
 #ifdef _WIN32
     if (workers > 1) {
         int worker_threads = workers - 1;
-        HANDLE handles[63];
         ParallelDispatchCtx ctx;
-        int created = 0;
-        if (worker_threads > 63) worker_threads = 63;
+        HANDLE done_event;
         ctx.count = count;
         ctx.chunk = chunk;
         ctx.next_begin = 0;
+        ctx.pending_workers = 0;
+        ctx.done_event = NULL;
         ctx.fn = fn;
         ctx.user = user;
+        done_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+        if (done_event == NULL) {
+            for (i = 0; i < count; i += chunk) {
+                int end = i + chunk;
+                if (end > count) end = count;
+                fn(i, end, user);
+            }
+            return;
+        }
+        ctx.done_event = done_event;
         for (i = 0; i < worker_threads; i++) {
-            handles[created] = CreateThread(NULL, 0, parallel_worker_proc, &ctx, 0, NULL);
-            if (handles[created] != NULL) {
-                created++;
+            InterlockedIncrement(&ctx.pending_workers);
+            if (!QueueUserWorkItem(parallel_worker_proc, &ctx, WT_EXECUTEDEFAULT)) {
+                if (InterlockedDecrement(&ctx.pending_workers) == 0) {
+                    SetEvent(done_event);
+                }
             }
         }
-        parallel_worker_proc(&ctx);
-        if (created > 0) {
-            WaitForMultipleObjects((DWORD)created, handles, TRUE, INFINITE);
-            for (i = 0; i < created; i++) {
-                CloseHandle(handles[i]);
-            }
+        parallel_worker_run(&ctx);
+        if (ctx.pending_workers > 0) {
+            WaitForSingleObject(done_event, INFINITE);
         }
+        CloseHandle(done_event);
         return;
     }
 #endif

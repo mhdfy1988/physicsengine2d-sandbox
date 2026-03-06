@@ -10,7 +10,7 @@ int menu_view_physics_window_execute(int menu_id, int item_idx, const MenuViewPh
         return 1;
     }
     if (menu_id == 5) {
-        if (item_idx == 0 && ops->running != NULL) *ops->running = !(*ops->running);
+        if (item_idx == 0 && ops->toggle_run != NULL) ops->toggle_run(ops->user);
         else if (item_idx == 1 && ops->step_once != NULL) ops->step_once(ops->user);
         else if (item_idx == 2 && ops->reset_scene != NULL) ops->reset_scene(ops->user);
         return 1;

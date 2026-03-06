@@ -5,13 +5,13 @@ typedef struct {
     int* draw_centers;
     int* draw_contacts;
     int* draw_velocity;
-    int* running;
     int* show_left;
     int* show_right;
     int* show_bottom;
     int* bottom_active_tab;
     int* theme_light;
     int* ui_layout_preset;
+    void (*toggle_run)(void* user);
     void (*step_once)(void* user);
     void (*reset_scene)(void* user);
     void (*apply_next_layout)(void* user);

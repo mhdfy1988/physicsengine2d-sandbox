@@ -56,6 +56,7 @@ set(PHYSICS2D_SOURCES
     src/content/asset_watch.c
     src/content/asset_hot_reload.c
     src/content/asset_fs_poll.c
+    src/content/subsystem_render_audio_animation.c
     src/core/physics_snapshot.cpp
     src/core/physics_world.cpp
     src/core/physics_memory.cpp
@@ -105,6 +106,8 @@ if(BUILD_EDITOR)
         apps/sandbox_dwrite/infrastructure/app_event_bus.c
         apps/sandbox_dwrite/application/app_controller.c
         apps/sandbox_dwrite/application/app_runtime.c
+        apps/sandbox_dwrite/application/pie_lifecycle.c
+        apps/sandbox_dwrite/application/editor_command_bus.c
         apps/sandbox_dwrite/application/scene_catalog.c
         apps/sandbox_dwrite/application/scene_builder.c
         apps/sandbox_dwrite/application/history_service.c
@@ -156,20 +159,42 @@ if(BUILD_TESTS)
         apps/sandbox_dwrite/application/app_controller.c
         apps/sandbox_dwrite/application/app_runtime.c
     )
+    add_executable(physics_editor_undo_redo_smoke
+        tests/editor_undo_redo_smoke.c
+        apps/sandbox_dwrite/application/editor_command_bus.c
+        apps/sandbox_dwrite/application/history_service.c
+    )
+    add_executable(physics_editor_pie_lifecycle_smoke
+        tests/editor_pie_lifecycle_smoke.c
+        apps/sandbox_dwrite/application/pie_lifecycle.c
+    )
+    add_executable(physics_subsystem_render_audio_animation_smoke
+        tests/subsystem_render_audio_animation_smoke.c
+    )
+    physics_add_cpp_smoke(physics_cpp_script_bridge_smoke tests/cpp_script_bridge_smoke.cpp TRUE)
     add_executable(physics_bench tests/benchmark_suite.c)
     add_executable(physics_invariants tests/invariant_tests.c)
     target_link_libraries(physics_tests PRIVATE physics2d)
     target_link_libraries(physics_app_runtime_smoke PRIVATE physics2d)
+    target_link_libraries(physics_editor_undo_redo_smoke PRIVATE physics2d)
+    target_link_libraries(physics_editor_pie_lifecycle_smoke PRIVATE physics2d)
+    target_link_libraries(physics_subsystem_render_audio_animation_smoke PRIVATE physics2d)
     target_link_libraries(physics_bench PRIVATE physics2d)
     target_link_libraries(physics_invariants PRIVATE physics2d)
     if(MSVC)
         target_compile_options(physics_tests PRIVATE /W4)
         target_compile_options(physics_app_runtime_smoke PRIVATE /W4)
+        target_compile_options(physics_editor_undo_redo_smoke PRIVATE /W4)
+        target_compile_options(physics_editor_pie_lifecycle_smoke PRIVATE /W4)
+        target_compile_options(physics_subsystem_render_audio_animation_smoke PRIVATE /W4)
         target_compile_options(physics_bench PRIVATE /W4)
         target_compile_options(physics_invariants PRIVATE /W4)
     else()
         target_compile_options(physics_tests PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
         target_compile_options(physics_app_runtime_smoke PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+        target_compile_options(physics_editor_undo_redo_smoke PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+        target_compile_options(physics_editor_pie_lifecycle_smoke PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+        target_compile_options(physics_subsystem_render_audio_animation_smoke PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
         target_compile_options(physics_bench PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
         target_compile_options(physics_invariants PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
     endif()
@@ -177,6 +202,15 @@ if(BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
     set_target_properties(physics_app_runtime_smoke PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+    set_target_properties(physics_editor_undo_redo_smoke PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+    set_target_properties(physics_editor_pie_lifecycle_smoke PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+    set_target_properties(physics_subsystem_render_audio_animation_smoke PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
     set_target_properties(physics_bench PROPERTIES
@@ -195,6 +229,40 @@ else()
     target_compile_options(scene_migrate PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
 endif()
 set_target_properties(scene_migrate PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+add_executable(parallel_benchmark_compare tools/parallel_benchmark_compare.c)
+target_link_libraries(parallel_benchmark_compare PRIVATE physics2d)
+if(MSVC)
+    target_compile_options(parallel_benchmark_compare PRIVATE /W4)
+else()
+    target_compile_options(parallel_benchmark_compare PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+endif()
+set_target_properties(parallel_benchmark_compare PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+add_executable(subsystem_workflow_demo tools/subsystem_workflow_demo.c)
+target_link_libraries(subsystem_workflow_demo PRIVATE physics2d)
+if(MSVC)
+    target_compile_options(subsystem_workflow_demo PRIVATE /W4)
+else()
+    target_compile_options(subsystem_workflow_demo PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+endif()
+set_target_properties(subsystem_workflow_demo PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+add_executable(phase_d_profile_capture tools/phase_d_profile_capture.c)
+target_link_libraries(phase_d_profile_capture PRIVATE physics2d)
+target_include_directories(phase_d_profile_capture PRIVATE ${CMAKE_SOURCE_DIR}/src)
+if(MSVC)
+    target_compile_options(phase_d_profile_capture PRIVATE /W4)
+else()
+    target_compile_options(phase_d_profile_capture PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+endif()
+set_target_properties(phase_d_profile_capture PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 

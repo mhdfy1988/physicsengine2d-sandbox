@@ -8,12 +8,14 @@ typedef struct {
     int value;
     int order_cursor;
     wchar_t scene_name[EDITOR_COMMAND_TEXT_CAP];
+    wchar_t scene_asset_guid[EDITOR_COMMAND_TEXT_CAP];
 } EditorSmokeSnapshot;
 
 typedef struct {
     int value;
     int order_cursor;
     wchar_t scene_name[EDITOR_COMMAND_TEXT_CAP];
+    wchar_t scene_asset_guid[EDITOR_COMMAND_TEXT_CAP];
     EditorSmokeSnapshot slots[32];
     int slot_valid[32];
     HistoryState history;
@@ -21,9 +23,11 @@ typedef struct {
     int rename_count;
     int move_count;
     int reset_count;
+    int asset_ref_set_count;
     int inspector_set_count;
     int last_move_direction;
     wchar_t last_scene_name[EDITOR_COMMAND_TEXT_CAP];
+    wchar_t last_scene_asset_guid[EDITOR_COMMAND_TEXT_CAP];
 } EditorSmokeState;
 
 static int slot_index_from_path(const char* path) {
@@ -42,6 +46,8 @@ static int cb_save_snapshot(const char* path, void* user) {
     s->slots[idx].order_cursor = s->order_cursor;
     wcsncpy(s->slots[idx].scene_name, s->scene_name, EDITOR_COMMAND_TEXT_CAP - 1);
     s->slots[idx].scene_name[EDITOR_COMMAND_TEXT_CAP - 1] = L'\0';
+    wcsncpy(s->slots[idx].scene_asset_guid, s->scene_asset_guid, EDITOR_COMMAND_TEXT_CAP - 1);
+    s->slots[idx].scene_asset_guid[EDITOR_COMMAND_TEXT_CAP - 1] = L'\0';
     s->slot_valid[idx] = 1;
     return 1;
 }
@@ -54,6 +60,8 @@ static int cb_load_snapshot(const char* path, void* user) {
     s->order_cursor = s->slots[idx].order_cursor;
     wcsncpy(s->scene_name, s->slots[idx].scene_name, EDITOR_COMMAND_TEXT_CAP - 1);
     s->scene_name[EDITOR_COMMAND_TEXT_CAP - 1] = L'\0';
+    wcsncpy(s->scene_asset_guid, s->slots[idx].scene_asset_guid, EDITOR_COMMAND_TEXT_CAP - 1);
+    s->scene_asset_guid[EDITOR_COMMAND_TEXT_CAP - 1] = L'\0';
     return 1;
 }
 
@@ -96,6 +104,19 @@ static int cb_scene_order_reset(void* user) {
     return 1;
 }
 
+static int cb_scene_asset_ref_set(int scene_index, const wchar_t* guid, void* user) {
+    EditorSmokeState* s = (EditorSmokeState*)user;
+    (void)scene_index;
+    if (s == NULL || guid == NULL) return 0;
+    s->asset_ref_set_count++;
+    wcsncpy(s->last_scene_asset_guid, guid, EDITOR_COMMAND_TEXT_CAP - 1);
+    s->last_scene_asset_guid[EDITOR_COMMAND_TEXT_CAP - 1] = L'\0';
+    wcsncpy(s->scene_asset_guid, guid, EDITOR_COMMAND_TEXT_CAP - 1);
+    s->scene_asset_guid[EDITOR_COMMAND_TEXT_CAP - 1] = L'\0';
+    history_service_push_snapshot(&s->history, &s->history_ops);
+    return 1;
+}
+
 static int cb_inspector_set_value(int row, double value, int emit_log, void* user) {
     EditorSmokeState* s = (EditorSmokeState*)user;
     (void)emit_log;
@@ -115,6 +136,7 @@ int main(void) {
     state.value = 10;
     state.order_cursor = 0;
     wcscpy(state.scene_name, L"Default");
+    wcscpy(state.scene_asset_guid, L"asset://none");
     state.history_ops.max_slots = 16;
     state.history_ops.save_snapshot = cb_save_snapshot;
     state.history_ops.load_snapshot = cb_load_snapshot;
@@ -126,6 +148,7 @@ int main(void) {
     callbacks.scene_rename = cb_scene_rename;
     callbacks.scene_order_move = cb_scene_order_move;
     callbacks.scene_order_reset = cb_scene_order_reset;
+    callbacks.scene_asset_ref_set = cb_scene_asset_ref_set;
     callbacks.inspector_set_value = cb_inspector_set_value;
     callbacks.user = &state;
 
@@ -159,13 +182,25 @@ int main(void) {
     }
 
     memset(&cmd, 0, sizeof(cmd));
+    cmd.type = EDITOR_CMD_SCENE_ASSET_REF_SET;
+    cmd.arg_i0 = 2;
+    wcscpy(cmd.text, L"asset://scene_phase_d");
+    if (!editor_command_bus_dispatch(&callbacks, &cmd) ||
+        state.asset_ref_set_count != 1 ||
+        wcscmp(state.last_scene_asset_guid, L"asset://scene_phase_d") != 0 ||
+        wcscmp(state.scene_asset_guid, L"asset://scene_phase_d") != 0) {
+        printf("[FAIL] editor command scene asset ref set dispatch failed\n");
+        return 4;
+    }
+
+    memset(&cmd, 0, sizeof(cmd));
     cmd.type = EDITOR_CMD_INSPECTOR_SET_VALUE;
     cmd.arg_i0 = 0;
     cmd.arg_f0 = 20.0;
     cmd.arg_i1 = 1;
     if (!editor_command_bus_dispatch(&callbacks, &cmd) || state.value != 20) {
         printf("[FAIL] inspector command first apply failed\n");
-        return 4;
+        return 5;
     }
 
     memset(&cmd, 0, sizeof(cmd));
@@ -175,63 +210,97 @@ int main(void) {
     cmd.arg_i1 = 1;
     if (!editor_command_bus_dispatch(&callbacks, &cmd) || state.value != 30) {
         printf("[FAIL] inspector command second apply failed\n");
-        return 5;
+        return 6;
     }
     if (state.inspector_set_count != 2) {
         printf("[FAIL] inspector callback invocation count mismatch\n");
-        return 6;
+        return 7;
     }
 
     history_service_undo(&state.history, &state.history_ops);
-    if (state.value != 20 || state.order_cursor != 0 || wcscmp(state.scene_name, L"PhaseD_Rename") != 0) {
+    if (state.value != 20 || state.order_cursor != 0 ||
+        wcscmp(state.scene_name, L"PhaseD_Rename") != 0 ||
+        wcscmp(state.scene_asset_guid, L"asset://scene_phase_d") != 0) {
         printf("[FAIL] undo step #1 mismatch\n");
-        return 7;
-    }
-    history_service_undo(&state.history, &state.history_ops);
-    if (state.value != 10 || state.order_cursor != 0 || wcscmp(state.scene_name, L"PhaseD_Rename") != 0) {
-        printf("[FAIL] undo step #2 mismatch\n");
         return 8;
     }
     history_service_undo(&state.history, &state.history_ops);
-    if (state.value != 10 || state.order_cursor != 1 || wcscmp(state.scene_name, L"PhaseD_Rename") != 0) {
-        printf("[FAIL] undo step #3 mismatch\n");
+    if (state.value != 10 || state.order_cursor != 0 ||
+        wcscmp(state.scene_name, L"PhaseD_Rename") != 0 ||
+        wcscmp(state.scene_asset_guid, L"asset://scene_phase_d") != 0) {
+        printf("[FAIL] undo step #2 mismatch\n");
         return 9;
     }
     history_service_undo(&state.history, &state.history_ops);
-    if (state.value != 10 || state.order_cursor != 0 || wcscmp(state.scene_name, L"PhaseD_Rename") != 0) {
-        printf("[FAIL] undo step #4 mismatch\n");
+    if (state.value != 10 || state.order_cursor != 0 ||
+        wcscmp(state.scene_name, L"PhaseD_Rename") != 0 ||
+        wcscmp(state.scene_asset_guid, L"asset://none") != 0) {
+        printf("[FAIL] undo step #3 mismatch\n");
         return 10;
     }
     history_service_undo(&state.history, &state.history_ops);
-    if (state.value != 10 || state.order_cursor != 0 || wcscmp(state.scene_name, L"Default") != 0) {
-        printf("[FAIL] undo step #5 mismatch\n");
+    if (state.value != 10 || state.order_cursor != 1 ||
+        wcscmp(state.scene_name, L"PhaseD_Rename") != 0 ||
+        wcscmp(state.scene_asset_guid, L"asset://none") != 0) {
+        printf("[FAIL] undo step #4 mismatch\n");
         return 11;
+    }
+    history_service_undo(&state.history, &state.history_ops);
+    if (state.value != 10 || state.order_cursor != 0 ||
+        wcscmp(state.scene_name, L"PhaseD_Rename") != 0 ||
+        wcscmp(state.scene_asset_guid, L"asset://none") != 0) {
+        printf("[FAIL] undo step #5 mismatch\n");
+        return 12;
+    }
+    history_service_undo(&state.history, &state.history_ops);
+    if (state.value != 10 || state.order_cursor != 0 ||
+        wcscmp(state.scene_name, L"Default") != 0 ||
+        wcscmp(state.scene_asset_guid, L"asset://none") != 0) {
+        printf("[FAIL] undo step #6 mismatch\n");
+        return 13;
     }
 
     history_service_redo(&state.history, &state.history_ops);
-    if (state.value != 10 || state.order_cursor != 0 || wcscmp(state.scene_name, L"PhaseD_Rename") != 0) {
+    if (state.value != 10 || state.order_cursor != 0 ||
+        wcscmp(state.scene_name, L"PhaseD_Rename") != 0 ||
+        wcscmp(state.scene_asset_guid, L"asset://none") != 0) {
         printf("[FAIL] redo step #1 mismatch\n");
-        return 12;
-    }
-    history_service_redo(&state.history, &state.history_ops);
-    if (state.value != 10 || state.order_cursor != 1 || wcscmp(state.scene_name, L"PhaseD_Rename") != 0) {
-        printf("[FAIL] redo step #2 mismatch\n");
-        return 13;
-    }
-    history_service_redo(&state.history, &state.history_ops);
-    if (state.value != 10 || state.order_cursor != 0 || wcscmp(state.scene_name, L"PhaseD_Rename") != 0) {
-        printf("[FAIL] redo step #3 mismatch\n");
         return 14;
     }
     history_service_redo(&state.history, &state.history_ops);
-    if (state.value != 20 || state.order_cursor != 0 || wcscmp(state.scene_name, L"PhaseD_Rename") != 0) {
-        printf("[FAIL] redo step #4 mismatch\n");
+    if (state.value != 10 || state.order_cursor != 1 ||
+        wcscmp(state.scene_name, L"PhaseD_Rename") != 0 ||
+        wcscmp(state.scene_asset_guid, L"asset://none") != 0) {
+        printf("[FAIL] redo step #2 mismatch\n");
         return 15;
     }
     history_service_redo(&state.history, &state.history_ops);
-    if (state.value != 30 || state.order_cursor != 0 || wcscmp(state.scene_name, L"PhaseD_Rename") != 0) {
-        printf("[FAIL] redo step #5 mismatch\n");
+    if (state.value != 10 || state.order_cursor != 0 ||
+        wcscmp(state.scene_name, L"PhaseD_Rename") != 0 ||
+        wcscmp(state.scene_asset_guid, L"asset://none") != 0) {
+        printf("[FAIL] redo step #3 mismatch\n");
         return 16;
+    }
+    history_service_redo(&state.history, &state.history_ops);
+    if (state.value != 10 || state.order_cursor != 0 ||
+        wcscmp(state.scene_name, L"PhaseD_Rename") != 0 ||
+        wcscmp(state.scene_asset_guid, L"asset://scene_phase_d") != 0) {
+        printf("[FAIL] redo step #4 mismatch\n");
+        return 17;
+    }
+    history_service_redo(&state.history, &state.history_ops);
+    if (state.value != 20 || state.order_cursor != 0 ||
+        wcscmp(state.scene_name, L"PhaseD_Rename") != 0 ||
+        wcscmp(state.scene_asset_guid, L"asset://scene_phase_d") != 0) {
+        printf("[FAIL] redo step #5 mismatch\n");
+        return 18;
+    }
+    history_service_redo(&state.history, &state.history_ops);
+    if (state.value != 30 || state.order_cursor != 0 ||
+        wcscmp(state.scene_name, L"PhaseD_Rename") != 0 ||
+        wcscmp(state.scene_asset_guid, L"asset://scene_phase_d") != 0) {
+        printf("[FAIL] redo step #6 mismatch\n");
+        return 19;
     }
 
     printf("[PASS] editor undo/redo smoke\n");

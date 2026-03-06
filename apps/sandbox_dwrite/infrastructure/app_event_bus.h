@@ -62,6 +62,8 @@ typedef struct {
     int affected_count;
     int imported_count;
     int failed_count;
+    int pie_active;
+    int rollback_retained;
     int imported_guid_count;
     char imported_guids[APP_HOT_RELOAD_MAX_IMPORTED][ASSET_DB_MAX_GUID];
 } AppHotReloadSnapshot;

@@ -46,6 +46,7 @@ void asset_meta_init(AssetMeta* meta);
 int asset_meta_save(const AssetMeta* meta, const char* path);
 int asset_meta_load(const char* path, AssetMeta* out_meta);
 int asset_meta_make_guid_from_path(const char* path, char out_guid[ASSET_DB_MAX_GUID]);
+int asset_meta_is_valid_guid(const char* guid);
 int asset_meta_make_cache_key(const AssetMeta* meta, char out_key[ASSET_DB_MAX_HASH]);
 
 void asset_dependency_graph_init(AssetDependencyGraph* graph);

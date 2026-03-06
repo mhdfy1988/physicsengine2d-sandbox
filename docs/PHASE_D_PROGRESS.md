@@ -2,7 +2,7 @@
 
 更新时间：2026-03-06  
 分支：`cpp-migration-baseline`  
-状态：D2 进行中（仅剩 GUID 资产引用编辑）
+状态：阶段 D 完成（已封板）
 
 > 跟踪基线：以 [PHASE_D_DETAILED_DESIGN.md](./PHASE_D_DETAILED_DESIGN.md) 和 [PHASE_D_ACCEPTANCE.md](./PHASE_D_ACCEPTANCE.md) 为准。  
 > D1 证据包：见 [PHASE_D_EVIDENCE.md](./PHASE_D_EVIDENCE.md)。
@@ -15,10 +15,15 @@
    - 接入 Win32 原生文件监听触发 + 轮询 fallback（`asset_fs_watch`）
    - sandbox 热重载链路已切换到 watcher 抽象层
    - 既有门禁 `test/sandbox/hot_reload_smoke/arch/api` 全绿
+4. D4 已收口：
+   - Render2D / Animation / Audio workflow 已具备 smoke + demo
+   - Script bridge 已打通 ECS/runtime 最小闭环并有 smoke
+   - profiling / parallel benchmark 工具与报告已归档
+   - 阶段 D gate suite 已纳入 D4 专项命令并全绿
 
 ## 进行中
 
-1. D2 GUID 安全资产引用编辑首轮实现与回归接入。
+1. 无（阶段 D 已封板）。
 
 ## 待完成（按里程碑）
 
@@ -37,38 +42,38 @@
 - [x] Inspector 核心组件字段编辑闭环
 - [x] 统一 command bus + Undo/Redo 主路径
 - [x] Undo/Redo 覆盖核心编辑行为并有回归
-- [ ] GUID 安全资产引用编辑
+- [x] GUID 安全资产引用编辑
 
 ### D3：PIE 与调试面板
 
-- [ ] PIE 生命周期（Enter/Exit/Pause/Step）
-- [ ] 编辑态/运行态隔离与回切策略
-- [ ] 调试面板事件/错误/性能可视化
-- [ ] PIE 下热重载共存验证
+- [x] PIE 生命周期（Enter/Exit/Pause/Step）
+- [x] 编辑态/运行态隔离与回切策略
+- [x] 调试面板事件/错误/性能可视化
+- [x] PIE 下热重载共存验证
 
 ### D4：子系统与工具链补齐
 
-- [ ] Render2D / Animation / Audio 工作流打通
-- [ ] 脚本桥接层最小可用
-- [ ] 并行调度优化首轮落地与基准对比
-- [ ] 阶段 D 封板报告与证据包
+- [x] Render2D / Animation / Audio 工作流打通
+- [x] 脚本桥接层最小可用
+- [x] 并行调度优化首轮落地与基准对比
+- [x] 阶段 D 封板报告与证据包
 
 ## 当前门禁状态
 
 1. 继承门禁（`test/sandbox/benchmark/arch/api/hot_reload_smoke`）当前保持通过。
-2. 新增门禁脚本 `scripts/hot_reload_smoke_headless.ps1` 已落地并通过本地执行。
+2. D 阶段一键门禁 `scripts/run_phase_d_gate_suite.ps1` 已纳入 D4 专项命令并再次全绿。
+3. 最新摘要：`artifacts/phase_d_gate_suite_20260306_163111/summary.md`。
+4. D4 专项摘要：`artifacts/phase_d_d4_closure_20260306_162937/summary.md`。
 
 ## 风险与关注点
 
 1. headless harness 当前基于 `physics_tests` 聚合输出，后续可继续细化为独立二进制 smoke 以缩短执行时间。
 2. D2-D3 若绕过 command bus，会导致 Undo/Redo 和 PIE 隔离成本失控。
-3. 子系统并行推进可能引入跨模块回归，需坚持小步合并和门禁前置。
+3. 当前并行调度首轮优化已把 960-body 重负载样例拉到 break-even 以上，但扩大收益仍需要更深层线程池/任务图工作。
 
 ## 下一次更新触发条件
 
-1. D2 GUID 资产引用编辑路径进入首轮可回归状态。
-2. GUID 资产引用链路纳入 command bus 与 undo/redo 语义。
-3. D2 全量条目完成并进入收口检查。
+1. 阶段 D 已封板；后续更新以新阶段计划文档为准。
 
 ## 2026-03-06 D1 Taxonomy + Headless Smoke
 
@@ -214,3 +219,133 @@
   - `scripts/hot_reload_smoke.ps1`
   - `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
   - `scripts/run_phase_d_gate_suite.ps1` (PASS, summary: `artifacts/phase_d_gate_suite_20260306_020552/summary.md`)
+
+## 2026-03-06 D2 GUID-Safe Asset Reference Editing Closure
+
+- Added scene-level asset reference GUID field:
+  - `SceneConfig.asset_ref_guid` (default `asset://none`)
+- Added GUID-safe validation path:
+  - input must satisfy `asset://<safe-id>`
+  - non-ASCII/path-like references are rejected in editor input
+  - shared validator added: `asset_meta_is_valid_guid()`
+- Routed scene asset reference edits through command bus:
+  - new command `EDITOR_CMD_SCENE_ASSET_REF_SET`
+  - callback path now pushes history snapshots for undo/redo
+- Extended snapshot editor metadata:
+  - persisted `SCENE_ASSET_GUID <idx> <hex>` records
+  - restored into scene config on snapshot load
+- Updated editor interaction:
+  - `F3` opens current-scene asset GUID edit input
+  - hierarchy scene header now shows `F2/F3` edit hints
+- Expanded regression/smoke:
+  - `tests/regression_asset_database_tests.c` now validates GUID format rules
+  - `tests/editor_undo_redo_smoke.c` now covers scene asset GUID command with multi-step undo/redo replay
+- Touched files:
+  - `include/asset_database.h`
+  - `src/content/asset_database.c`
+  - `apps/sandbox_dwrite/application/scene_catalog.h`
+  - `apps/sandbox_dwrite/application/scene_catalog.c`
+  - `apps/sandbox_dwrite/application/editor_command_bus.h`
+  - `apps/sandbox_dwrite/application/editor_command_bus.c`
+  - `apps/sandbox_dwrite/main.c`
+  - `tests/regression_asset_database_tests.c`
+  - `tests/editor_undo_redo_smoke.c`
+- Verification:
+  - `mingw32-make test`
+  - `scripts/run_phase_d_gate_suite.ps1` (PASS, summary: `artifacts/phase_d_gate_suite_20260306_022153/summary.md`)
+
+## 2026-03-06 D3 PIE Lifecycle + State Isolation Kickoff
+
+- Added a dedicated PIE lifecycle module:
+  - `apps/sandbox_dwrite/application/pie_lifecycle.h`
+  - `apps/sandbox_dwrite/application/pie_lifecycle.c`
+- Wired sandbox runtime controls to PIE semantics:
+  - `Space`: enter PIE (first trigger) and run/pause toggle
+  - `N`: single-step in PIE paused state
+  - `Esc`: exit PIE and restore frozen editor snapshot
+- Added edit/runtime isolation guards in PIE:
+  - scene switch/reorder/rename/GUID edit paths are blocked while PIE is active
+  - autosave no longer writes runtime-mutated state during PIE session
+- Updated physics menu run action to use command callback dispatch instead of direct `running` bit flip.
+- Added D3 gate smoke:
+  - `tests/editor_pie_lifecycle_smoke.c`
+  - verifies enter/exit idempotence and save/load failure behavior
+- Touched files:
+  - `apps/sandbox_dwrite/main.c`
+  - `apps/sandbox_dwrite/presentation/input/menu_view_physics_window_actions.h`
+  - `apps/sandbox_dwrite/presentation/input/menu_view_physics_window_actions.c`
+  - `Makefile`
+  - `tests/editor_pie_lifecycle_smoke.c`
+- Verification:
+  - `mingw32-make test` (includes `editor_pie_lifecycle_smoke`)
+  - `mingw32-make sandbox`
+  - `scripts/check_arch_deps.ps1`
+  - `scripts/check_api_surface.ps1`
+
+## 2026-03-06 D3 Debug Observability + PIE Hot-Reload Closure
+
+- Extended runtime hot-reload snapshot payload:
+  - `AppHotReloadSnapshot.pie_active`
+  - `AppHotReloadSnapshot.rollback_retained`
+- Updated sandbox D3 debug panel coverage:
+  - recent event flow history
+  - recent error flow history
+  - compact performance summary
+  - recent hot-reload batch history with imported GUID details
+- Added explicit PIE/hot-reload coexistence surfacing:
+  - batches now show whether they happened during PIE or editor mode
+  - failed batches explicitly surface retained previous-cache semantics
+- Fixed PIE lifecycle log strings to readable text (removed mojibake output).
+- Touched files:
+  - `apps/sandbox_dwrite/main.c`
+  - `apps/sandbox_dwrite/infrastructure/app_event_bus.h`
+  - `apps/sandbox_dwrite/application/app_runtime.h`
+  - `apps/sandbox_dwrite/application/app_runtime.c`
+  - `apps/sandbox_dwrite/application/pie_lifecycle.c`
+  - `tests/app_runtime_tick_smoke.c`
+- Verification:
+  - `mingw32-make test`
+  - `mingw32-make sandbox`
+  - `scripts/check_arch_deps.ps1`
+  - `scripts/check_api_surface.ps1`
+  - `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
+  - `scripts/run_phase_d_gate_suite.ps1` (PASS, summary: `artifacts/phase_d_gate_suite_20260306_160618/summary.md`)
+
+## 2026-03-06 D4 Subsystem Workflow Smoke Kickoff
+
+- Added a minimal workflow module for Render2D / Animation / Audio:
+  - bind imported texture/audio GUIDs to runtime bodies
+  - drive body transforms from animation keyframes
+  - emit draw commands and audio play commands for smoke verification
+- New files:
+  - `include/subsystem_render_audio_animation.h`
+  - `src/content/subsystem_render_audio_animation.c`
+  - `tests/subsystem_render_audio_animation_smoke.c`
+- Build wiring updated:
+  - `Makefile` (`mingw32-make test` now runs the D4 smoke)
+  - `CMakeLists.txt` (core source list and sandbox source list synchronized)
+- Verification:
+  - `mingw32-make test`
+  - `mingw32-make sandbox`
+  - `scripts/run_phase_d_gate_suite.ps1` (PASS, summary: `artifacts/phase_d_gate_suite_20260306_160618/summary.md`)
+
+## 2026-03-06 D4 Closure (Workflow + Script Bridge + Profiling)
+
+- Added a minimal C++ script bridge surface:
+  - `cpp/physics_script_bridge.hpp`
+  - `tests/cpp_script_bridge_smoke.cpp`
+- Added D4 demo / profiling utilities:
+  - `tools/subsystem_workflow_demo.c`
+  - `tools/parallel_benchmark_compare.c`
+  - `tools/phase_d_profile_capture.c`
+- Updated Win32 parallel dispatch to use thread-pool work items instead of per-dispatch thread creation:
+  - `src/core/physics_parallel.cpp`
+- Extended one-click gate coverage:
+  - `scripts/run_phase_d_gate_suite.ps1` now also runs `parallel-benchmark-compare`, `subsystem-workflow-demo`, and `phase-d-profile`
+- Verification:
+  - `bin/subsystem_render_audio_animation_smoke.exe`
+  - `bin/cpp_script_bridge_smoke.exe`
+  - `mingw32-make subsystem-workflow-demo`
+  - `mingw32-make parallel-benchmark-compare`
+  - `mingw32-make phase-d-profile`
+  - `scripts/run_phase_d_gate_suite.ps1` (PASS, summary: `artifacts/phase_d_gate_suite_20260306_163111/summary.md`)

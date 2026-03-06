@@ -2,6 +2,7 @@
 #define SCENE_CATALOG_H
 
 #include <stddef.h>
+#include "asset_database.h"
 
 typedef struct {
     float gravity_y;
@@ -14,6 +15,7 @@ typedef struct {
     float spawn_box_size;
     float ball_restitution;
     float box_restitution;
+    char asset_ref_guid[ASSET_DB_MAX_GUID];
 } SceneConfig;
 
 enum { SCENE_COUNT = 9 };

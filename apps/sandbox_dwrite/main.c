@@ -37,6 +37,7 @@
 #include "application/scene_builder.h"
 #include "application/history_service.h"
 #include "application/runtime_param_service.h"
+#include "application/pie_lifecycle.h"
 #include "asset_hot_reload.h"
 #include "asset_fs_watch.h"
 #include "presentation/input/input_mapping.h"
@@ -130,6 +131,25 @@ typedef struct {
     unsigned int tick_ms;
     int running;
 } RuntimeStateHistoryEntry;
+
+enum { DEBUG_HISTORY_TEXT_CAP = 160 };
+
+typedef struct {
+    unsigned int tick_ms;
+    wchar_t text[DEBUG_HISTORY_TEXT_CAP];
+} DebugTextHistoryEntry;
+
+typedef struct {
+    unsigned int tick_ms;
+    int pie_active;
+    int ready_batch_count;
+    int affected_count;
+    int imported_count;
+    int failed_count;
+    int rollback_retained;
+    int imported_guid_count;
+    char imported_guids[APP_HOT_RELOAD_MAX_IMPORTED][ASSET_DB_MAX_GUID];
+} HotReloadHistoryEntry;
 
 typedef struct {
     PhysicsEngine* engine;
@@ -272,10 +292,12 @@ static UiApp g_ui = {0};
 static SandboxState g_state = {0};
 static HWND g_app_hwnd = NULL;
 static AppRuntime g_app_runtime;
+static PieLifecycle g_pie_lifecycle;
 static EditorCommandCallbacks g_editor_command_bus;
 static AssetHotReloadService g_hot_reload_service;
 static AssetFsWatchState g_asset_fs_watch;
 static char g_hot_reload_root_dir[ASSET_WATCH_MAX_PATH];
+static const char* PIE_EDITOR_SNAPSHOT_PATH = "pie_editor_state_snapshot.txt";
 static const float WORLD_SCALE = 12.0f;
 static const float WORLD_ORIGIN_X = 20.0f;
 static const float WORLD_ORIGIN_Y = 20.0f;
@@ -284,6 +306,8 @@ enum { EXPLORER_SCENE_MAX_ITEMS = SCENE_COUNT };
 enum { DEBUG_EVENT_ROWS_MAX = 24 };
 enum { INSPECTOR_MAX_ROWS = 12 };
 enum { RUNTIME_HISTORY_ROWS_MAX = 3 };
+enum { DEBUG_HISTORY_CAP = 8 };
+enum { DEBUG_HISTORY_ROWS_MAX = 4 };
 enum { HOT_RELOAD_SCAN_INTERVAL_MS = 250 };
 enum { HOT_RELOAD_DISCOVER_INTERVAL_MS = 3000 };
 enum { HOT_RELOAD_DEBOUNCE_MS = 180 };
@@ -293,7 +317,8 @@ enum {
     VALUE_INPUT_TARGET_LOG_SEARCH = 2,
     VALUE_INPUT_TARGET_HIERARCHY_FILTER = 3,
     VALUE_INPUT_TARGET_DEBUG_PARAM = 4,
-    VALUE_INPUT_TARGET_SCENE_NAME = 5
+    VALUE_INPUT_TARGET_SCENE_NAME = 5,
+    VALUE_INPUT_TARGET_SCENE_ASSET_GUID = 6
 };
 static const char* HOT_RELOAD_CACHE_ROOT = "Cache/imported";
 
@@ -525,6 +550,15 @@ static int g_collision_event_count;
 static int g_collision_event_filter_selected_only;
 static AppRuntimeErrorItem g_tick_runtime_errors[APP_RUNTIME_MAX_ERRORS];
 static int g_tick_runtime_error_count;
+static DebugTextHistoryEntry g_debug_event_history[DEBUG_HISTORY_CAP];
+static int g_debug_event_history_head;
+static int g_debug_event_history_count;
+static DebugTextHistoryEntry g_debug_error_history[DEBUG_HISTORY_CAP];
+static int g_debug_error_history_head;
+static int g_debug_error_history_count;
+static HotReloadHistoryEntry g_hot_reload_history[DEBUG_HISTORY_CAP];
+static int g_hot_reload_history_head;
+static int g_hot_reload_history_count;
 static BodyClipboard g_clipboard_body;
 static wchar_t g_status_project_path[260];
 static wchar_t g_status_user[64];
@@ -532,6 +566,7 @@ static HICON g_app_icon_large = NULL;
 static HICON g_app_icon_small = NULL;
 static const float BREAK_FORCE_PRESETS[] = {0.0f, 60.0f, 120.0f, 250.0f, 500.0f, 1000.0f};
 static const int BREAK_FORCE_PRESET_COUNT = 6;
+static const char* SCENE_ASSET_GUID_NONE = "asset://none";
 static const wchar_t* scene_display_name(int scene_index);
 static int scene_order_index_at(int order_index);
 static int scene_order_find_position(int scene_index);
@@ -548,6 +583,10 @@ static void history_push_snapshot(void);
 static void history_reset_and_capture(void);
 static void history_undo(void);
 static void history_redo(void);
+static PieLifecycleOps pie_lifecycle_ops(void);
+static int pie_enter_session(void);
+static int pie_exit_session(void);
+static int pie_runtime_active(void);
 static int body_index_of(const PhysicsEngine* engine, const RigidBody* b);
 static void clear_collision_events(void);
 static void push_collision_event(int body_a_index, int body_b_index, Vec2 point, float rel_speed, float penetration);
@@ -575,17 +614,25 @@ static int hot_reload_register_source_path(const char* source_path);
 static void hot_reload_register_tree_recursive(const char* root_dir, int depth);
 static void init_hot_reload_pipeline(void);
 static void hot_reload_tick_runtime(void);
+static void clear_debug_histories(void);
+static void push_debug_event_history(const wchar_t* fmt, ...);
+static void push_debug_error_history(const wchar_t* fmt, ...);
+static void push_hot_reload_history(const AppHotReloadSnapshot* snapshot);
+static const wchar_t* app_command_label(AppCommandType type);
 static void init_editor_command_bus_callbacks(void);
 static int dispatch_editor_command(const EditorCommand* command);
 static int editor_cb_scene_rename(int scene_index, const wchar_t* name, void* user);
 static int editor_cb_scene_order_move(int direction, void* user);
 static int editor_cb_scene_order_reset(void* user);
+static int editor_cb_scene_asset_ref_set(int scene_index, const wchar_t* guid, void* user);
 static int editor_cb_inspector_set_value(int row, double value, int emit_log, void* user);
 static int parse_double_strict(const wchar_t* text, double* out_v);
 static int scene_rename_apply(int scene_index, const wchar_t* input_name);
+static int scene_asset_guid_apply(int scene_index, const wchar_t* input_guid);
 static int inspector_commit_row_value(int row, double value, int emit_log);
 static int inspector_adjust_focused_row(int sign);
 static void begin_value_input_for_scene_name(int scene_index);
+static void begin_value_input_for_scene_asset_guid(int scene_index);
 static const wchar_t* value_input_title(void);
 
 static D2D1_RECT_F rc(float l, float t, float r, float b) {
@@ -699,6 +746,89 @@ static void push_console_log(const wchar_t* fmt, ...) {
         g_console_log_count++;
     } else {
         g_console_log_head = (g_console_log_head + 1) % CONSOLE_LOG_CAP;
+    }
+}
+
+static void clear_debug_histories(void) {
+    ZeroMemory(g_debug_event_history, sizeof(g_debug_event_history));
+    ZeroMemory(g_debug_error_history, sizeof(g_debug_error_history));
+    ZeroMemory(g_hot_reload_history, sizeof(g_hot_reload_history));
+    g_debug_event_history_head = 0;
+    g_debug_event_history_count = 0;
+    g_debug_error_history_head = 0;
+    g_debug_error_history_count = 0;
+    g_hot_reload_history_head = 0;
+    g_hot_reload_history_count = 0;
+}
+
+static void push_debug_text_history(DebugTextHistoryEntry* history, int* head, int* count, const wchar_t* fmt, va_list args) {
+    wchar_t text[DEBUG_HISTORY_TEXT_CAP];
+    int idx;
+    if (history == NULL || head == NULL || count == NULL || fmt == NULL) return;
+    vswprintf(text, DEBUG_HISTORY_TEXT_CAP, fmt, args);
+    idx = (*head + *count) % DEBUG_HISTORY_CAP;
+    history[idx].tick_ms = (unsigned int)GetTickCount();
+    lstrcpynW(history[idx].text, text, DEBUG_HISTORY_TEXT_CAP);
+    if (*count < DEBUG_HISTORY_CAP) {
+        (*count)++;
+    } else {
+        *head = (*head + 1) % DEBUG_HISTORY_CAP;
+    }
+}
+
+static void push_debug_event_history(const wchar_t* fmt, ...) {
+    va_list args;
+    if (fmt == NULL) return;
+    va_start(args, fmt);
+    push_debug_text_history(g_debug_event_history, &g_debug_event_history_head, &g_debug_event_history_count, fmt, args);
+    va_end(args);
+}
+
+static void push_debug_error_history(const wchar_t* fmt, ...) {
+    va_list args;
+    if (fmt == NULL) return;
+    va_start(args, fmt);
+    push_debug_text_history(g_debug_error_history, &g_debug_error_history_head, &g_debug_error_history_count, fmt, args);
+    va_end(args);
+}
+
+static void push_hot_reload_history(const AppHotReloadSnapshot* snapshot) {
+    HotReloadHistoryEntry* entry;
+    int idx;
+    int i;
+    if (snapshot == NULL || !snapshot->valid) return;
+    idx = (g_hot_reload_history_head + g_hot_reload_history_count) % DEBUG_HISTORY_CAP;
+    entry = &g_hot_reload_history[idx];
+    ZeroMemory(entry, sizeof(*entry));
+    entry->tick_ms = (unsigned int)GetTickCount();
+    entry->pie_active = snapshot->pie_active;
+    entry->ready_batch_count = snapshot->ready_batch_count;
+    entry->affected_count = snapshot->affected_count;
+    entry->imported_count = snapshot->imported_count;
+    entry->failed_count = snapshot->failed_count;
+    entry->rollback_retained = snapshot->rollback_retained;
+    entry->imported_guid_count = snapshot->imported_guid_count;
+    if (entry->imported_guid_count > APP_HOT_RELOAD_MAX_IMPORTED) {
+        entry->imported_guid_count = APP_HOT_RELOAD_MAX_IMPORTED;
+    }
+    for (i = 0; i < entry->imported_guid_count; i++) {
+        lstrcpynA(entry->imported_guids[i], snapshot->imported_guids[i], ASSET_DB_MAX_GUID);
+    }
+    if (g_hot_reload_history_count < DEBUG_HISTORY_CAP) {
+        g_hot_reload_history_count++;
+    } else {
+        g_hot_reload_history_head = (g_hot_reload_history_head + 1) % DEBUG_HISTORY_CAP;
+    }
+}
+
+static const wchar_t* app_command_label(AppCommandType type) {
+    switch (type) {
+        case APP_CMD_TOGGLE_RUN: return L"运行/暂停";
+        case APP_CMD_STEP_ONCE: return L"单步";
+        case APP_CMD_RESET_SCENE: return L"重置场景";
+        case APP_CMD_SPAWN_CIRCLE: return L"生成圆形";
+        case APP_CMD_SPAWN_BOX: return L"生成方块";
+        default: return L"未知命令";
     }
 }
 
@@ -1107,6 +1237,73 @@ static void menu_cb_log_text(const wchar_t* text, void* user) {
     push_console_log(L"%s", text);
 }
 
+static int pie_cb_save_snapshot(const char* path, void* user) {
+    (void)user;
+    return save_scene_snapshot(path);
+}
+
+static int pie_cb_load_snapshot(const char* path, void* user) {
+    (void)user;
+    return load_scene_snapshot(path);
+}
+
+static void pie_cb_log_text(const wchar_t* text, void* user) {
+    (void)user;
+    if (text == NULL) return;
+    push_console_log(L"%s", text);
+}
+
+static PieLifecycleOps pie_lifecycle_ops(void) {
+    PieLifecycleOps ops;
+    ops.save_snapshot = pie_cb_save_snapshot;
+    ops.load_snapshot = pie_cb_load_snapshot;
+    ops.log_text = pie_cb_log_text;
+    ops.user = NULL;
+    return ops;
+}
+
+static int pie_runtime_active(void) {
+    return g_pie_lifecycle.active != 0;
+}
+
+static int pie_enter_session(void) {
+    PieLifecycleOps ops;
+    if (pie_runtime_active()) return 1;
+    ops = pie_lifecycle_ops();
+    if (!pie_lifecycle_enter(&g_pie_lifecycle, &ops)) return 0;
+    push_debug_event_history(L"PIE: enter session");
+    g_state.running = 1;
+    if (g_state.engine != NULL) {
+        g_state.last_contact_count = physics_engine_get_contact_count(g_state.engine);
+    } else {
+        g_state.last_contact_count = 0;
+    }
+    return 1;
+}
+
+static int pie_exit_session(void) {
+    PieLifecycleOps ops;
+    if (!pie_runtime_active()) return 1;
+    g_state.running = 0;
+    ops = pie_lifecycle_ops();
+    if (!pie_lifecycle_exit(&g_pie_lifecycle, &ops)) return 0;
+    push_debug_event_history(L"PIE: exit session and restore editor snapshot");
+    history_reset_and_capture();
+    if (g_state.engine != NULL) {
+        g_state.last_contact_count = physics_engine_get_contact_count(g_state.engine);
+    } else {
+        g_state.last_contact_count = 0;
+    }
+    return 1;
+}
+
+static void menu_cb_toggle_run(void* user) {
+    AppCommand cmd;
+    (void)user;
+    cmd.type = APP_CMD_TOGGLE_RUN;
+    app_runtime_dispatch(&g_app_runtime, cmd);
+}
+
 static void menu_cb_step_once(void* user) {
     AppCommand cmd;
     (void)user;
@@ -1123,9 +1320,10 @@ static void focus_console_log_panel(int log_filter_mode) {
 }
 
 static void menu_cb_reset_scene(void* user) {
+    AppCommand cmd;
     (void)user;
-    apply_scene(g_state.scene_index);
-    history_reset_and_capture();
+    cmd.type = APP_CMD_RESET_SCENE;
+    app_runtime_dispatch(&g_app_runtime, cmd);
 }
 
 static void menu_cb_apply_next_layout(void* user) {
@@ -1163,13 +1361,13 @@ static void execute_menu_action(HWND hwnd, int menu_id, int item_idx) {
     vpw_ops.draw_centers = &g_state.draw_centers;
     vpw_ops.draw_contacts = &g_state.draw_contacts;
     vpw_ops.draw_velocity = &g_state.draw_velocity;
-    vpw_ops.running = &g_state.running;
     vpw_ops.show_left = &g_state.ui_show_left_panel;
     vpw_ops.show_right = &g_state.ui_show_right_panel;
     vpw_ops.show_bottom = &g_state.ui_show_bottom_panel;
     vpw_ops.bottom_active_tab = &g_state.bottom_active_tab;
     vpw_ops.theme_light = &g_state.ui_theme_light;
     vpw_ops.ui_layout_preset = &g_state.ui_layout_preset;
+    vpw_ops.toggle_run = menu_cb_toggle_run;
     vpw_ops.step_once = menu_cb_step_once;
     vpw_ops.reset_scene = menu_cb_reset_scene;
     vpw_ops.apply_next_layout = menu_cb_apply_next_layout;
@@ -2323,6 +2521,16 @@ static int snapshot_append_editor_metadata(const char* path) {
         }
         fprintf(fp, "SCENE_NAME %d %s\n", i, hex);
     }
+    for (i = 0; i < SCENE_COUNT; i++) {
+        const char* guid = g_state.scenes[i].asset_ref_guid;
+        char guid_hex[ASSET_DB_MAX_GUID * 2 + 8];
+        if (!asset_meta_is_valid_guid(guid)) guid = SCENE_ASSET_GUID_NONE;
+        if (!snapshot_hex_encode((const unsigned char*)guid, (int)strlen(guid), guid_hex, (int)sizeof(guid_hex))) {
+            fclose(fp);
+            return 0;
+        }
+        fprintf(fp, "SCENE_ASSET_GUID %d %s\n", i, guid_hex);
+    }
     fclose(fp);
     return 1;
 }
@@ -2336,14 +2544,18 @@ static int snapshot_restore_editor_metadata(const char* path) {
     int got_order = 0;
     int parsed_order[SCENE_COUNT];
     int got_name[SCENE_COUNT];
+    int got_guid[SCENE_COUNT];
     wchar_t parsed_name[SCENE_COUNT][SCENE_NAME_MAX];
+    char parsed_guid[SCENE_COUNT][ASSET_DB_MAX_GUID];
     int i;
     if (path == NULL) return 0;
     fp = fopen(path, "r");
     if (fp == NULL) return 0;
     for (i = 0; i < SCENE_COUNT; i++) {
         got_name[i] = 0;
+        got_guid[i] = 0;
         parsed_name[i][0] = L'\0';
+        lstrcpynA(parsed_guid[i], SCENE_ASSET_GUID_NONE, ASSET_DB_MAX_GUID);
         parsed_order[i] = i;
     }
     while (fgets(line, (int)sizeof(line), fp) != NULL) {
@@ -2407,6 +2619,26 @@ static int snapshot_restore_editor_metadata(const char* path) {
             }
             continue;
         }
+        if (strncmp(line, "SCENE_ASSET_GUID ", 17) == 0) {
+            int idx = -1;
+            char hex[800];
+            if (sscanf(line + 17, "%d %799s", &idx, hex) == 2) {
+                if (idx >= 0 && idx < SCENE_COUNT) {
+                    unsigned char guid_buf[ASSET_DB_MAX_GUID];
+                    int guid_len = 0;
+                    if (snapshot_hex_decode(hex, guid_buf, (int)sizeof(guid_buf), &guid_len)) {
+                        if (guid_len >= 0 && guid_len < ASSET_DB_MAX_GUID) {
+                            guid_buf[guid_len] = '\0';
+                            if (asset_meta_is_valid_guid((const char*)guid_buf)) {
+                                lstrcpynA(parsed_guid[idx], (const char*)guid_buf, ASSET_DB_MAX_GUID);
+                                got_guid[idx] = 1;
+                            }
+                        }
+                    }
+                }
+            }
+            continue;
+        }
     }
     fclose(fp);
     if (!has_meta) return 0;
@@ -2421,6 +2653,9 @@ static int snapshot_restore_editor_metadata(const char* path) {
     for (i = 0; i < SCENE_COUNT; i++) {
         if (got_name[i]) {
             lstrcpynW(g_state.scene_names[i], parsed_name[i], SCENE_NAME_MAX);
+        }
+        if (got_guid[i]) {
+            lstrcpynA(g_state.scenes[i].asset_ref_guid, parsed_guid[i], ASSET_DB_MAX_GUID);
         }
     }
     return 1;
@@ -2586,7 +2821,7 @@ static void hot_reload_tick_runtime(void) {
     asset_hot_reload_tick_report_init(&report);
     if (!asset_hot_reload_tick(&g_hot_reload_service, (long long)now_ms, HOT_RELOAD_CACHE_ROOT, &report)) {
         if (report.pipeline_ran) {
-            app_runtime_report_hot_reload(&g_app_runtime, &report);
+            app_runtime_report_hot_reload(&g_app_runtime, &report, pie_runtime_active());
         } else {
             push_tick_runtime_error(APP_RUNTIME_ERROR_CODE_HOT_RELOAD_BATCH_FAILED, APP_RUNTIME_ERROR_ERROR, 1);
         }
@@ -2597,7 +2832,7 @@ static void hot_reload_tick_runtime(void) {
         return;
     }
     if (report.pipeline_ran) {
-        app_runtime_report_hot_reload(&g_app_runtime, &report);
+        app_runtime_report_hot_reload(&g_app_runtime, &report, pie_runtime_active());
     }
 }
 
@@ -2662,6 +2897,7 @@ static void init_editor_command_bus_callbacks(void) {
     g_editor_command_bus.scene_rename = editor_cb_scene_rename;
     g_editor_command_bus.scene_order_move = editor_cb_scene_order_move;
     g_editor_command_bus.scene_order_reset = editor_cb_scene_order_reset;
+    g_editor_command_bus.scene_asset_ref_set = editor_cb_scene_asset_ref_set;
     g_editor_command_bus.inspector_set_value = editor_cb_inspector_set_value;
     g_editor_command_bus.user = NULL;
 }
@@ -2687,6 +2923,13 @@ static int editor_cb_scene_order_move(int direction, void* user) {
 static int editor_cb_scene_order_reset(void* user) {
     (void)user;
     if (!scene_order_reset_default()) return 0;
+    history_push_snapshot();
+    return 1;
+}
+
+static int editor_cb_scene_asset_ref_set(int scene_index, const wchar_t* guid, void* user) {
+    (void)user;
+    if (!scene_asset_guid_apply(scene_index, guid)) return 0;
     history_push_snapshot();
     return 1;
 }
@@ -3593,6 +3836,54 @@ static int scene_rename_apply(int scene_index, const wchar_t* input_name) {
     return 1;
 }
 
+static int scene_asset_guid_apply(int scene_index, const wchar_t* input_guid) {
+    int src_len;
+    int begin = 0;
+    int end;
+    int n = 0;
+    char guid[ASSET_DB_MAX_GUID];
+    wchar_t wide_guid[ASSET_DB_MAX_GUID];
+    int old_wlen;
+    if (input_guid == NULL) return 0;
+    if (scene_index < 0 || scene_index >= SCENE_COUNT) return 0;
+    src_len = (int)lstrlenW(input_guid);
+    while (begin < src_len && iswspace(input_guid[begin])) begin++;
+    end = src_len;
+    while (end > begin && iswspace(input_guid[end - 1])) end--;
+    if (end <= begin) {
+        push_console_log(L"[警告] 资产 GUID 不能为空");
+        return 0;
+    }
+    while ((begin + n) < end && n < (ASSET_DB_MAX_GUID - 1)) {
+        wchar_t ch = input_guid[begin + n];
+        if (ch < 32 || ch > 126) {
+            push_console_log(L"[警告] 资产 GUID 仅允许 ASCII 可见字符");
+            return 0;
+        }
+        guid[n] = (char)ch;
+        n++;
+    }
+    if ((begin + n) < end) {
+        push_console_log(L"[警告] 资产 GUID 过长（上限 %d）", ASSET_DB_MAX_GUID - 1);
+        return 0;
+    }
+    guid[n] = '\0';
+    if (!asset_meta_is_valid_guid(guid)) {
+        push_console_log(L"[警告] 资产 GUID 无效，需符合 asset://<safe-id> 规则");
+        return 0;
+    }
+    if (strcmp(g_state.scenes[scene_index].asset_ref_guid, guid) == 0) {
+        return 0;
+    }
+    lstrcpynA(g_state.scenes[scene_index].asset_ref_guid, guid, ASSET_DB_MAX_GUID);
+    old_wlen = MultiByteToWideChar(CP_UTF8, 0, guid, -1, wide_guid, ASSET_DB_MAX_GUID);
+    if (old_wlen <= 0) {
+        lstrcpynW(wide_guid, L"(decode-failed)", ASSET_DB_MAX_GUID);
+    }
+    push_console_log(L"[场景] 已更新资产引用 #%d: %s", scene_index + 1, wide_guid);
+    return 1;
+}
+
 static void begin_value_input_for_hierarchy_filter(void) {
     lstrcpynW(g_state.value_input_buf, g_state.hierarchy_filter_buf, 64);
     g_state.value_input_target = VALUE_INPUT_TARGET_HIERARCHY_FILTER;
@@ -3606,6 +3897,26 @@ static void begin_value_input_for_scene_name(int scene_index) {
     if (scene_index < 0 || scene_index >= SCENE_COUNT) return;
     lstrcpynW(g_state.value_input_buf, scene_display_name(scene_index), 64);
     g_state.value_input_target = VALUE_INPUT_TARGET_SCENE_NAME;
+    g_state.value_input_row = scene_index;
+    g_state.show_value_input = 1;
+    g_state.value_input_len = (int)lstrlenW(g_state.value_input_buf);
+    g_state.value_input_caret = g_state.value_input_len;
+}
+
+static void begin_value_input_for_scene_asset_guid(int scene_index) {
+    wchar_t wbuf[64];
+    const char* guid;
+    int wlen;
+    if (scene_index < 0 || scene_index >= SCENE_COUNT) return;
+    guid = g_state.scenes[scene_index].asset_ref_guid;
+    if (guid == NULL || guid[0] == '\0') guid = SCENE_ASSET_GUID_NONE;
+    wlen = MultiByteToWideChar(CP_UTF8, 0, guid, -1, wbuf, 64);
+    if (wlen <= 0) {
+        lstrcpynW(g_state.value_input_buf, L"asset://none", 64);
+    } else {
+        lstrcpynW(g_state.value_input_buf, wbuf, 64);
+    }
+    g_state.value_input_target = VALUE_INPUT_TARGET_SCENE_ASSET_GUID;
     g_state.value_input_row = scene_index;
     g_state.show_value_input = 1;
     g_state.value_input_len = (int)lstrlenW(g_state.value_input_buf);
@@ -3652,6 +3963,19 @@ static void apply_value_input(void) {
         lstrcpynW(command_data.text, g_state.value_input_buf, EDITOR_COMMAND_TEXT_CAP);
         if (!dispatch_editor_command(&command_data)) {
             push_console_log(L"[警告] 场景名称未更新");
+        }
+        return;
+    }
+    if (g_state.value_input_target == VALUE_INPUT_TARGET_SCENE_ASSET_GUID) {
+        int row = g_state.value_input_row;
+        EditorCommand command_data;
+        if (row < 0 || row >= SCENE_COUNT) return;
+        ZeroMemory(&command_data, sizeof(command_data));
+        command_data.type = EDITOR_CMD_SCENE_ASSET_REF_SET;
+        command_data.arg_i0 = row;
+        lstrcpynW(command_data.text, g_state.value_input_buf, EDITOR_COMMAND_TEXT_CAP);
+        if (!dispatch_editor_command(&command_data)) {
+            push_console_log(L"[警告] 场景资产引用未更新");
         }
         return;
     }
@@ -3704,6 +4028,7 @@ static const wchar_t* value_input_title(void) {
         case VALUE_INPUT_TARGET_LOG_SEARCH: return L"日志搜索关键字";
         case VALUE_INPUT_TARGET_HIERARCHY_FILTER: return L"层级过滤关键字";
         case VALUE_INPUT_TARGET_SCENE_NAME: return L"场景名称";
+        case VALUE_INPUT_TARGET_SCENE_ASSET_GUID: return L"场景资产GUID";
         case VALUE_INPUT_TARGET_DEBUG_PARAM: return L"输入调试参数";
         case VALUE_INPUT_TARGET_INSPECTOR: return L"输入数值";
         default: return L"输入";
@@ -3934,7 +4259,7 @@ static void render_right_debug_section(D2D1_RECT_F debug_rect) {
     g_debug_viewport_rect = rc(debug_rect.left + 8.0f, debug_rect.top + 40.0f, debug_rect.right - 14.0f, debug_rect.bottom - 8.0f);
     debug_content_right = g_debug_viewport_rect.right - 2.0f;
     debug_view_h = g_debug_viewport_rect.bottom - g_debug_viewport_rect.top;
-    debug_content_h = 538.0f;
+    debug_content_h = 1140.0f;
     g_state.debug_scroll_max = 0;
     if (debug_content_h > debug_view_h) {
         g_state.debug_scroll_max = (int)(debug_content_h - debug_view_h + 0.5f);
@@ -4059,6 +4384,169 @@ static void render_right_debug_section(D2D1_RECT_F debug_rect) {
                 swprintf(line, 128, L"#%u -> %s (%ums前)", entry.frame_index, entry.running ? L"运行" : L"暂停", age_ms);
                 draw_text(line, rc(row_rect.left + 6.0f, row_rect.top + 1.0f, row_rect.right - 6.0f, row_rect.bottom - 1.0f),
                           g_ui.fmt_info, rgba(0.90f, 0.94f, 0.99f, 1.0f));
+            }
+        }
+    }
+    draw_text(L"性能摘要", rc(debug_rect.left + 12.0f, debug_offset_y + 528.0f, debug_rect.left + 128.0f, debug_offset_y + 550.0f),
+              g_ui.fmt_info, rgba(0.70f, 0.78f, 0.90f, 1.0f));
+    {
+        D2D1_RECT_F perf_rect = rc(debug_rect.left + 10.0f, debug_offset_y + 556.0f, debug_content_right, debug_offset_y + 654.0f);
+        float fps_avg = 0.0f;
+        float fps_min = 9999.0f;
+        float fps_max = 0.0f;
+        float step_avg = 0.0f;
+        float step_max = 0.0f;
+        int i;
+        draw_card_round(perf_rect, 5.0f, rgba(0.20f, 0.25f, 0.33f, 1.0f), rgba(0.33f, 0.40f, 0.52f, 1.0f));
+        if (g_state.perf_hist_count <= 0) {
+            draw_text(L"暂无性能历史，进入 PIE 后会逐帧采集", rc(perf_rect.left + 8.0f, perf_rect.top + 8.0f, perf_rect.right - 8.0f, perf_rect.top + 28.0f),
+                      g_ui.fmt_info, rgba(0.66f, 0.74f, 0.84f, 1.0f));
+        } else {
+            for (i = 0; i < g_state.perf_hist_count; i++) {
+                int idx = (g_state.perf_hist_head + i) % 180;
+                float fps_v = g_state.fps_hist[idx];
+                float step_v = g_state.step_hist[idx];
+                fps_avg += fps_v;
+                step_avg += step_v;
+                if (fps_v < fps_min) fps_min = fps_v;
+                if (fps_v > fps_max) fps_max = fps_v;
+                if (step_v > step_max) step_max = step_v;
+            }
+            fps_avg /= (float)g_state.perf_hist_count;
+            step_avg /= (float)g_state.perf_hist_count;
+            swprintf(line, 128, L"FPS 平均/最小/最大: %.1f / %.1f / %.1f", fps_avg, fps_min, fps_max);
+            draw_text(line, rc(perf_rect.left + 8.0f, perf_rect.top + 6.0f, perf_rect.right - 8.0f, perf_rect.top + 26.0f),
+                      g_ui.fmt_info, rgba(0.90f, 0.94f, 0.99f, 1.0f));
+            swprintf(line, 128, L"步进耗时 平均/峰值: %.2fms / %.2fms", step_avg, step_max);
+            draw_text(line, rc(perf_rect.left + 8.0f, perf_rect.top + 28.0f, perf_rect.right - 8.0f, perf_rect.top + 48.0f),
+                      g_ui.fmt_info, rgba(0.90f, 0.94f, 0.99f, 1.0f));
+            swprintf(line, 128, L"样本:%d  当前帧:%u  当前状态:%s",
+                     g_state.perf_hist_count,
+                     g_state.runtime_frame_index,
+                     pie_runtime_active() ? (g_state.runtime_running ? L"PIE运行" : L"PIE暂停") : L"编辑态");
+            draw_text(line, rc(perf_rect.left + 8.0f, perf_rect.top + 50.0f, perf_rect.right - 8.0f, perf_rect.top + 70.0f),
+                      g_ui.fmt_info, rgba(0.90f, 0.94f, 0.99f, 1.0f));
+            swprintf(line, 128, L"热重载累计 +%u / -%u  事件丢弃:%u",
+                     g_state.hot_reload_total_imported,
+                     g_state.hot_reload_total_failed,
+                     g_state.runtime_event_drop_count);
+            draw_text(line, rc(perf_rect.left + 8.0f, perf_rect.top + 72.0f, perf_rect.right - 8.0f, perf_rect.top + 92.0f),
+                      g_ui.fmt_info, rgba(0.90f, 0.94f, 0.99f, 1.0f));
+        }
+    }
+    draw_text(L"最近事件流", rc(debug_rect.left + 12.0f, debug_offset_y + 666.0f, debug_rect.left + 144.0f, debug_offset_y + 688.0f),
+              g_ui.fmt_info, rgba(0.70f, 0.78f, 0.90f, 1.0f));
+    {
+        D2D1_RECT_F event_rect = rc(debug_rect.left + 10.0f, debug_offset_y + 694.0f, debug_content_right, debug_offset_y + 790.0f);
+        int rows = (g_debug_event_history_count < DEBUG_HISTORY_ROWS_MAX) ? g_debug_event_history_count : DEBUG_HISTORY_ROWS_MAX;
+        int i;
+        unsigned int now_ms = (unsigned int)GetTickCount();
+        draw_card_round(event_rect, 5.0f, rgba(0.20f, 0.25f, 0.33f, 1.0f), rgba(0.33f, 0.40f, 0.52f, 1.0f));
+        if (rows <= 0) {
+            draw_text(L"暂无事件流记录", rc(event_rect.left + 8.0f, event_rect.top + 8.0f, event_rect.right - 8.0f, event_rect.top + 28.0f),
+                      g_ui.fmt_info, rgba(0.66f, 0.74f, 0.84f, 1.0f));
+        } else {
+            for (i = 0; i < rows; i++) {
+                int idx = (g_debug_event_history_head + g_debug_event_history_count - 1 - i + DEBUG_HISTORY_CAP) % DEBUG_HISTORY_CAP;
+                unsigned int age_ms = now_ms - g_debug_event_history[idx].tick_ms;
+                swprintf(line, 128, L"[%ums前] %s", age_ms, g_debug_event_history[idx].text);
+                draw_text(line, rc(event_rect.left + 8.0f, event_rect.top + 6.0f + i * 22.0f, event_rect.right - 8.0f, event_rect.top + 26.0f + i * 22.0f),
+                          g_ui.fmt_info, i == 0 ? rgba(0.90f, 0.95f, 1.0f, 1.0f) : rgba(0.76f, 0.85f, 0.95f, 1.0f));
+            }
+        }
+    }
+    draw_text(L"错误流", rc(debug_rect.left + 12.0f, debug_offset_y + 802.0f, debug_rect.left + 112.0f, debug_offset_y + 824.0f),
+              g_ui.fmt_info, rgba(0.70f, 0.78f, 0.90f, 1.0f));
+    {
+        D2D1_RECT_F error_rect = rc(debug_rect.left + 10.0f, debug_offset_y + 830.0f, debug_content_right, debug_offset_y + 926.0f);
+        int rows = (g_debug_error_history_count < DEBUG_HISTORY_ROWS_MAX) ? g_debug_error_history_count : DEBUG_HISTORY_ROWS_MAX;
+        int i;
+        unsigned int now_ms = (unsigned int)GetTickCount();
+        draw_card_round(error_rect, 5.0f, rgba(0.20f, 0.25f, 0.33f, 1.0f), rgba(0.33f, 0.40f, 0.52f, 1.0f));
+        if (rows <= 0) {
+            draw_text(L"暂无错误流记录", rc(error_rect.left + 8.0f, error_rect.top + 8.0f, error_rect.right - 8.0f, error_rect.top + 28.0f),
+                      g_ui.fmt_info, rgba(0.66f, 0.74f, 0.84f, 1.0f));
+        } else {
+            for (i = 0; i < rows; i++) {
+                int idx = (g_debug_error_history_head + g_debug_error_history_count - 1 - i + DEBUG_HISTORY_CAP) % DEBUG_HISTORY_CAP;
+                unsigned int age_ms = now_ms - g_debug_error_history[idx].tick_ms;
+                swprintf(line, 128, L"[%ums前] %s", age_ms, g_debug_error_history[idx].text);
+                draw_text(line, rc(error_rect.left + 8.0f, error_rect.top + 6.0f + i * 22.0f, error_rect.right - 8.0f, error_rect.top + 26.0f + i * 22.0f),
+                          g_ui.fmt_info, i == 0 ? rgba(0.99f, 0.85f, 0.80f, 1.0f) : rgba(0.93f, 0.73f, 0.68f, 1.0f));
+            }
+        }
+    }
+    draw_text(L"热重载批次", rc(debug_rect.left + 12.0f, debug_offset_y + 938.0f, debug_rect.left + 144.0f, debug_offset_y + 960.0f),
+              g_ui.fmt_info, rgba(0.70f, 0.78f, 0.90f, 1.0f));
+    {
+        D2D1_RECT_F hot_rect = rc(debug_rect.left + 10.0f, debug_offset_y + 966.0f, debug_content_right, debug_offset_y + 1128.0f);
+        int rows = (g_hot_reload_history_count < 2) ? g_hot_reload_history_count : 2;
+        int i;
+        float y = hot_rect.top + 6.0f;
+        draw_card_round(hot_rect, 5.0f, rgba(0.20f, 0.25f, 0.33f, 1.0f), rgba(0.33f, 0.40f, 0.52f, 1.0f));
+        swprintf(line, 128, L"监听:%d  最近扫描变化:%d  就绪批次:%d",
+                 g_state.hot_reload_watch_count,
+                 g_state.hot_reload_scan_change_count,
+                 g_state.hot_reload_ready_batch_count);
+        draw_text(line, rc(hot_rect.left + 8.0f, y, hot_rect.right - 8.0f, y + 20.0f),
+                  g_ui.fmt_info, rgba(0.90f, 0.94f, 0.99f, 1.0f));
+        y += 22.0f;
+        swprintf(line, 128, L"总计导入:%u  总计失败:%u  当前模式:%s",
+                 g_state.hot_reload_total_imported,
+                 g_state.hot_reload_total_failed,
+                 pie_runtime_active() ? L"PIE" : L"编辑态");
+        draw_text(line, rc(hot_rect.left + 8.0f, y, hot_rect.right - 8.0f, y + 20.0f),
+                  g_ui.fmt_info, rgba(0.90f, 0.94f, 0.99f, 1.0f));
+        y += 26.0f;
+        if (rows <= 0) {
+            draw_text(L"暂无热重载批次历史", rc(hot_rect.left + 8.0f, y, hot_rect.right - 8.0f, y + 20.0f),
+                      g_ui.fmt_info, rgba(0.66f, 0.74f, 0.84f, 1.0f));
+        } else {
+            unsigned int now_ms = (unsigned int)GetTickCount();
+            for (i = 0; i < rows; i++) {
+                int idx = (g_hot_reload_history_head + g_hot_reload_history_count - 1 - i + DEBUG_HISTORY_CAP) % DEBUG_HISTORY_CAP;
+                const HotReloadHistoryEntry* entry = &g_hot_reload_history[idx];
+                unsigned int age_ms = now_ms - entry->tick_ms;
+                wchar_t guid_line[128];
+                int wlen = 0;
+                int j;
+                swprintf(line, 128, L"[%ums前][%s] 导入%d 失败%d 影响%d 就绪%d %s",
+                         age_ms,
+                         entry->pie_active ? L"PIE" : L"编辑",
+                         entry->imported_count,
+                         entry->failed_count,
+                         entry->affected_count,
+                         entry->ready_batch_count,
+                         entry->rollback_retained ? L"回退:保留旧缓存" : L"");
+                draw_text(line, rc(hot_rect.left + 8.0f, y, hot_rect.right - 8.0f, y + 20.0f),
+                          g_ui.fmt_info, rgba(0.90f, 0.94f, 0.99f, 1.0f));
+                y += 20.0f;
+                guid_line[0] = L'\0';
+                if (entry->imported_guid_count > 0) {
+                    for (j = 0; j < entry->imported_guid_count && j < 2; j++) {
+                        wchar_t guid_w[ASSET_DB_MAX_GUID];
+                        int converted = MultiByteToWideChar(CP_UTF8, 0, entry->imported_guids[j], -1, guid_w, ASSET_DB_MAX_GUID);
+                        if (converted <= 0) {
+                            lstrcpynW(guid_w, L"(guid-decode-failed)", ASSET_DB_MAX_GUID);
+                        }
+                        if (wlen > 0 && wlen < 120) {
+                            wlen += swprintf(guid_line + wlen, 128 - wlen, L", ");
+                        }
+                        if (wlen < 120) {
+                            wlen += swprintf(guid_line + wlen, 128 - wlen, L"%s", guid_w);
+                        }
+                    }
+                    if (entry->imported_guid_count > 2 && wlen < 120) {
+                        swprintf(guid_line + wlen, 128 - wlen, L" ... +%d", entry->imported_guid_count - 2);
+                    }
+                } else if (entry->rollback_retained) {
+                    lstrcpynW(guid_line, L"失败批次未替换缓存，旧资源仍可继续使用", 128);
+                } else {
+                    lstrcpynW(guid_line, L"本批次没有导入 GUID 明细", 128);
+                }
+                draw_text(guid_line, rc(hot_rect.left + 20.0f, y, hot_rect.right - 8.0f, y + 18.0f),
+                          g_ui.fmt_info, rgba(0.74f, 0.82f, 0.92f, 1.0f));
+                y += 24.0f;
             }
         }
     }
@@ -4768,6 +5256,9 @@ static float render_hierarchy_scene_section(D2D1_RECT_F hierarchy_rect, float y,
     draw_text(L"场景", rc(g_tree_scene_header_rect.left + 16.0f, g_tree_scene_header_rect.top,
                          g_tree_scene_header_rect.right, g_tree_scene_header_rect.bottom),
               g_ui.fmt_mono, rgba(0.82f, 0.87f, 0.94f, 1.0f));
+    draw_text(L"F2重命名 / F3资产GUID", rc(g_tree_scene_header_rect.right - 190.0f, g_tree_scene_header_rect.top,
+                                          g_tree_scene_header_rect.right - 6.0f, g_tree_scene_header_rect.bottom),
+              g_ui.fmt_info, rgba(0.63f, 0.72f, 0.84f, 1.0f));
     y += row_h;
     g_explorer_scene_count = 0;
     if (g_state.tree_scene_expanded) {
@@ -5143,7 +5634,11 @@ static void render_center_header(D2D1_RECT_F center_rect) {
     draw_panel_header_band(center_rect, 38.0f, 10.0f);
     draw_text_vcenter(L"场景", rc(center_rect.left + 16.0f, center_rect.top + 4.0f, center_rect.right - 12.0f, center_rect.top + 40.0f),
                       g_ui.fmt_ui, rgba(0.90f, 0.93f, 0.98f, 1.0f));
-    swprintf(line, 128, L"%s丨%s", scene_display_name(g_state.scene_index), g_state.running ? L"运行中" : L"已暂停");
+    if (pie_runtime_active()) {
+        swprintf(line, 128, L"%s丨PIE:%s", scene_display_name(g_state.scene_index), g_state.running ? L"运行中" : L"已暂停");
+    } else {
+        swprintf(line, 128, L"%s丨编辑态", scene_display_name(g_state.scene_index));
+    }
     draw_text_right_vcenter(line, rc(center_rect.left + 130.0f, center_rect.top + 4.0f, center_rect.right - 36.0f, center_rect.top + 40.0f),
                             g_ui.fmt_info, rgba(0.67f, 0.75f, 0.88f, 1.0f));
 }
@@ -5392,9 +5887,15 @@ static void render_status_bar(D2D1_RECT_F status_rect) {
         if (g_state.runtime_bus_congested && point_in_rect(g_state.mouse_screen, runtime_bus_badge_rect())) {
             tip = L"点击红点可快速打开告警日志";
         } else if (point_in_rect(g_state.mouse_screen, g_top_run_rect)) {
-            tip = g_state.runtime_bus_congested ? L"运行/暂停模拟（事件总线拥塞，点击下方面板查看告警）" : L"运行/暂停模拟";
+            if (pie_runtime_active()) {
+                tip = g_state.runtime_bus_congested ? L"PIE 运行/暂停（事件总线拥塞，点击下方面板查看告警）" : L"PIE 运行/暂停（Esc 退出）";
+            } else {
+                tip = L"进入 PIE 并运行";
+            }
         }
-        else if (point_in_rect(g_state.mouse_screen, g_top_step_rect)) tip = L"单步执行一帧";
+        else if (point_in_rect(g_state.mouse_screen, g_top_step_rect)) {
+            tip = pie_runtime_active() ? L"PIE 单步执行一帧（保持暂停）" : L"进入 PIE 并单步一帧";
+        }
         else if (point_in_rect(g_state.mouse_screen, g_top_reset_rect)) tip = L"重置当前场景";
         else if (point_in_rect(g_state.mouse_screen, g_top_save_rect)) tip = L"保存快照";
         else if (point_in_rect(g_state.mouse_screen, g_top_undo_rect)) tip = L"撤销";
@@ -5470,9 +5971,9 @@ static void render_help_modal_content(D2D1_RECT_F modal) {
     } else {
         draw_text(L"使用说明", rc(modal.left + 18.0f, modal.top + 14.0f, modal.right - 60.0f, modal.top + 46.0f), g_ui.fmt_title,
                   rgba(0.88f, 0.92f, 0.97f, 1.0f));
-        draw_text(L"1) 场景: F1~F9切换，层级点击切换；F2/双击重命名；Alt+Up/Down排序", rc(modal.left + 22.0f, modal.top + 72.0f, modal.right - 24.0f, modal.top + 102.0f),
+        draw_text(L"1) 场景: F1~F9切换；F2/双击重命名；F3编辑资产GUID；Alt+Up/Down排序", rc(modal.left + 22.0f, modal.top + 72.0f, modal.right - 24.0f, modal.top + 102.0f),
                   g_ui.fmt_mono, rgba(0.74f, 0.81f, 0.90f, 1.0f));
-        draw_text(L"2) 运行控制: Space运行/暂停 N单步 R重置 F11切布局", rc(modal.left + 22.0f, modal.top + 102.0f, modal.right - 24.0f, modal.top + 132.0f),
+        draw_text(L"2) PIE: Space进入/运行/暂停  N单步  Esc退出回滚  R重置场景", rc(modal.left + 22.0f, modal.top + 102.0f, modal.right - 24.0f, modal.top + 132.0f),
                   g_ui.fmt_mono, rgba(0.74f, 0.81f, 0.90f, 1.0f));
         draw_text(L"3) 文件/编辑: Ctrl+S保存 Ctrl+O加载 Ctrl+C复制 Ctrl+V粘贴", rc(modal.left + 22.0f, modal.top + 132.0f, modal.right - 24.0f, modal.top + 162.0f),
                   g_ui.fmt_mono, rgba(0.74f, 0.81f, 0.90f, 1.0f));
@@ -5647,11 +6148,20 @@ static void render(HWND hwnd) {
 
 static void app_cmd_toggle_run(void* user) {
     (void)user;
+    if (!pie_runtime_active()) {
+        pie_enter_session();
+        return;
+    }
     g_state.running = !g_state.running;
+    push_console_log(L"[PIE] %s", g_state.running ? L"继续运行" : L"已暂停");
 }
 
 static void app_cmd_step_once(void* user) {
     (void)user;
+    if (!pie_runtime_active()) {
+        if (!pie_enter_session()) return;
+    }
+    g_state.running = 0;
     if (g_state.engine != NULL) {
         LARGE_INTEGER q0;
         LARGE_INTEGER q1;
@@ -5668,10 +6178,15 @@ static void app_cmd_step_once(void* user) {
         cleanup_constraint_selection();
         capture_collision_events();
     }
+    push_console_log(L"[PIE] 单步执行 1 帧");
 }
 
 static void app_cmd_reset_scene(void* user) {
     (void)user;
+    if (pie_runtime_active()) {
+        push_console_log(L"[PIE] 运行中禁止重置场景，请先按 Esc 退出");
+        return;
+    }
     apply_scene(g_state.scene_index);
 }
 
@@ -5747,6 +6262,7 @@ static void process_app_events(void) {
     AppEvent ev;
     while (app_runtime_pop_event(&g_app_runtime, &ev)) {
         if (ev.type == APP_EVENT_COMMAND_EXECUTED) {
+            push_debug_event_history(L"命令: %s", app_command_label(ev.command_type));
             if (ev.command_type == APP_CMD_STEP_ONCE) {
                 push_console_log(L"[状态] 单步执行 1 帧");
             } else if (ev.command_type == APP_CMD_RESET_SCENE) {
@@ -5767,6 +6283,7 @@ static void process_app_events(void) {
                 g_state.runtime_drop_last_growth_ms = now_ms;
                 if ((now_ms - g_state.runtime_drop_warn_ms) >= 1000 || g_state.runtime_drop_last_seen == 0) {
                     push_console_log(L"[警告] 事件总线丢弃 +%u (累计:%u)", delta_drop, g_state.runtime_event_drop_count);
+                    push_debug_error_history(L"事件总线丢弃 +%u (累计:%u)", delta_drop, g_state.runtime_event_drop_count);
                     g_state.runtime_drop_warn_ms = now_ms;
                     g_state.runtime_drop_last_seen = g_state.runtime_event_drop_count;
                 }
@@ -5775,6 +6292,7 @@ static void process_app_events(void) {
                 if (g_state.runtime_drop_last_growth_ms > 0 && (now_ms - g_state.runtime_drop_last_growth_ms) >= 3000) {
                     g_state.runtime_bus_congested = 0;
                     push_console_log(L"[状态] 事件总线已恢复（累计丢弃:%u）", g_state.runtime_event_drop_count);
+                    push_debug_event_history(L"事件总线恢复 (累计:%u)", g_state.runtime_event_drop_count);
                 }
             }
             {
@@ -5791,14 +6309,23 @@ static void process_app_events(void) {
                                              runtime_error_label(err0->code),
                                              runtime_error_severity_label(err0->severity),
                                              err0->count);
+                            push_debug_error_history(L"运行时错误 %d (%s,%s,x%d)",
+                                                     err0->code,
+                                                     runtime_error_label(err0->code),
+                                                     runtime_error_severity_label(err0->severity),
+                                                     err0->count);
                         } else {
                             push_console_log(L"[警告] 运行时错误 code=%d (%s)",
                                              g_state.runtime_error_code, runtime_error_label(g_state.runtime_error_code));
+                            push_debug_error_history(L"运行时错误 %d (%s)",
+                                                     g_state.runtime_error_code,
+                                                     runtime_error_label(g_state.runtime_error_code));
                         }
                         g_state.last_runtime_error_log_ms = now_ms;
                     }
                 } else if (g_state.last_runtime_error_code != PHYSICS_ERROR_NONE) {
                     push_console_log(L"[状态] 运行时错误已恢复");
+                    push_debug_event_history(L"运行时错误已恢复");
                     g_state.last_runtime_error_log_ms = now_ms;
                 }
                 g_state.last_runtime_error_code = g_state.runtime_error_code;
@@ -5816,6 +6343,9 @@ static void process_app_events(void) {
             g_state.runtime_state_change_count++;
             runtime_push_state_history(&ev.runtime_snapshot);
             push_console_log(L"[状态] 模拟:%s", ev.runtime_snapshot.running ? L"运行" : L"暂停");
+            push_debug_event_history(L"PIE 状态: %s (#%u)",
+                                     ev.runtime_snapshot.running ? L"运行" : L"暂停",
+                                     ev.runtime_snapshot.frame_index);
         } else if (ev.type == APP_EVENT_HOT_RELOAD_BATCH) {
             unsigned int now_ms = (unsigned int)GetTickCount();
             g_state.hot_reload_ready_batch_count = ev.hot_reload_snapshot.ready_batch_count;
@@ -5825,11 +6355,19 @@ static void process_app_events(void) {
             g_state.hot_reload_total_imported += (unsigned int)ev.hot_reload_snapshot.imported_count;
             g_state.hot_reload_total_failed += (unsigned int)ev.hot_reload_snapshot.failed_count;
             g_state.hot_reload_last_event_ms = now_ms;
+            push_hot_reload_history(&ev.hot_reload_snapshot);
             if (ev.hot_reload_snapshot.imported_count > 0 || ev.hot_reload_snapshot.failed_count > 0) {
+                push_debug_event_history(L"热重载[%s]: 导入%d 失败%d 影响%d",
+                                         ev.hot_reload_snapshot.pie_active ? L"PIE" : L"编辑",
+                                         ev.hot_reload_snapshot.imported_count,
+                                         ev.hot_reload_snapshot.failed_count,
+                                         ev.hot_reload_snapshot.affected_count);
                 if (ev.hot_reload_snapshot.failed_count > 0) {
                     push_tick_runtime_error(APP_RUNTIME_ERROR_CODE_HOT_RELOAD_IMPORT_FAILED,
                                             APP_RUNTIME_ERROR_ERROR,
                                             ev.hot_reload_snapshot.failed_count);
+                    push_debug_error_history(L"热重载失败 %d 项，继续沿用上一版缓存",
+                                             ev.hot_reload_snapshot.failed_count);
                     push_console_log(L"[热重载] 批次完成: 导入%d 失败%d 影响%d",
                                      ev.hot_reload_snapshot.imported_count,
                                      ev.hot_reload_snapshot.failed_count,
@@ -5877,7 +6415,7 @@ static void tick(HWND hwnd) {
             g_state.fps_accum_frames = 0;
             g_state.fps_last_tick_ms = now_ms;
         }
-        if (g_state.engine != NULL && (now_ms - g_state.last_autosave_ms) >= 30000) {
+        if (g_state.engine != NULL && !pie_runtime_active() && (now_ms - g_state.last_autosave_ms) >= 30000) {
             if (save_scene_snapshot("autosave_snapshot.txt")) {
                 g_state.last_autosave_ms = now_ms;
             }
@@ -5955,6 +6493,11 @@ static int handle_value_input_keydown(HWND hwnd, WPARAM wparam) {
 static int handle_ctrl_shortcuts_keydown(HWND hwnd, WPARAM wparam) {
     int ctrl_down = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
     if (!ctrl_down) return 0;
+    if (pie_runtime_active() && wparam == 'O') {
+        push_console_log(L"[PIE] 运行中禁止加载快照，请先按 Esc 退出");
+        InvalidateRect(hwnd, NULL, FALSE);
+        return 1;
+    }
 
     if (wparam == 'S') {
         if (save_scene_snapshot("scene_snapshot.txt")) push_console_log(L"[快捷键] Ctrl+S 已保存 scene_snapshot.txt");
@@ -6272,23 +6815,9 @@ static int handle_top_toolbar_lbuttondown(HWND hwnd) {
         return 1;
     }
     if (point_in_rect(g_state.mouse_screen, g_top_step_rect)) {
-        if (g_state.engine != NULL) {
-            LARGE_INTEGER q0;
-            LARGE_INTEGER q1;
-            LARGE_INTEGER fq;
-            double ms = 0.0;
-            QueryPerformanceCounter(&q0);
-            physics_engine_step(g_state.engine);
-            QueryPerformanceCounter(&q1);
-            QueryPerformanceFrequency(&fq);
-            if (fq.QuadPart > 0) {
-                ms = (double)(q1.QuadPart - q0.QuadPart) * 1000.0 / (double)fq.QuadPart;
-                g_state.physics_step_ms = (float)ms;
-            }
-            cleanup_constraint_selection();
-            capture_collision_events();
-        }
-        push_console_log(L"[状态] 单步执行 1 帧");
+        AppCommand cmd;
+        cmd.type = APP_CMD_STEP_ONCE;
+        app_runtime_dispatch(&g_app_runtime, cmd);
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
@@ -6576,6 +7105,11 @@ static int handle_tree_and_search_lbuttondown(HWND hwnd) {
     }
     for (idx = 0; idx < g_explorer_scene_count && point_in_rect(g_state.mouse_screen, g_hierarchy_viewport_rect); idx++) {
         if (point_in_rect(g_state.mouse_screen, g_explorer_scene_rect[idx])) {
+            if (pie_runtime_active()) {
+                push_console_log(L"[PIE] 运行中禁止切换场景，请先按 Esc 退出");
+                InvalidateRect(hwnd, NULL, FALSE);
+                return 1;
+            }
             apply_scene(g_explorer_scene_index[idx]);
             g_state.keyboard_focus_area = 1;
             InvalidateRect(hwnd, NULL, FALSE);
@@ -6652,6 +7186,11 @@ static int handle_keydown_log_paging(WPARAM wparam) {
 
 static int handle_keydown_runtime_controls(WPARAM wparam) {
     int changed = 0;
+    if (wparam == VK_ESCAPE && pie_runtime_active()) {
+        if (pie_exit_session()) {
+            changed = 1;
+        }
+    }
     if (wparam == VK_SPACE || wparam == 'N' || wparam == 'R') {
         AppCommand cmd;
         if (input_try_map_keydown_command((unsigned int)wparam, &cmd)) {
@@ -6773,10 +7312,18 @@ static int handle_keydown_scene_switch(WPARAM wparam) {
     int scene_index = 0;
     int scene_step = 0;
     if (input_try_map_scene_index((unsigned int)wparam, &scene_index)) {
+        if (pie_runtime_active()) {
+            push_console_log(L"[PIE] 运行中禁止切换场景，请先按 Esc 退出");
+            return 1;
+        }
         apply_scene(scene_index);
         changed = 1;
     }
     if (input_try_map_scene_step((unsigned int)wparam, &scene_step)) {
+        if (pie_runtime_active()) {
+            push_console_log(L"[PIE] 运行中禁止切换场景，请先按 Esc 退出");
+            return 1;
+        }
         apply_scene((g_state.scene_index + scene_step + SCENE_COUNT) % SCENE_COUNT);
         changed = 1;
     }
@@ -6791,6 +7338,10 @@ static int handle_keydown_scene_reorder(HWND hwnd, WPARAM wparam) {
     if (!alt_down) return 0;
     if (wparam != VK_UP && wparam != VK_DOWN && wparam != VK_HOME) return 0;
     if (g_state.keyboard_focus_area != 1) return 1;
+    if (pie_runtime_active()) {
+        push_console_log(L"[PIE] 运行中禁止调整场景顺序，请先按 Esc 退出");
+        return 1;
+    }
     if (g_state.selected != NULL || selected_constraint_ref() != NULL) return 1;
     ZeroMemory(&command_data, sizeof(command_data));
     if (wparam == VK_UP) {
@@ -6989,6 +7540,11 @@ static int handle_lbuttondblclk(HWND hwnd) {
     }
     for (idx = 0; idx < g_explorer_scene_count && point_in_rect(g_state.mouse_screen, g_hierarchy_viewport_rect); idx++) {
         if (point_in_rect(g_state.mouse_screen, g_explorer_scene_rect[idx])) {
+            if (pie_runtime_active()) {
+                push_console_log(L"[PIE] 运行中禁止重命名场景，请先按 Esc 退出");
+                InvalidateRect(hwnd, NULL, FALSE);
+                return 1;
+            }
             begin_value_input_for_scene_name(g_explorer_scene_index[idx]);
             InvalidateRect(hwnd, NULL, FALSE);
             return 1;
@@ -7022,7 +7578,22 @@ static int handle_keydown(HWND hwnd, WPARAM wparam) {
     if (handle_modal_keydown(hwnd, wparam)) return 1;
     if (handle_keydown_scene_reorder(hwnd, wparam)) return 1;
     if (wparam == VK_F2 && g_state.keyboard_focus_area == 1) {
+        if (pie_runtime_active()) {
+            push_console_log(L"[PIE] 运行中禁止重命名场景，请先按 Esc 退出");
+            InvalidateRect(hwnd, NULL, FALSE);
+            return 1;
+        }
         begin_value_input_for_scene_name(g_state.scene_index);
+        InvalidateRect(hwnd, NULL, FALSE);
+        return 1;
+    }
+    if (wparam == VK_F3 && g_state.keyboard_focus_area == 1) {
+        if (pie_runtime_active()) {
+            push_console_log(L"[PIE] 运行中禁止编辑场景资产引用，请先按 Esc 退出");
+            InvalidateRect(hwnd, NULL, FALSE);
+            return 1;
+        }
+        begin_value_input_for_scene_asset_guid(g_state.scene_index);
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
@@ -7052,7 +7623,8 @@ static int handle_char(HWND hwnd, WPARAM wparam) {
         int allow = 0;
         if (g_state.value_input_target == VALUE_INPUT_TARGET_LOG_SEARCH ||
             g_state.value_input_target == VALUE_INPUT_TARGET_HIERARCHY_FILTER ||
-            g_state.value_input_target == VALUE_INPUT_TARGET_SCENE_NAME) {
+            g_state.value_input_target == VALUE_INPUT_TARGET_SCENE_NAME ||
+            g_state.value_input_target == VALUE_INPUT_TARGET_SCENE_ASSET_GUID) {
             allow = (ch >= 32 && ch != 127);
         } else {
             allow = ((ch >= L'0' && ch <= L'9') || ch == L'.' || ch == L'-' || ch == L'+');
@@ -7250,9 +7822,11 @@ static int register_main_window_class(HINSTANCE inst, WNDCLASSEXW* out_wc) {
 
 static void init_app_bootstrap_state(void) {
     init_state_defaults();
+    pie_lifecycle_init(&g_pie_lifecycle, PIE_EDITOR_SNAPSHOT_PATH);
     init_editor_command_bus_callbacks();
     init_app_runtime_callbacks();
     init_hot_reload_pipeline();
+    clear_debug_histories();
     clear_collision_events();
     g_collision_event_filter_selected_only = 0;
     g_clipboard_body.valid = 0;

@@ -7,7 +7,7 @@ Branch: `cpp-migration-baseline`
 
 Phase C goals were to establish versioned content schemas, build a deterministic asset pipeline, and complete a verifiable runtime hot-reload loop.
 
-Current status: **Complete (Phase C closure candidate)**.
+Current status: **Complete (Phase C sealed / sign-off ready)**.
 
 ## 2. Completed Deliverables
 

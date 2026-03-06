@@ -111,6 +111,17 @@ int regression_test_asset_meta_roundtrip(void) {
         remove(file_b);
         return 0;
     }
+    if (!asset_meta_is_valid_guid(guid_a) ||
+        !asset_meta_is_valid_guid("asset://scene_main") ||
+        asset_meta_is_valid_guid("asset://") ||
+        asset_meta_is_valid_guid("asset:///bad") ||
+        asset_meta_is_valid_guid("asset://bad/path") ||
+        asset_meta_is_valid_guid("Assets/textures/hero.png")) {
+        printf("[FAIL] asset guid validation rules mismatch\n");
+        remove(file_a);
+        remove(file_b);
+        return 0;
+    }
 
     remove(file_a);
     remove(file_b);

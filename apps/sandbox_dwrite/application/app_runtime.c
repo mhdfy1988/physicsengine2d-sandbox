@@ -24,6 +24,8 @@ void app_runtime_init(AppRuntime* runtime, AppCommandCallbacks callbacks) {
     runtime->last_hot_reload.affected_count = 0;
     runtime->last_hot_reload.imported_count = 0;
     runtime->last_hot_reload.failed_count = 0;
+    runtime->last_hot_reload.pie_active = 0;
+    runtime->last_hot_reload.rollback_retained = 0;
     runtime->last_hot_reload.imported_guid_count = 0;
     runtime->pending_error_count = 0;
     runtime->frame_index = 0;
@@ -98,7 +100,7 @@ void app_runtime_report_tick(AppRuntime* runtime, PhysicsEngine* engine, int run
     }
 }
 
-void app_runtime_report_hot_reload(AppRuntime* runtime, const AssetHotReloadTickReport* report) {
+void app_runtime_report_hot_reload(AppRuntime* runtime, const AssetHotReloadTickReport* report, int pie_active) {
     AppEvent event_data;
     int i;
     if (runtime == 0 || report == 0) return;
@@ -108,6 +110,8 @@ void app_runtime_report_hot_reload(AppRuntime* runtime, const AssetHotReloadTick
     runtime->last_hot_reload.affected_count = report->pipeline_report.affected_count;
     runtime->last_hot_reload.imported_count = report->pipeline_report.imported_count;
     runtime->last_hot_reload.failed_count = report->pipeline_report.failed_count;
+    runtime->last_hot_reload.pie_active = pie_active ? 1 : 0;
+    runtime->last_hot_reload.rollback_retained = (report->pipeline_report.failed_count > 0) ? 1 : 0;
     runtime->last_hot_reload.imported_guid_count = report->pipeline_report.imported_count;
     if (runtime->last_hot_reload.imported_guid_count > APP_HOT_RELOAD_MAX_IMPORTED) {
         runtime->last_hot_reload.imported_guid_count = APP_HOT_RELOAD_MAX_IMPORTED;

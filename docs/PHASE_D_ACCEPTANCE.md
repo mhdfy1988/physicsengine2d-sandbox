@@ -1,7 +1,7 @@
 # 阶段 D 验收清单（编辑器化与工具链完善）
 
 更新时间：2026-03-06  
-状态：进行中（D2）
+状态：D4 完成，阶段 D 完成
 
 对应设计：[`PHASE_D_DETAILED_DESIGN.md`](./PHASE_D_DETAILED_DESIGN.md)  
 进度跟踪：[`PHASE_D_PROGRESS.md`](./PHASE_D_PROGRESS.md)  
@@ -23,22 +23,22 @@
 - [x] Inspector 支持核心组件字段编辑与约束校验
 - [x] 统一命令总线驱动编辑操作
 - [x] Undo/Redo 覆盖核心编辑行为并有回归
-- [ ] 资产引用编辑默认走 GUID 安全路径
+- [x] 资产引用编辑默认走 GUID 安全路径
 
 ## C. D3 PIE 与调试面板
 
-- [ ] PIE 生命周期（Enter/Exit/Pause/Step）完整可用
-- [ ] 编辑态与运行态状态隔离，回切行为可预测
-- [ ] 调试面板可查看事件流/错误流/关键性能指标
-- [ ] PIE 过程中热重载可观测且失败可回退
+- [x] PIE 生命周期（Enter/Exit/Pause/Step）完整可用
+- [x] 编辑态与运行态状态隔离，回切行为可预测
+- [x] 调试面板可查看事件流/错误流/关键性能指标
+- [x] PIE 过程中热重载可观测且失败可回退
 
 ## D. D4 子系统与工具链补齐
 
-- [ ] Render2D 工作流可演示并可回归
-- [ ] Animation 工作流可演示并可回归
-- [ ] Audio 工作流可演示并可回归
-- [ ] 脚本桥接层最小可用且有 smoke 覆盖
-- [ ] 并行调度优化有基准对比报告
+- [x] Render2D 工作流可演示并可回归
+- [x] Animation 工作流可演示并可回归
+- [x] Audio 工作流可演示并可回归
+- [x] 脚本桥接层最小可用且有 smoke 覆盖
+- [x] 并行调度优化有基准对比报告
 
 ## E. 阶段门禁与封板
 
@@ -50,8 +50,8 @@
 - [x] `scripts/hot_reload_smoke.ps1` 持续通过
 - [x] `scripts/hot_reload_smoke_headless.ps1` 通过并纳入门禁
 - [x] `scripts/run_phase_d_gate_suite.ps1` 一键门禁通过并归档摘要
-- [ ] 阶段 D 证据归档完成
-- [ ] 阶段 D 封板报告输出
+- [x] 阶段 D 证据归档完成
+- [x] 阶段 D 封板报告输出
 
 ## 2026-03-06 D1 Snapshot
 
@@ -105,3 +105,101 @@
 - [x] `tests/editor_undo_redo_smoke.c` 已覆盖混合命令序列的多步 undo/redo 回放
 - [x] 验证通过：`mingw32-make test`, `mingw32-make sandbox`, `mingw32-make benchmark`, `scripts/check_arch_deps.ps1`, `scripts/check_api_surface.ps1`, `scripts/hot_reload_smoke.ps1`, `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
 - [x] 门禁摘要：`artifacts/phase_d_gate_suite_20260306_020552/summary.md`
+
+## 2026-03-06 D2 GUID Asset Reference Safety Snapshot
+
+- [x] Scene config now carries GUID-only asset reference field (`asset_ref_guid`).
+- [x] Editor input path enforces `asset://<safe-id>` validation (rejects path-like/non-ASCII values).
+- [x] Command bus extended with `EDITOR_CMD_SCENE_ASSET_REF_SET` and integrated into undo/redo.
+- [x] Snapshot metadata now persists/restores per-scene `SCENE_ASSET_GUID` entries.
+- [x] Regression + smoke coverage updated:
+  - `tests/regression_asset_database_tests.c` (GUID validator rules)
+  - `tests/editor_undo_redo_smoke.c` (scene asset GUID command + replay)
+- [x] Verification passed:
+  - `mingw32-make test`
+  - `scripts/run_phase_d_gate_suite.ps1` (summary: `artifacts/phase_d_gate_suite_20260306_022153/summary.md`)
+
+## 2026-03-06 D3 PIE Lifecycle + State Isolation Snapshot
+
+- [x] PIE lifecycle is wired and usable in sandbox:
+  - Enter: first `Space`
+  - Pause/Resume: `Space`
+  - Step: `N` (paused single-frame tick)
+  - Exit: `Esc` (restore editor snapshot)
+- [x] Runtime/editor isolation guardrails are active:
+  - PIE exit restores frozen editor-state snapshot
+  - scene switch/reorder/rename/GUID-edit paths are blocked while PIE is active
+  - autosave is suppressed during PIE session
+- [x] Added D3 smoke gate:
+  - `tests/editor_pie_lifecycle_smoke.c`
+  - included in `mingw32-make test`
+- [x] Verification passed:
+  - `mingw32-make test`
+  - `mingw32-make sandbox`
+  - `scripts/check_arch_deps.ps1`
+  - `scripts/check_api_surface.ps1`
+
+## 2026-03-06 D3 Debug Observability + PIE Hot-Reload Closure
+
+- [x] Debug panel now exposes the remaining D3 visibility surfaces:
+  - recent event flow history (commands / PIE state changes / bus recovery / hot-reload batches)
+  - recent error flow history (runtime taxonomy errors / event-bus drops / hot-reload failures)
+  - compact performance summary (FPS avg/min/max, step avg/peak, event-drop and reload totals)
+- [x] PIE + hot-reload coexistence is now directly observable in UI:
+  - each hot-reload batch records whether it happened in editor mode or PIE
+  - failed hot-reload batches surface "rollback retained" semantics in panel history
+  - imported asset GUIDs from recent batches are visible from the debug panel
+- [x] Runtime snapshot contract extended for D3 UI:
+  - `AppHotReloadSnapshot` now carries `pie_active` and `rollback_retained`
+  - smoke coverage updated in `tests/app_runtime_tick_smoke.c`
+- [x] PIE lifecycle log text no longer emits mojibake in sandbox logs.
+- [x] Verification passed:
+  - `mingw32-make test`
+  - `mingw32-make sandbox`
+  - `scripts/check_arch_deps.ps1`
+  - `scripts/check_api_surface.ps1`
+  - `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
+  - `scripts/run_phase_d_gate_suite.ps1` (summary: `artifacts/phase_d_gate_suite_20260306_160618/summary.md`)
+
+## 2026-03-06 D4 Subsystem Workflow Smoke Kickoff
+
+- [x] Added a minimal Render2D / Animation / Audio workflow module:
+  - `include/subsystem_render_audio_animation.h`
+  - `src/content/subsystem_render_audio_animation.c`
+- [x] Workflow smoke covers an end-to-end minimum path:
+  - texture/audio asset import -> GUID binding
+  - animation keyframe tick -> body transform update
+  - draw command build
+  - audio play command collection
+- [x] Added D4 smoke gate:
+  - `tests/subsystem_render_audio_animation_smoke.c`
+  - included in `mingw32-make test`
+- [x] Build-system wiring updated:
+  - `Makefile`
+  - `CMakeLists.txt`
+- [x] Verification passed:
+  - `mingw32-make test`
+  - `mingw32-make sandbox`
+  - `scripts/run_phase_d_gate_suite.ps1` (summary: `artifacts/phase_d_gate_suite_20260306_160618/summary.md`)
+
+## 2026-03-06 D4 Closure Snapshot
+
+- [x] Render2D / Animation / Audio workflow now has both regression and demo surfaces:
+  - smoke: `tests/subsystem_render_audio_animation_smoke.c`
+  - demo: `tools/subsystem_workflow_demo.c`
+- [x] Minimal script bridge path is complete and regression-covered:
+  - bridge: `cpp/physics_script_bridge.hpp`
+  - smoke: `tests/cpp_script_bridge_smoke.cpp`
+- [x] First-pass profiling and parallel scheduling evidence is archived:
+  - scheduling path: `src/core/physics_parallel.cpp`
+  - compare tool: `tools/parallel_benchmark_compare.c`
+  - profile capture: `tools/phase_d_profile_capture.c`
+  - report: [`PHASE_D_PROFILE_REPORT.md`](./PHASE_D_PROFILE_REPORT.md)
+- [x] Closure verification passed:
+  - `bin/subsystem_render_audio_animation_smoke.exe`
+  - `bin/cpp_script_bridge_smoke.exe`
+  - `mingw32-make subsystem-workflow-demo`
+  - `mingw32-make parallel-benchmark-compare`
+  - `mingw32-make phase-d-profile`
+  - `scripts/run_phase_d_gate_suite.ps1` (summary: `artifacts/phase_d_gate_suite_20260306_163111/summary.md`)
+  - dedicated D4 archive: `artifacts/phase_d_d4_closure_20260306_162937/summary.md`

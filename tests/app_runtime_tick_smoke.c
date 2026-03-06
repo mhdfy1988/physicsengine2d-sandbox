@@ -168,7 +168,7 @@ int main(void) {
         hr_report.pipeline_report.failed_count = 1;
         snprintf(hr_report.pipeline_report.imported_guids[0], ASSET_DB_MAX_GUID, "asset://aaa");
         snprintf(hr_report.pipeline_report.imported_guids[1], ASSET_DB_MAX_GUID, "asset://bbb");
-        app_runtime_report_hot_reload(&runtime3, &hr_report);
+        app_runtime_report_hot_reload(&runtime3, &hr_report, 1);
         while (app_runtime_pop_event(&runtime3, &ev3)) {
             if (ev3.type == APP_EVENT_HOT_RELOAD_BATCH) {
                 found_hot = 1;
@@ -177,6 +177,8 @@ int main(void) {
                     ev3.hot_reload_snapshot.affected_count != 3 ||
                     ev3.hot_reload_snapshot.imported_count != 2 ||
                     ev3.hot_reload_snapshot.failed_count != 1 ||
+                    !ev3.hot_reload_snapshot.pie_active ||
+                    !ev3.hot_reload_snapshot.rollback_retained ||
                     ev3.hot_reload_snapshot.imported_guid_count != 2 ||
                     strcmp(ev3.hot_reload_snapshot.imported_guids[0], "asset://aaa") != 0 ||
                     strcmp(ev3.hot_reload_snapshot.imported_guids[1], "asset://bbb") != 0) {

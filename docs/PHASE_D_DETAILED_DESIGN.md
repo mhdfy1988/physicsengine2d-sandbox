@@ -7,8 +7,10 @@
 架构基线：[`ENGINE_ARCHITECTURE.md`](./ENGINE_ARCHITECTURE.md)  
 阶段 C 收口：[`PHASE_C_FINAL_REPORT.md`](./PHASE_C_FINAL_REPORT.md)
 进度跟踪：[`PHASE_D_PROGRESS.md`](./PHASE_D_PROGRESS.md)  
-验收清单：[`PHASE_D_ACCEPTANCE.md`](./PHASE_D_ACCEPTANCE.md)
-证据归档：[`PHASE_D_EVIDENCE.md`](./PHASE_D_EVIDENCE.md)
+验收清单：[`PHASE_D_ACCEPTANCE.md`](./PHASE_D_ACCEPTANCE.md)  
+证据归档：[`PHASE_D_EVIDENCE.md`](./PHASE_D_EVIDENCE.md)  
+性能报告：[`PHASE_D_PROFILE_REPORT.md`](./PHASE_D_PROFILE_REPORT.md)  
+封板报告：[`PHASE_D_FINAL_REPORT.md`](./PHASE_D_FINAL_REPORT.md)
 
 ## 1. 文档目标
 
@@ -142,12 +144,12 @@
 
 ## 9. 验收清单（阶段级）
 
-- [ ] D1 交付与门禁通过
-- [ ] D2 交付与门禁通过
-- [ ] D3 交付与门禁通过
-- [ ] D4 交付与门禁通过
-- [ ] 阶段 D 证据包归档
-- [ ] 阶段 D 封板报告输出
+- [x] D1 交付与门禁通过
+- [x] D2 交付与门禁通过
+- [x] D3 交付与门禁通过
+- [x] D4 交付与门禁通过
+- [x] 阶段 D 证据包归档
+- [x] 阶段 D 封板报告输出
 
 ## 10. 性能预算（初版）
 
@@ -164,8 +166,9 @@
 2. 阶段 D 进度文档（见 [PHASE_D_PROGRESS.md](./PHASE_D_PROGRESS.md)）。
 3. 阶段 D 验收清单（见 [PHASE_D_ACCEPTANCE.md](./PHASE_D_ACCEPTANCE.md)）。
 4. 阶段 D 证据归档（见 [PHASE_D_EVIDENCE.md](./PHASE_D_EVIDENCE.md)）。
-5. 阶段 D 封板报告（阶段完成时输出）。
-6. 对应测试、脚本、门禁报告与证据归档。
+5. 阶段 D 性能/剖析报告（见 [PHASE_D_PROFILE_REPORT.md](./PHASE_D_PROFILE_REPORT.md)）。
+6. 阶段 D 封板报告（见 [PHASE_D_FINAL_REPORT.md](./PHASE_D_FINAL_REPORT.md)）。
+7. 对应测试、脚本、门禁报告与证据归档。
 
 ## 12. 执行纪律
 

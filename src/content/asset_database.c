@@ -68,6 +68,14 @@ static unsigned long long asset_db_fnv1a64_append(unsigned long long hash, const
     return hash;
 }
 
+static int asset_db_is_guid_char(char c) {
+    if (c >= 'a' && c <= 'z') return 1;
+    if (c >= 'A' && c <= 'Z') return 1;
+    if (c >= '0' && c <= '9') return 1;
+    if (c == '_' || c == '-' || c == '.' || c == ':') return 1;
+    return 0;
+}
+
 static int asset_db_find_asset_index(const AssetDependencyGraph* graph, const char* guid) {
     int i;
     if (graph == NULL || guid == NULL) return -1;
@@ -105,6 +113,21 @@ int asset_meta_make_guid_from_path(const char* path, char out_guid[ASSET_DB_MAX_
     if (path == NULL || out_guid == NULL) return 0;
     hash = asset_db_fnv1a64_append(hash, path);
     snprintf(out_guid, ASSET_DB_MAX_GUID, "asset://%016llx", (unsigned long long)hash);
+    return 1;
+}
+
+int asset_meta_is_valid_guid(const char* guid) {
+    const char* p;
+    size_t len;
+    if (guid == NULL) return 0;
+    len = strlen(guid);
+    if (len <= 8 || len >= ASSET_DB_MAX_GUID) return 0;
+    if (strncmp(guid, "asset://", 8) != 0) return 0;
+    p = guid + 8;
+    while (*p != '\0') {
+        if (!asset_db_is_guid_char(*p)) return 0;
+        p++;
+    }
     return 1;
 }
 

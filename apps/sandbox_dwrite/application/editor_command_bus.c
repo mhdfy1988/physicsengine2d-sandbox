@@ -18,6 +18,9 @@ int editor_command_bus_dispatch(const EditorCommandCallbacks* callbacks, const E
         case EDITOR_CMD_SCENE_ORDER_RESET:
             if (callbacks->scene_order_reset == NULL) return 0;
             return callbacks->scene_order_reset(callbacks->user);
+        case EDITOR_CMD_SCENE_ASSET_REF_SET:
+            if (callbacks->scene_asset_ref_set == NULL) return 0;
+            return callbacks->scene_asset_ref_set(command->arg_i0, command->text, callbacks->user);
         case EDITOR_CMD_INSPECTOR_SET_VALUE:
             if (callbacks->inspector_set_value == NULL) return 0;
             return callbacks->inspector_set_value(command->arg_i0, command->arg_f0, command->arg_i1, callbacks->user);

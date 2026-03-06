@@ -10,7 +10,7 @@
 - [x] Runtime Facade 作为统一入口（Tick/Event/Error）
 - [x] ECS 与 Physics2D 桥接有一致性校验
 - [x] 架构依赖检查脚本持续通过
-- [ ] 编辑器事件总线直连 C++ `last_errors()` 多错误列表
+- 历史遗留条目（已由 V2 关闭）：编辑器事件总线直连 C++ `last_errors()` 多错误列表
 
 ## B. 运行时能力
 
@@ -31,11 +31,11 @@
 - [x] C 回归测试通过
 - [x] benchmark 通过
 - [x] C++ runtime error smoke（基础）通过
-- [ ] C++ runtime error smoke（恢复场景）完成
-- [ ] C++ runtime error smoke（多错误并发）完成
+- 历史遗留条目（已由 V2 关闭）：C++ runtime error smoke（恢复场景）完成
+- 历史遗留条目（已由 V2 关闭）：C++ runtime error smoke（多错误并发）完成
 - [x] API surface/arch guardrails 通过
 
 ## E. 进入阶段 C 前置项
 
-- [ ] 输出 B 阶段封板报告（证据链接 + 风险清单）
-- [ ] 冻结 B 阶段接口基线（防止 C 阶段重构回归）
+- 历史遗留条目（已由 V2 关闭）：输出 B 阶段封板报告（证据链接 + 风险清单）
+- 历史遗留条目（已由 V2 关闭）：冻结 B 阶段接口基线（防止 C 阶段重构回归）

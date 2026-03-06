@@ -12,6 +12,7 @@ typedef enum {
     EDITOR_CMD_SCENE_RENAME,
     EDITOR_CMD_SCENE_ORDER_MOVE,
     EDITOR_CMD_SCENE_ORDER_RESET,
+    EDITOR_CMD_SCENE_ASSET_REF_SET,
     EDITOR_CMD_INSPECTOR_SET_VALUE
 } EditorCommandType;
 
@@ -29,6 +30,7 @@ typedef struct {
     int (*scene_rename)(int scene_index, const wchar_t* name, void* user);
     int (*scene_order_move)(int direction, void* user);
     int (*scene_order_reset)(void* user);
+    int (*scene_asset_ref_set)(int scene_index, const wchar_t* guid, void* user);
     int (*inspector_set_value)(int row, double value, int emit_log, void* user);
     void* user;
 } EditorCommandCallbacks;
