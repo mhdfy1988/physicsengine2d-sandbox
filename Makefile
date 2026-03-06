@@ -2,8 +2,9 @@ CC = gcc
 CXX = g++
 AR = ar
 CFLAGS = -Wall -Wextra -Wpedantic -std=c99 -finput-charset=UTF-8 -fexec-charset=UTF-8 -Iinclude -Isrc
-CXXFLAGS = -Wall -Wextra -Wpedantic -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8 -Iinclude -Isrc -DPHYSICS_USE_CPP_KERNEL=1
+CXXFLAGS = -Wall -Wextra -Wpedantic -std=c++17 -finput-charset=UTF-8 -fexec-charset=UTF-8 -Iinclude -Isrc -Icpp -DPHYSICS_USE_CPP_KERNEL=1
 LDFLAGS = -lm
+CPP_RUNTIME_LDFLAGS = -lstdc++
 DEPFLAGS = -MMD -MP
 SRCDIR = src
 APPDIR_DWRITE = apps/sandbox_dwrite
@@ -12,8 +13,8 @@ BINDIR = bin
 OBJDIR = obj
 LIBDIR = lib
 
-C_SOURCES = $(SRCDIR)/content/scene_schema.c $(SRCDIR)/content/prefab_schema.c $(SRCDIR)/content/asset_database.c $(SRCDIR)/content/asset_importer.c $(SRCDIR)/content/asset_invalidation.c $(SRCDIR)/content/asset_pipeline.c $(SRCDIR)/content/asset_watch.c $(SRCDIR)/content/asset_hot_reload.c $(SRCDIR)/content/asset_fs_poll.c $(SRCDIR)/content/asset_fs_watch.c $(SRCDIR)/content/subsystem_render_audio_animation.c
-CPP_SOURCES = $(SRCDIR)/physics2d/math.cpp $(SRCDIR)/physics2d/shape.cpp $(SRCDIR)/physics2d/body.cpp $(SRCDIR)/physics2d/constraint.cpp $(SRCDIR)/physics2d/collision.cpp $(SRCDIR)/physics2d/collision_detect.cpp $(SRCDIR)/core/physics_memory.cpp $(SRCDIR)/core/physics_ids.cpp $(SRCDIR)/core/physics_parallel.cpp $(SRCDIR)/core/physics_world.cpp $(SRCDIR)/physics2d/physics_raycast.cpp $(SRCDIR)/core/physics_snapshot.cpp $(SRCDIR)/physics2d/physics_integrate.cpp $(SRCDIR)/physics2d/physics_resolve.cpp $(SRCDIR)/core/physics_step.cpp $(SRCDIR)/physics2d/physics_broadphase.cpp $(SRCDIR)/physics2d/physics_collision_pipeline.cpp $(SRCDIR)/physics2d/physics_contact_manager.cpp $(SRCDIR)/physics2d/physics_ccd.cpp $(SRCDIR)/c_api/physics_pipeline_api.cpp $(SRCDIR)/physics2d/physics_solver.cpp $(SRCDIR)/c_api/physics_query.cpp $(SRCDIR)/c_api/physics_mutation.cpp $(SRCDIR)/c_api/physics.cpp $(SRCDIR)/c_api/physics_lifecycle.cpp $(SRCDIR)/c_api/physics_runtime_api.cpp $(SRCDIR)/c_api/physics_config.cpp
+C_SOURCES = $(SRCDIR)/content/scene_schema.c $(SRCDIR)/content/prefab_schema.c $(SRCDIR)/content/asset_database.c $(SRCDIR)/content/asset_invalidation.c $(SRCDIR)/content/asset_pipeline.c $(SRCDIR)/content/asset_watch.c $(SRCDIR)/content/asset_hot_reload.c $(SRCDIR)/content/asset_fs_poll.c $(SRCDIR)/content/asset_fs_watch.c $(SRCDIR)/content/subsystem_render_audio_animation.c
+CPP_SOURCES = $(SRCDIR)/content/asset_importer.cpp $(SRCDIR)/physics2d/math.cpp $(SRCDIR)/physics2d/shape.cpp $(SRCDIR)/physics2d/body.cpp $(SRCDIR)/physics2d/constraint.cpp $(SRCDIR)/physics2d/collision.cpp $(SRCDIR)/physics2d/collision_detect.cpp $(SRCDIR)/core/physics_memory.cpp $(SRCDIR)/core/physics_ids.cpp $(SRCDIR)/core/physics_parallel.cpp $(SRCDIR)/core/physics_world.cpp $(SRCDIR)/physics2d/physics_raycast.cpp $(SRCDIR)/core/physics_snapshot.cpp $(SRCDIR)/physics2d/physics_integrate.cpp $(SRCDIR)/physics2d/physics_resolve.cpp $(SRCDIR)/core/physics_step.cpp $(SRCDIR)/physics2d/physics_broadphase.cpp $(SRCDIR)/physics2d/physics_collision_pipeline.cpp $(SRCDIR)/physics2d/physics_contact_manager.cpp $(SRCDIR)/physics2d/physics_ccd.cpp $(SRCDIR)/c_api/physics_pipeline_api.cpp $(SRCDIR)/physics2d/physics_solver.cpp $(SRCDIR)/c_api/physics_query.cpp $(SRCDIR)/c_api/physics_mutation.cpp $(SRCDIR)/c_api/physics.cpp $(SRCDIR)/c_api/physics_lifecycle.cpp $(SRCDIR)/c_api/physics_runtime_api.cpp $(SRCDIR)/c_api/physics_config.cpp
 C_OBJECTS = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(C_SOURCES))
 CPP_OBJECTS = $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(CPP_SOURCES))
 OBJECTS = $(C_OBJECTS) $(CPP_OBJECTS)
@@ -31,10 +32,11 @@ EDITOR_UNDO_REDO_SMOKE_SRC = $(TESTDIR)/editor_undo_redo_smoke.c $(APPDIR_DWRITE
 EDITOR_PIE_LIFECYCLE_SMOKE_SRC = $(TESTDIR)/editor_pie_lifecycle_smoke.c $(APPDIR_DWRITE)/application/pie_lifecycle.c
 SUBSYSTEM_RENDER_AUDIO_ANIMATION_SMOKE_SRC = $(TESTDIR)/subsystem_render_audio_animation_smoke.c
 CPP_SCRIPT_BRIDGE_SMOKE_SRC = $(TESTDIR)/cpp_script_bridge_smoke.cpp
+CPP_FOUNDATION_SMOKE_SRC = $(TESTDIR)/cpp_foundation_smoke.cpp
 PARALLEL_BENCHMARK_COMPARE_SRC = tools/parallel_benchmark_compare.c
 SUBSYSTEM_WORKFLOW_DEMO_SRC = tools/subsystem_workflow_demo.c
 PHASE_D_PROFILE_CAPTURE_SRC = tools/phase_d_profile_capture.c
-SCENE_MIGRATE_SRC = tools/scene_migrate_main.c
+SCENE_MIGRATE_SRC = tools/scene_migrate_main.cpp
 
 CORE_LIB = $(LIBDIR)/libphysics2d.a
 SANDBOX_EXECUTABLE = $(BINDIR)/physics_sandbox
@@ -46,6 +48,7 @@ EDITOR_UNDO_REDO_SMOKE_EXECUTABLE = $(BINDIR)/editor_undo_redo_smoke
 EDITOR_PIE_LIFECYCLE_SMOKE_EXECUTABLE = $(BINDIR)/editor_pie_lifecycle_smoke
 SUBSYSTEM_RENDER_AUDIO_ANIMATION_SMOKE_EXECUTABLE = $(BINDIR)/subsystem_render_audio_animation_smoke
 CPP_SCRIPT_BRIDGE_SMOKE_EXECUTABLE = $(BINDIR)/cpp_script_bridge_smoke
+CPP_FOUNDATION_SMOKE_EXECUTABLE = $(BINDIR)/cpp_foundation_smoke
 PARALLEL_BENCHMARK_COMPARE_EXECUTABLE = $(BINDIR)/parallel_benchmark_compare
 SUBSYSTEM_WORKFLOW_DEMO_EXECUTABLE = $(BINDIR)/subsystem_workflow_demo
 PHASE_D_PROFILE_CAPTURE_EXECUTABLE = $(BINDIR)/phase_d_profile_capture
@@ -80,43 +83,46 @@ $(SANDBOX_ICON_OBJ): $(SANDBOX_ICON_RC) $(SANDBOX_ICON_ICO) | $(OBJDIR)
 	windres $< -O coff -o $@
 
 $(SANDBOX_EXECUTABLE): $(CORE_LIB) $(SANDBOX_SRCS) $(SANDBOX_ICON_OBJ) | $(BINDIR)
-	$(CC) $(CFLAGS) $(SANDBOX_SRCS) $(SANDBOX_ICON_OBJ) $(CORE_LIB) -o $@ $(LDFLAGS) $(WIN_DWRITE_LIBS) $(WIN_GUI_FLAGS)
+	$(CC) $(CFLAGS) $(SANDBOX_SRCS) $(SANDBOX_ICON_OBJ) $(CORE_LIB) -o $@ $(LDFLAGS) $(CPP_RUNTIME_LDFLAGS) $(WIN_DWRITE_LIBS) $(WIN_GUI_FLAGS)
 
 $(TEST_EXECUTABLE): $(CORE_LIB) $(TEST_SRC) | $(BINDIR)
-	$(CC) $(CFLAGS) $(TEST_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) $(TEST_SRC) $(CORE_LIB) -o $@ $(LDFLAGS) $(CPP_RUNTIME_LDFLAGS)
 
 $(BENCH_EXECUTABLE): $(CORE_LIB) $(BENCH_SRC) | $(BINDIR)
-	$(CC) $(CFLAGS) $(BENCH_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) $(BENCH_SRC) $(CORE_LIB) -o $@ $(LDFLAGS) $(CPP_RUNTIME_LDFLAGS)
 
 $(INVARIANT_EXECUTABLE): $(CORE_LIB) $(INVARIANT_SRC) | $(BINDIR)
-	$(CC) $(CFLAGS) $(INVARIANT_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) $(INVARIANT_SRC) $(CORE_LIB) -o $@ $(LDFLAGS) $(CPP_RUNTIME_LDFLAGS)
 
 $(APP_RUNTIME_SMOKE_EXECUTABLE): $(CORE_LIB) $(APP_RUNTIME_SMOKE_SRC) | $(BINDIR)
-	$(CC) $(CFLAGS) $(APP_RUNTIME_SMOKE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) $(APP_RUNTIME_SMOKE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS) $(CPP_RUNTIME_LDFLAGS)
 
 $(EDITOR_UNDO_REDO_SMOKE_EXECUTABLE): $(CORE_LIB) $(EDITOR_UNDO_REDO_SMOKE_SRC) | $(BINDIR)
-	$(CC) $(CFLAGS) $(EDITOR_UNDO_REDO_SMOKE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) $(EDITOR_UNDO_REDO_SMOKE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS) $(CPP_RUNTIME_LDFLAGS)
 
 $(EDITOR_PIE_LIFECYCLE_SMOKE_EXECUTABLE): $(CORE_LIB) $(EDITOR_PIE_LIFECYCLE_SMOKE_SRC) | $(BINDIR)
-	$(CC) $(CFLAGS) $(EDITOR_PIE_LIFECYCLE_SMOKE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) $(EDITOR_PIE_LIFECYCLE_SMOKE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS) $(CPP_RUNTIME_LDFLAGS)
 
 $(SUBSYSTEM_RENDER_AUDIO_ANIMATION_SMOKE_EXECUTABLE): $(CORE_LIB) $(SUBSYSTEM_RENDER_AUDIO_ANIMATION_SMOKE_SRC) | $(BINDIR)
-	$(CC) $(CFLAGS) $(SUBSYSTEM_RENDER_AUDIO_ANIMATION_SMOKE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) $(SUBSYSTEM_RENDER_AUDIO_ANIMATION_SMOKE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS) $(CPP_RUNTIME_LDFLAGS)
 
 $(CPP_SCRIPT_BRIDGE_SMOKE_EXECUTABLE): $(CORE_LIB) $(CPP_SCRIPT_BRIDGE_SMOKE_SRC) | $(BINDIR)
 	$(CXX) $(CXXFLAGS) -Icpp $(CPP_SCRIPT_BRIDGE_SMOKE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
 
+$(CPP_FOUNDATION_SMOKE_EXECUTABLE): $(CORE_LIB) $(CPP_FOUNDATION_SMOKE_SRC) | $(BINDIR)
+	$(CXX) $(CXXFLAGS) -Icpp $(CPP_FOUNDATION_SMOKE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+
 $(PARALLEL_BENCHMARK_COMPARE_EXECUTABLE): $(CORE_LIB) $(PARALLEL_BENCHMARK_COMPARE_SRC) | $(BINDIR)
-	$(CC) $(CFLAGS) $(PARALLEL_BENCHMARK_COMPARE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) $(PARALLEL_BENCHMARK_COMPARE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS) $(CPP_RUNTIME_LDFLAGS)
 
 $(SUBSYSTEM_WORKFLOW_DEMO_EXECUTABLE): $(CORE_LIB) $(SUBSYSTEM_WORKFLOW_DEMO_SRC) | $(BINDIR)
-	$(CC) $(CFLAGS) $(SUBSYSTEM_WORKFLOW_DEMO_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) $(SUBSYSTEM_WORKFLOW_DEMO_SRC) $(CORE_LIB) -o $@ $(LDFLAGS) $(CPP_RUNTIME_LDFLAGS)
 
 $(PHASE_D_PROFILE_CAPTURE_EXECUTABLE): $(CORE_LIB) $(PHASE_D_PROFILE_CAPTURE_SRC) | $(BINDIR)
-	$(CC) $(CFLAGS) $(PHASE_D_PROFILE_CAPTURE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+	$(CC) $(CFLAGS) $(PHASE_D_PROFILE_CAPTURE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS) $(CPP_RUNTIME_LDFLAGS)
 
 $(SCENE_MIGRATE_EXECUTABLE): $(CORE_LIB) $(SCENE_MIGRATE_SRC) | $(BINDIR)
-	$(CC) $(CFLAGS) $(SCENE_MIGRATE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
+	$(CXX) $(CXXFLAGS) -Icpp $(SCENE_MIGRATE_SRC) $(CORE_LIB) -o $@ $(LDFLAGS)
 
 core: $(CORE_LIB)
 
@@ -127,13 +133,14 @@ scene-migrate: $(SCENE_MIGRATE_EXECUTABLE)
 run: $(SANDBOX_EXECUTABLE)
 	./$(SANDBOX_EXECUTABLE)
 
-test: $(TEST_EXECUTABLE) $(APP_RUNTIME_SMOKE_EXECUTABLE) $(EDITOR_UNDO_REDO_SMOKE_EXECUTABLE) $(EDITOR_PIE_LIFECYCLE_SMOKE_EXECUTABLE) $(SUBSYSTEM_RENDER_AUDIO_ANIMATION_SMOKE_EXECUTABLE) $(CPP_SCRIPT_BRIDGE_SMOKE_EXECUTABLE)
+test: $(TEST_EXECUTABLE) $(APP_RUNTIME_SMOKE_EXECUTABLE) $(EDITOR_UNDO_REDO_SMOKE_EXECUTABLE) $(EDITOR_PIE_LIFECYCLE_SMOKE_EXECUTABLE) $(SUBSYSTEM_RENDER_AUDIO_ANIMATION_SMOKE_EXECUTABLE) $(CPP_SCRIPT_BRIDGE_SMOKE_EXECUTABLE) $(CPP_FOUNDATION_SMOKE_EXECUTABLE)
 	./$(TEST_EXECUTABLE)
 	./$(APP_RUNTIME_SMOKE_EXECUTABLE)
 	./$(EDITOR_UNDO_REDO_SMOKE_EXECUTABLE)
 	./$(EDITOR_PIE_LIFECYCLE_SMOKE_EXECUTABLE)
 	./$(SUBSYSTEM_RENDER_AUDIO_ANIMATION_SMOKE_EXECUTABLE)
 	./$(CPP_SCRIPT_BRIDGE_SMOKE_EXECUTABLE)
+	./$(CPP_FOUNDATION_SMOKE_EXECUTABLE)
 
 benchmark: $(BENCH_EXECUTABLE)
 	./$(BENCH_EXECUTABLE)
@@ -159,6 +166,9 @@ check-arch:
 check-api:
 	powershell -ExecutionPolicy Bypass -File .\scripts\check_api_surface.ps1
 
+check-cpp-convergence:
+	powershell -ExecutionPolicy Bypass -File .\scripts\check_cpp_convergence.ps1
+
 clean:
 	if exist $(BINDIR) rmdir /S /Q $(BINDIR)
 	if exist $(OBJDIR) rmdir /S /Q $(OBJDIR)
@@ -166,4 +176,4 @@ clean:
 
 -include $(DEPS)
 
-.PHONY: all core sandbox scene-migrate run test benchmark parallel-benchmark-compare subsystem-workflow-demo phase-d-profile test-long check-core check-arch check-api clean
+.PHONY: all core sandbox scene-migrate run test benchmark parallel-benchmark-compare subsystem-workflow-demo phase-d-profile test-long check-core check-arch check-api check-cpp-convergence clean

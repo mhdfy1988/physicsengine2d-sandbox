@@ -1,11 +1,11 @@
 #include "asset_importer.h"
 
 #include <ctype.h>
-#include <direct.h>
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
+#include "../../cpp/physics_filesystem.hpp"
 
 static void asset_importer_copy_text(char* out, int out_cap, const char* src) {
     if (out == NULL || out_cap <= 0) return;
@@ -38,31 +38,17 @@ static int asset_importer_ext_eq(const char* ext, const char* rhs) {
 }
 
 static int asset_importer_file_exists(const char* path) {
-    FILE* fp;
     if (path == NULL) return 0;
-    fp = fopen(path, "rb");
-    if (fp == NULL) return 0;
-    fclose(fp);
-    return 1;
+    {
+        const physics2d::foundation::FileInfo info =
+            physics2d::foundation::stat_file(physics2d::foundation::Path(path));
+        return info.exists && !info.is_directory;
+    }
 }
 
 static int asset_importer_ensure_dir(const char* path) {
-    char buf[ASSET_IMPORTER_MAX_PATH];
-    size_t i;
     if (path == NULL || path[0] == '\0') return 0;
-    asset_importer_copy_text(buf, (int)sizeof(buf), path);
-    for (i = 1; buf[i] != '\0'; i++) {
-        if (buf[i] == '/' || buf[i] == '\\') {
-            char ch = buf[i];
-            buf[i] = '\0';
-            if (buf[0] != '\0') {
-                if (_mkdir(buf) != 0 && errno != EEXIST) return 0;
-            }
-            buf[i] = ch;
-        }
-    }
-    if (_mkdir(buf) != 0 && errno != EEXIST) return 0;
-    return 1;
+    return physics2d::foundation::ensure_directory(physics2d::foundation::Path(path)) ? 1 : 0;
 }
 
 static int asset_importer_compute_source_hash(const char* source_path, char out_hash[ASSET_DB_MAX_HASH]) {
@@ -183,21 +169,28 @@ static int asset_importer_write_artifact(
     const char* source_path,
     const AssetMeta* meta,
     const char* cache_key) {
-    FILE* fp;
     const char* kind_text = "unknown";
+    std::string artifact_text;
     if (artifact_path == NULL || source_path == NULL || meta == NULL || cache_key == NULL) return 0;
     if (kind == ASSET_IMPORT_KIND_TEXTURE) kind_text = "texture";
     else if (kind == ASSET_IMPORT_KIND_FONT) kind_text = "font";
     else if (kind == ASSET_IMPORT_KIND_AUDIO) kind_text = "audio";
-    fp = fopen(artifact_path, "w");
-    if (fp == NULL) return 0;
-    fprintf(fp, "kind|%s\n", kind_text);
-    fprintf(fp, "source_path|%s\n", source_path);
-    fprintf(fp, "guid|%s\n", meta->guid);
-    fprintf(fp, "source_hash|%s\n", meta->source_hash);
-    fprintf(fp, "cache_key|%s\n", cache_key);
-    if (fclose(fp) != 0) return 0;
-    return 1;
+    artifact_text += "kind|";
+    artifact_text += kind_text;
+    artifact_text += "\nsource_path|";
+    artifact_text += source_path;
+    artifact_text += "\nguid|";
+    artifact_text += meta->guid;
+    artifact_text += "\nsource_hash|";
+    artifact_text += meta->source_hash;
+    artifact_text += "\ncache_key|";
+    artifact_text += cache_key;
+    artifact_text += "\n";
+    return physics2d::foundation::write_text_file(
+               physics2d::foundation::Path(artifact_path),
+               artifact_text)
+               ? 1
+               : 0;
 }
 
 static void asset_importer_fill_importer_fields(AssetImportKind kind, AssetMeta* meta) {

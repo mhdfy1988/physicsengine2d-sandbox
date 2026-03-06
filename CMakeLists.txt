@@ -33,6 +33,10 @@ function(physics_add_cpp_smoke target source needs_cpp_include)
     )
 endfunction()
 
+function(physics_force_cxx_link target)
+    set_property(TARGET ${target} PROPERTY LINKER_LANGUAGE CXX)
+endfunction()
+
 set(PHYSICS2D_SOURCES
     src/physics2d/math.cpp
     src/physics2d/shape.cpp
@@ -50,12 +54,13 @@ set(PHYSICS2D_SOURCES
     src/content/scene_schema.c
     src/content/prefab_schema.c
     src/content/asset_database.c
-    src/content/asset_importer.c
+    src/content/asset_importer.cpp
     src/content/asset_invalidation.c
     src/content/asset_pipeline.c
     src/content/asset_watch.c
     src/content/asset_hot_reload.c
     src/content/asset_fs_poll.c
+    src/content/asset_fs_watch.c
     src/content/subsystem_render_audio_animation.c
     src/core/physics_snapshot.cpp
     src/core/physics_world.cpp
@@ -77,6 +82,7 @@ add_library(physics2d STATIC ${PHYSICS2D_SOURCES})
 add_library(physics_core ALIAS physics2d)
 target_include_directories(physics2d PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_include_directories(physics2d PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(physics2d PRIVATE ${CMAKE_SOURCE_DIR}/cpp)
 if(PHYSICS_USE_CPP_KERNEL)
     target_compile_definitions(physics2d PUBLIC PHYSICS_USE_CPP_KERNEL=1)
 else()
@@ -125,6 +131,7 @@ if(BUILD_EDITOR)
     add_executable(physics_sandbox WIN32 ${SANDBOX_SOURCES})
     add_executable(physics_editor ALIAS physics_sandbox)
     target_link_libraries(physics_sandbox PRIVATE physics2d d2d1 dwrite windowscodecs ole32 uuid shcore gdi32 user32)
+    physics_force_cxx_link(physics_sandbox)
     if(MSVC)
         target_compile_options(physics_sandbox PRIVATE /W4)
     else()
@@ -172,6 +179,7 @@ if(BUILD_TESTS)
         tests/subsystem_render_audio_animation_smoke.c
     )
     physics_add_cpp_smoke(physics_cpp_script_bridge_smoke tests/cpp_script_bridge_smoke.cpp TRUE)
+    physics_add_cpp_smoke(physics_cpp_foundation_smoke tests/cpp_foundation_smoke.cpp TRUE)
     add_executable(physics_bench tests/benchmark_suite.c)
     add_executable(physics_invariants tests/invariant_tests.c)
     target_link_libraries(physics_tests PRIVATE physics2d)
@@ -181,6 +189,13 @@ if(BUILD_TESTS)
     target_link_libraries(physics_subsystem_render_audio_animation_smoke PRIVATE physics2d)
     target_link_libraries(physics_bench PRIVATE physics2d)
     target_link_libraries(physics_invariants PRIVATE physics2d)
+    physics_force_cxx_link(physics_tests)
+    physics_force_cxx_link(physics_app_runtime_smoke)
+    physics_force_cxx_link(physics_editor_undo_redo_smoke)
+    physics_force_cxx_link(physics_editor_pie_lifecycle_smoke)
+    physics_force_cxx_link(physics_subsystem_render_audio_animation_smoke)
+    physics_force_cxx_link(physics_bench)
+    physics_force_cxx_link(physics_invariants)
     if(MSVC)
         target_compile_options(physics_tests PRIVATE /W4)
         target_compile_options(physics_app_runtime_smoke PRIVATE /W4)
@@ -221,8 +236,9 @@ if(BUILD_TESTS)
     )
 endif()
 
-add_executable(scene_migrate tools/scene_migrate_main.c)
+add_executable(scene_migrate tools/scene_migrate_main.cpp)
 target_link_libraries(scene_migrate PRIVATE physics2d)
+target_include_directories(scene_migrate PRIVATE ${CMAKE_SOURCE_DIR}/cpp)
 if(MSVC)
     target_compile_options(scene_migrate PRIVATE /W4)
 else()
@@ -234,6 +250,7 @@ set_target_properties(scene_migrate PROPERTIES
 
 add_executable(parallel_benchmark_compare tools/parallel_benchmark_compare.c)
 target_link_libraries(parallel_benchmark_compare PRIVATE physics2d)
+physics_force_cxx_link(parallel_benchmark_compare)
 if(MSVC)
     target_compile_options(parallel_benchmark_compare PRIVATE /W4)
 else()
@@ -245,6 +262,7 @@ set_target_properties(parallel_benchmark_compare PROPERTIES
 
 add_executable(subsystem_workflow_demo tools/subsystem_workflow_demo.c)
 target_link_libraries(subsystem_workflow_demo PRIVATE physics2d)
+physics_force_cxx_link(subsystem_workflow_demo)
 if(MSVC)
     target_compile_options(subsystem_workflow_demo PRIVATE /W4)
 else()
@@ -257,6 +275,7 @@ set_target_properties(subsystem_workflow_demo PROPERTIES
 add_executable(phase_d_profile_capture tools/phase_d_profile_capture.c)
 target_link_libraries(phase_d_profile_capture PRIVATE physics2d)
 target_include_directories(phase_d_profile_capture PRIVATE ${CMAKE_SOURCE_DIR}/src)
+physics_force_cxx_link(phase_d_profile_capture)
 if(MSVC)
     target_compile_options(phase_d_profile_capture PRIVATE /W4)
 else()
