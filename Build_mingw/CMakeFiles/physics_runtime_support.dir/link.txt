@@ -1,0 +1,2 @@
+C:\msys64\ucrt64\bin\ar.exe qc lib\libphysics_runtime_support.a CMakeFiles/physics_runtime_support.dir/src/runtime_support/snapshot_repo.cpp.obj
+C:\msys64\ucrt64\bin\ranlib.exe lib\libphysics_runtime_support.a

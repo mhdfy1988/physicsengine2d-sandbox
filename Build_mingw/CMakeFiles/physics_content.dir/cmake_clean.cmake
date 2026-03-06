@@ -1,0 +1,41 @@
+file(REMOVE_RECURSE
+  "CMakeFiles/physics_content.dir/src/content/asset_database.cpp.obj"
+  "CMakeFiles/physics_content.dir/src/content/asset_database.cpp.obj.d"
+  "CMakeFiles/physics_content.dir/src/content/asset_fs_poll.cpp.obj"
+  "CMakeFiles/physics_content.dir/src/content/asset_fs_poll.cpp.obj.d"
+  "CMakeFiles/physics_content.dir/src/content/asset_fs_watch.cpp.obj"
+  "CMakeFiles/physics_content.dir/src/content/asset_fs_watch.cpp.obj.d"
+  "CMakeFiles/physics_content.dir/src/content/asset_hot_reload.cpp.obj"
+  "CMakeFiles/physics_content.dir/src/content/asset_hot_reload.cpp.obj.d"
+  "CMakeFiles/physics_content.dir/src/content/asset_importer.cpp.obj"
+  "CMakeFiles/physics_content.dir/src/content/asset_importer.cpp.obj.d"
+  "CMakeFiles/physics_content.dir/src/content/asset_invalidation.cpp.obj"
+  "CMakeFiles/physics_content.dir/src/content/asset_invalidation.cpp.obj.d"
+  "CMakeFiles/physics_content.dir/src/content/asset_pipeline.cpp.obj"
+  "CMakeFiles/physics_content.dir/src/content/asset_pipeline.cpp.obj.d"
+  "CMakeFiles/physics_content.dir/src/content/asset_watch.cpp.obj"
+  "CMakeFiles/physics_content.dir/src/content/asset_watch.cpp.obj.d"
+  "CMakeFiles/physics_content.dir/src/content/diagnostic_bundle.cpp.obj"
+  "CMakeFiles/physics_content.dir/src/content/diagnostic_bundle.cpp.obj.d"
+  "CMakeFiles/physics_content.dir/src/content/editor_plugin.cpp.obj"
+  "CMakeFiles/physics_content.dir/src/content/editor_plugin.cpp.obj.d"
+  "CMakeFiles/physics_content.dir/src/content/prefab_schema.cpp.obj"
+  "CMakeFiles/physics_content.dir/src/content/prefab_schema.cpp.obj.d"
+  "CMakeFiles/physics_content.dir/src/content/prefab_semantics.cpp.obj"
+  "CMakeFiles/physics_content.dir/src/content/prefab_semantics.cpp.obj.d"
+  "CMakeFiles/physics_content.dir/src/content/project_workspace.cpp.obj"
+  "CMakeFiles/physics_content.dir/src/content/project_workspace.cpp.obj.d"
+  "CMakeFiles/physics_content.dir/src/content/scene_schema.cpp.obj"
+  "CMakeFiles/physics_content.dir/src/content/scene_schema.cpp.obj.d"
+  "CMakeFiles/physics_content.dir/src/content/session_recovery.cpp.obj"
+  "CMakeFiles/physics_content.dir/src/content/session_recovery.cpp.obj.d"
+  "CMakeFiles/physics_content.dir/src/content/subsystem_render_audio_animation.cpp.obj"
+  "CMakeFiles/physics_content.dir/src/content/subsystem_render_audio_animation.cpp.obj.d"
+  "lib/libphysics_content.a"
+  "lib/libphysics_content.pdb"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang CXX)
+  include(CMakeFiles/physics_content.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()

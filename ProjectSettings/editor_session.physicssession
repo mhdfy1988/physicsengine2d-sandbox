@@ -1,8 +1,8 @@
 schema_version|1
 reopen_last_workspace|1
-unclean_shutdown|0
+unclean_shutdown|1
 workspace_manifest_path|ProjectSettings/workspace.physicsworkspace
 last_snapshot_path|autosave_snapshot.txt
 replay_capture_path|autosave_snapshot.txt
-last_scene_guid|scene://default
-recent_action|clean exit
+last_scene_guid|scene://1
+recent_action|startup

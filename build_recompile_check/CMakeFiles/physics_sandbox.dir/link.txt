@@ -1,0 +1,3 @@
+"C:\Program Files\CMake\bin\cmake.exe" -E rm -f CMakeFiles\physics_sandbox.dir/objects.a
+C:\msys64\ucrt64\bin\ar.exe qc CMakeFiles\physics_sandbox.dir/objects.a @CMakeFiles\physics_sandbox.dir\objects1.rsp
+C:\msys64\ucrt64\bin\c++.exe -mwindows -Wl,--whole-archive CMakeFiles\physics_sandbox.dir/objects.a -Wl,--no-whole-archive -o bin\physics_sandbox.exe -Wl,--out-implib,libphysics_sandbox.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\physics_sandbox.dir\linkLibs.rsp

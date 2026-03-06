@@ -1,0 +1,1 @@
+ lib/libphysics_kernel.a lib/libphysics_runtime_support.a lib/libphysics_kernel.a -lm -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 
