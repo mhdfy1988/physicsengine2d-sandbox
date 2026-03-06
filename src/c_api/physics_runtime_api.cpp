@@ -1,5 +1,5 @@
 #include <stddef.h>
-#include "physics_internal.h"
+#include "physics_internal.hpp"
 
 void physics_engine_set_gravity(PhysicsEngine* engine, Vec2 gravity) {
     if (engine == NULL) {

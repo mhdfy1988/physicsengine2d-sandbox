@@ -1,6 +1,6 @@
-﻿#include <math.h>
+#include <math.h>
 #include <stdlib.h>
-#include "../include/physics_math.h"
+#include "../include/physics_math.hpp"
 
 // ===== Vector Operations =====
 Vec2 vec2(float x, float y) {

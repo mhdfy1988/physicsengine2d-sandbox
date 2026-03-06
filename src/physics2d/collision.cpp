@@ -1,9 +1,9 @@
 #include <float.h>
 #include <math.h>
 #include <stddef.h>
-#include "../include/collision.h"
-#include "internal/physics_math_internal.h"
-#include "internal/physics_tuning.h"
+#include "../include/collision.hpp"
+#include "internal/physics_math_internal.hpp"
+#include "internal/physics_tuning.hpp"
 
 static float combined_restitution(const RigidBody* a, const RigidBody* b) {
     if (a->type == BODY_DYNAMIC && b->type == BODY_STATIC) {

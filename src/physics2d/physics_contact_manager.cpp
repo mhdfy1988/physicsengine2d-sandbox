@@ -1,5 +1,5 @@
 #include <stddef.h>
-#include "physics_internal.h"
+#include "physics_internal.hpp"
 
 static const CollisionManifold* find_persistent_contact(const PhysicsEngine* engine, const RigidBody* a, const RigidBody* b) {
     int i;

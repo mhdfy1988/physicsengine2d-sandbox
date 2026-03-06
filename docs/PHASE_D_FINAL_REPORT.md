@@ -31,16 +31,16 @@
 ## 3. D4 收口摘要
 
 1. Workflow:
-   - `include/subsystem_render_audio_animation.h`
-   - `src/content/subsystem_render_audio_animation.c`
-   - `tests/subsystem_render_audio_animation_smoke.c`
-   - `tools/subsystem_workflow_demo.c`
+   - `include/subsystem_render_audio_animation.hpp`
+   - `src/content/subsystem_render_audio_animation.cpp`
+   - `tests/subsystem_render_audio_animation_smoke.cpp`
+   - `tools/subsystem_workflow_demo.cpp`
 2. Script bridge:
    - `cpp/physics_script_bridge.hpp`
    - `tests/cpp_script_bridge_smoke.cpp`
 3. Profiling / benchmark:
-   - `tools/parallel_benchmark_compare.c`
-   - `tools/phase_d_profile_capture.c`
+   - `tools/parallel_benchmark_compare.cpp`
+   - `tools/phase_d_profile_capture.cpp`
    - `src/core/physics_parallel.cpp`
    - [`PHASE_D_PROFILE_REPORT.md`](./PHASE_D_PROFILE_REPORT.md)
 

@@ -67,33 +67,33 @@ Scope: Full Phase D closure evidence
 ## 3. D1-D3 Closure Evidence
 
 1. Hot-reload taxonomy and app-runtime propagation:
-   - `apps/sandbox_dwrite/infrastructure/app_event_bus.h`
-   - `apps/sandbox_dwrite/application/app_runtime.h`
-   - `apps/sandbox_dwrite/application/app_runtime.c`
-   - `tests/app_runtime_tick_smoke.c`
+   - `apps/sandbox_dwrite/infrastructure/app_event_bus.hpp`
+   - `apps/sandbox_dwrite/application/app_runtime.hpp`
+   - `apps/sandbox_dwrite/application/app_runtime.cpp`
+   - `tests/app_runtime_tick_smoke.cpp`
 2. Editor workflow and undo/redo regression pack:
-   - `apps/sandbox_dwrite/application/editor_command_bus.h`
-   - `apps/sandbox_dwrite/application/editor_command_bus.c`
-   - `apps/sandbox_dwrite/main.c`
-   - `tests/editor_undo_redo_smoke.c`
+   - `apps/sandbox_dwrite/application/editor_command_bus.hpp`
+   - `apps/sandbox_dwrite/application/editor_command_bus.cpp`
+   - `apps/sandbox_dwrite/main.cpp`
+   - `tests/editor_undo_redo_smoke.cpp`
 3. PIE lifecycle and state isolation:
-   - `apps/sandbox_dwrite/application/pie_lifecycle.h`
-   - `apps/sandbox_dwrite/application/pie_lifecycle.c`
-   - `tests/editor_pie_lifecycle_smoke.c`
+   - `apps/sandbox_dwrite/application/pie_lifecycle.hpp`
+   - `apps/sandbox_dwrite/application/pie_lifecycle.cpp`
+   - `tests/editor_pie_lifecycle_smoke.cpp`
 4. Debug observability closure:
-   - `apps/sandbox_dwrite/main.c`
+   - `apps/sandbox_dwrite/main.cpp`
    - Exposes event flow, error flow, performance summary, and hot-reload batch history.
 
 ## 4. D4 Workflow and Script Bridge Evidence
 
 1. Minimal Render2D / Animation / Audio workflow:
-   - `include/subsystem_render_audio_animation.h`
-   - `src/content/subsystem_render_audio_animation.c`
+   - `include/subsystem_render_audio_animation.hpp`
+   - `src/content/subsystem_render_audio_animation.cpp`
 2. Workflow regression gate:
-   - `tests/subsystem_render_audio_animation_smoke.c`
+   - `tests/subsystem_render_audio_animation_smoke.cpp`
    - Covers importer GUID binding, animation-driven body transform updates, draw command build, and audio play command collection.
 3. Workflow demo surface:
-   - `tools/subsystem_workflow_demo.c`
+   - `tools/subsystem_workflow_demo.cpp`
    - Archived output: `artifacts/phase_d_d4_closure_20260306_162937/subsystem_workflow_demo.log`
 4. Script bridge minimal closure:
    - `cpp/physics_script_bridge.hpp`
@@ -106,10 +106,10 @@ Scope: Full Phase D closure evidence
    - `src/core/physics_parallel.cpp`
    - Switched from per-dispatch `CreateThread` fan-out to `QueueUserWorkItem` thread-pool dispatch.
 2. Wall-clock benchmark compare tool:
-   - `tools/parallel_benchmark_compare.c`
+   - `tools/parallel_benchmark_compare.cpp`
    - Uses high-resolution wall time instead of `clock()` CPU-time accumulation.
 3. Profiling capture tool:
-   - `tools/phase_d_profile_capture.c`
+   - `tools/phase_d_profile_capture.cpp`
    - Captures:
      - internal CPU stage profile
      - runtime memory estimate

@@ -31,7 +31,7 @@ This module bridges debounced file-change events to incremental reimport pipelin
 
 ## 4. Sandbox Runtime Integration
 
-1. `apps/sandbox_dwrite/main.c` initializes one hot-reload service at bootstrap.
+1. `apps/sandbox_dwrite/main.cpp` initializes one hot-reload service at bootstrap.
 2. Startup recursively discovers supported sources under `assets/` and registers them into:
    - pipeline source registry
    - fs-poll watch list

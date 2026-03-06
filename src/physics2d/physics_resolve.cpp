@@ -1,6 +1,6 @@
 #include <stddef.h>
 #include <string.h>
-#include "physics_internal.h"
+#include "physics_internal.hpp"
 
 static int is_island_body(const RigidBody* body) {
     return (body != NULL && body->active && body->type != BODY_STATIC);

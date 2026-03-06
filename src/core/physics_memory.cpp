@@ -1,6 +1,6 @@
 #include <stddef.h>
 #include <stdint.h>
-#include "physics_internal.h"
+#include "physics_internal.hpp"
 
 extern "C" {
 

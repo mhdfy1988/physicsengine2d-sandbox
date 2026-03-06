@@ -5,8 +5,8 @@ This document defines a stable mapping for runtime bridge errors in C++ facade a
 ## Source
 
 - C++ runtime facade error channel: `cpp/physics_runtime_facade.hpp`
-- Editor runtime snapshot fields: `apps/sandbox_dwrite/infrastructure/app_event_bus.h`
-- Editor log/render sink: `apps/sandbox_dwrite/main.c`
+- Editor runtime snapshot fields: `apps/sandbox_dwrite/infrastructure/app_event_bus.hpp`
+- Editor log/render sink: `apps/sandbox_dwrite/main.cpp`
 
 ## RuntimeErrorCode Mapping
 

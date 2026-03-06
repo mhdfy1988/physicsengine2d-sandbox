@@ -1,5 +1,5 @@
 #include <stddef.h>
-#include "physics_internal.h"
+#include "physics_internal.hpp"
 
 void physics_engine_add_body(PhysicsEngine* engine, RigidBody* body) {
     if (engine == NULL || body == NULL) {

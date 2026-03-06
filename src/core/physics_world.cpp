@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include "../include/physics_world.h"
+#include "../include/physics_world.hpp"
 
 struct PhysicsWorld {
     PhysicsEngine* engine;

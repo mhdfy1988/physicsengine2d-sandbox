@@ -2,15 +2,17 @@
 
 Date: 2026-03-06
 
+Historical note: this document preserves the original Phase C commit slicing. After Phase F, the referenced project-owned implementation and test files have been migrated from `.c` to `.cpp` / `.hpp`; current repository paths are the source of truth.
+
 ## Commit 1: Content Core (schema + pipeline)
 
 Scope:
-1. `include/scene_schema.h`, `src/content/scene_schema.c`, `tools/scene_migrate_main.c`
-2. `include/prefab_schema.h`, `src/content/prefab_schema.c`
-3. `include/asset_database.h`, `src/content/asset_database.c`
-4. `include/asset_importer.h`, `src/content/asset_importer.c`
-5. `include/asset_invalidation.h`, `src/content/asset_invalidation.c`
-6. `include/asset_pipeline.h`, `src/content/asset_pipeline.c`
+1. `include/scene_schema.hpp`, `src/content/scene_schema.c`, `tools/scene_migrate_main.c`
+2. `include/prefab_schema.hpp`, `src/content/prefab_schema.c`
+3. `include/asset_database.hpp`, `src/content/asset_database.c`
+4. `include/asset_importer.hpp`, `src/content/asset_importer.c`
+5. `include/asset_invalidation.hpp`, `src/content/asset_invalidation.c`
+6. `include/asset_pipeline.hpp`, `src/content/asset_pipeline.c`
 
 Message:
 `feat(content): add schema v1, migration tool, and deterministic asset pipeline baseline`
@@ -18,11 +20,11 @@ Message:
 ## Commit 2: Runtime Hot-Reload Integration
 
 Scope:
-1. `include/asset_watch.h`, `src/content/asset_watch.c`
-2. `include/asset_hot_reload.h`, `src/content/asset_hot_reload.c`
-3. `include/asset_fs_poll.h`, `src/content/asset_fs_poll.c`
-4. `apps/sandbox_dwrite/infrastructure/app_event_bus.h`
-5. `apps/sandbox_dwrite/application/app_runtime.h`
+1. `include/asset_watch.hpp`, `src/content/asset_watch.c`
+2. `include/asset_hot_reload.hpp`, `src/content/asset_hot_reload.c`
+3. `include/asset_fs_poll.hpp`, `src/content/asset_fs_poll.c`
+4. `apps/sandbox_dwrite/infrastructure/app_event_bus.hpp`
+5. `apps/sandbox_dwrite/application/app_runtime.hpp`
 6. `apps/sandbox_dwrite/application/app_runtime.c`
 7. `apps/sandbox_dwrite/main.c`
 8. `apps/sandbox_dwrite/application/app_controller.c`
@@ -39,7 +41,7 @@ Scope:
 4. `tests/regression_asset_importer_tests.c`
 5. `tests/regression_asset_pipeline_tests.c`
 6. `tests/regression_asset_hot_reload_tests.c`
-7. `tests/regression_tests.h`
+7. `tests/regression_tests.hpp`
 8. `tests/app_runtime_tick_smoke.c`
 9. `tests/data/*`
 

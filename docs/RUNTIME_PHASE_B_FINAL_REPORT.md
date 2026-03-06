@@ -47,9 +47,9 @@ Core runtime + bridge + observability + guardrails are in place and green in loc
 3. C++ facade -> app bridge smoke:
    - `tests/cpp_runtime_app_bridge_smoke.cpp`
 4. Editor runtime snapshot protocol:
-   - `apps/sandbox_dwrite/infrastructure/app_event_bus.h`
-   - `apps/sandbox_dwrite/application/app_runtime.c`
-   - `apps/sandbox_dwrite/main.c`
+   - `apps/sandbox_dwrite/infrastructure/app_event_bus.hpp`
+   - `apps/sandbox_dwrite/application/app_runtime.cpp`
+   - `apps/sandbox_dwrite/main.cpp`
 
 ## 4. Closure Note
 
@@ -66,6 +66,6 @@ Core runtime + bridge + observability + guardrails are in place and green in loc
 
 ## 6. Recommendation for Phase C Entry
 
-1. First C task: move live simulation loop ownership from C engine path to facade-driven runtime path.
+1. First task: move live simulation loop ownership from legacy engine path to facade-driven runtime path.
 2. Keep current smoke set as migration guardrail.
 3. Preserve snapshot/event/error protocol field compatibility while moving backend ownership.

@@ -1,5 +1,5 @@
 #include <string.h>
-#include "physics_internal.h"
+#include "physics_internal.hpp"
 
 void physics_internal_set_error(PhysicsEngine* engine, PhysicsErrorCode error, const char* message_override) {
     if (engine == NULL) return;

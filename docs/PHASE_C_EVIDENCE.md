@@ -35,21 +35,21 @@ Scope: C1-C4 closure evidence (content pipeline + hot-reload + gates)
 ## 3. Runtime Integration Evidence
 
 1. Sandbox runtime loop integration:
-   - `apps/sandbox_dwrite/main.c`
+   - `apps/sandbox_dwrite/main.cpp`
 2. Runtime hot-reload event publication:
-   - `apps/sandbox_dwrite/application/app_runtime.c`
+   - `apps/sandbox_dwrite/application/app_runtime.cpp`
 3. App event protocol extension:
-   - `apps/sandbox_dwrite/infrastructure/app_event_bus.h`
+   - `apps/sandbox_dwrite/infrastructure/app_event_bus.hpp`
 
 ## 4. Determinism and Schema Evidence
 
 1. Scene schema:
-   - `tests/regression_scene_schema_tests.c`
+   - `tests/regression_scene_schema_tests.cpp`
 2. Prefab schema:
-   - `tests/regression_prefab_schema_tests.c`
+   - `tests/regression_prefab_schema_tests.cpp`
 3. Importer/pipeline determinism:
-   - `tests/regression_asset_importer_tests.c`
-   - `tests/regression_asset_pipeline_tests.c`
+   - `tests/regression_asset_importer_tests.cpp`
+   - `tests/regression_asset_pipeline_tests.cpp`
 
 ## 5. Automated Gate Archive
 

@@ -1,6 +1,6 @@
 #include <math.h>
 #include <stddef.h>
-#include "physics_internal.h"
+#include "physics_internal.hpp"
 
 static int ccd_pair_already_contacted(const PhysicsEngine* engine, int ia, int ib) {
     int i;

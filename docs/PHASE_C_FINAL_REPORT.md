@@ -45,19 +45,19 @@ Current status: **Complete (Phase C sealed / sign-off ready)**.
 Primary pack: `docs/PHASE_C_EVIDENCE.md`
 
 1. Schema:
-   - `tests/regression_scene_schema_tests.c`
-   - `tests/regression_prefab_schema_tests.c`
+   - `tests/regression_scene_schema_tests.cpp`
+   - `tests/regression_prefab_schema_tests.cpp`
 2. Asset pipeline:
-   - `tests/regression_asset_database_tests.c`
-   - `tests/regression_asset_importer_tests.c`
-   - `tests/regression_asset_pipeline_tests.c`
+   - `tests/regression_asset_database_tests.cpp`
+   - `tests/regression_asset_importer_tests.cpp`
+   - `tests/regression_asset_pipeline_tests.cpp`
 3. Hot-reload robustness:
-   - `tests/regression_asset_hot_reload_tests.c`
+   - `tests/regression_asset_hot_reload_tests.cpp`
    - `scripts/hot_reload_smoke.ps1`
 4. Runtime integration:
-   - `apps/sandbox_dwrite/main.c`
-   - `apps/sandbox_dwrite/application/app_runtime.c`
-   - `apps/sandbox_dwrite/infrastructure/app_event_bus.h`
+   - `apps/sandbox_dwrite/main.cpp`
+   - `apps/sandbox_dwrite/application/app_runtime.cpp`
+   - `apps/sandbox_dwrite/infrastructure/app_event_bus.hpp`
 
 ## 5. Residual Risks
 
@@ -67,7 +67,7 @@ Primary pack: `docs/PHASE_C_EVIDENCE.md`
 
 ## 6. Recommendation for Phase D Entry
 
-1. Freeze current C-phase schema/importer/runtime protocol as baseline.
+1. Freeze the current schema/importer/runtime protocol as baseline.
 2. Preserve full gate set (`test/sandbox/benchmark/arch/api/hot_reload_smoke`) as migration guardrail.
 3. Start Phase D with:
    - native file-watch backend option

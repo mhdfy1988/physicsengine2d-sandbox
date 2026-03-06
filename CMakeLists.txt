@@ -1,8 +1,6 @@
 ﻿cmake_minimum_required(VERSION 3.16)
-project(PhysicsEngine2D C CXX)
+project(PhysicsEngine2D CXX RC)
 
-set(CMAKE_C_STANDARD 99)
-set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -37,6 +35,18 @@ function(physics_force_cxx_link target)
     set_property(TARGET ${target} PROPERTY LINKER_LANGUAGE CXX)
 endfunction()
 
+function(physics_enable_win32_com_cpp_compat target)
+    if(NOT WIN32)
+        return()
+    endif()
+    target_compile_definitions(${target} PRIVATE COBJMACROS)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /FI${CMAKE_SOURCE_DIR}/apps/sandbox_dwrite/infrastructure/com_cpp_compat.hpp)
+    else()
+        target_compile_options(${target} PRIVATE -include ${CMAKE_SOURCE_DIR}/apps/sandbox_dwrite/infrastructure/com_cpp_compat.hpp)
+    endif()
+endfunction()
+
 set(PHYSICS2D_SOURCES
     src/physics2d/math.cpp
     src/physics2d/shape.cpp
@@ -51,17 +61,17 @@ set(PHYSICS2D_SOURCES
     src/c_api/physics_query.cpp
     src/c_api/physics_mutation.cpp
     src/c_api/physics_pipeline_api.cpp
-    src/content/scene_schema.c
-    src/content/prefab_schema.c
-    src/content/asset_database.c
+    src/content/scene_schema.cpp
+    src/content/prefab_schema.cpp
+    src/content/asset_database.cpp
     src/content/asset_importer.cpp
-    src/content/asset_invalidation.c
-    src/content/asset_pipeline.c
-    src/content/asset_watch.c
-    src/content/asset_hot_reload.c
-    src/content/asset_fs_poll.c
-    src/content/asset_fs_watch.c
-    src/content/subsystem_render_audio_animation.c
+    src/content/asset_invalidation.cpp
+    src/content/asset_pipeline.cpp
+    src/content/asset_watch.cpp
+    src/content/asset_hot_reload.cpp
+    src/content/asset_fs_poll.cpp
+    src/content/asset_fs_watch.cpp
+    src/content/subsystem_render_audio_animation.cpp
     src/core/physics_snapshot.cpp
     src/core/physics_world.cpp
     src/core/physics_memory.cpp
@@ -88,6 +98,9 @@ if(PHYSICS_USE_CPP_KERNEL)
 else()
     target_compile_definitions(physics2d PUBLIC PHYSICS_USE_CPP_KERNEL=0)
 endif()
+if(WIN32)
+    target_compile_definitions(physics2d PUBLIC COBJMACROS)
+endif()
 if(NOT MSVC)
     target_link_libraries(physics2d PUBLIC m)
 endif()
@@ -100,29 +113,29 @@ endif()
 
 if(BUILD_EDITOR)
     set(SANDBOX_SOURCES
-        apps/sandbox_dwrite/main.c
-        apps/sandbox_dwrite/infrastructure/project_tree.c
-        apps/sandbox_dwrite/infrastructure/snapshot_repo.c
-        apps/sandbox_dwrite/infrastructure/ui_layout_repo.c
-        apps/sandbox_dwrite/presentation/render/ui_icons.c
-        apps/sandbox_dwrite/presentation/render/ui_text.c
-        apps/sandbox_dwrite/presentation/render/ui_primitives.c
-        apps/sandbox_dwrite/presentation/render/ui_widgets.c
-        apps/sandbox_dwrite/domain/app_command.c
-        apps/sandbox_dwrite/infrastructure/app_event_bus.c
-        apps/sandbox_dwrite/application/app_controller.c
-        apps/sandbox_dwrite/application/app_runtime.c
-        apps/sandbox_dwrite/application/pie_lifecycle.c
-        apps/sandbox_dwrite/application/editor_command_bus.c
-        apps/sandbox_dwrite/application/scene_catalog.c
-        apps/sandbox_dwrite/application/scene_builder.c
-        apps/sandbox_dwrite/application/history_service.c
-        apps/sandbox_dwrite/application/runtime_param_service.c
-        apps/sandbox_dwrite/presentation/input/input_mapping.c
-        apps/sandbox_dwrite/presentation/input/menu_file_edit_actions.c
-        apps/sandbox_dwrite/presentation/input/menu_view_physics_window_actions.c
-        apps/sandbox_dwrite/presentation/input/menu_help_actions.c
-        apps/sandbox_dwrite/presentation/input/menu_model.c
+        apps/sandbox_dwrite/main.cpp
+        apps/sandbox_dwrite/infrastructure/project_tree.cpp
+        apps/sandbox_dwrite/infrastructure/snapshot_repo.cpp
+        apps/sandbox_dwrite/infrastructure/ui_layout_repo.cpp
+        apps/sandbox_dwrite/presentation/render/ui_icons.cpp
+        apps/sandbox_dwrite/presentation/render/ui_text.cpp
+        apps/sandbox_dwrite/presentation/render/ui_primitives.cpp
+        apps/sandbox_dwrite/presentation/render/ui_widgets.cpp
+        apps/sandbox_dwrite/domain/app_command.cpp
+        apps/sandbox_dwrite/infrastructure/app_event_bus.cpp
+        apps/sandbox_dwrite/application/app_controller.cpp
+        apps/sandbox_dwrite/application/app_runtime.cpp
+        apps/sandbox_dwrite/application/pie_lifecycle.cpp
+        apps/sandbox_dwrite/application/editor_command_bus.cpp
+        apps/sandbox_dwrite/application/scene_catalog.cpp
+        apps/sandbox_dwrite/application/scene_builder.cpp
+        apps/sandbox_dwrite/application/history_service.cpp
+        apps/sandbox_dwrite/application/runtime_param_service.cpp
+        apps/sandbox_dwrite/presentation/input/input_mapping.cpp
+        apps/sandbox_dwrite/presentation/input/menu_file_edit_actions.cpp
+        apps/sandbox_dwrite/presentation/input/menu_view_physics_window_actions.cpp
+        apps/sandbox_dwrite/presentation/input/menu_help_actions.cpp
+        apps/sandbox_dwrite/presentation/input/menu_model.cpp
     )
     if(WIN32)
         list(APPEND SANDBOX_SOURCES apps/sandbox_dwrite/app_icon.rc)
@@ -132,6 +145,7 @@ if(BUILD_EDITOR)
     add_executable(physics_editor ALIAS physics_sandbox)
     target_link_libraries(physics_sandbox PRIVATE physics2d d2d1 dwrite windowscodecs ole32 uuid shcore gdi32 user32)
     physics_force_cxx_link(physics_sandbox)
+    physics_enable_win32_com_cpp_compat(physics_sandbox)
     if(MSVC)
         target_compile_options(physics_sandbox PRIVATE /W4)
     else()
@@ -144,44 +158,44 @@ endif()
 
 if(BUILD_TESTS)
     add_executable(physics_tests
-        tests/regression_tests.c
-        tests/regression_collision_core_tests.c
-        tests/regression_event_snapshot_tests.c
-        tests/regression_pipeline_error_tests.c
-        tests/regression_sleep_broadphase_tests.c
-        tests/regression_stress_constraint_tests.c
-        tests/regression_engine_feature_tests.c
-        tests/equivalence/equivalence_api_tests.c
-        tests/regression_scene_schema_tests.c
-        tests/regression_prefab_schema_tests.c
-        tests/regression_asset_database_tests.c
-        tests/regression_asset_importer_tests.c
-        tests/regression_asset_pipeline_tests.c
-        tests/regression_asset_hot_reload_tests.c
+        tests/regression_tests.cpp
+        tests/regression_collision_core_tests.cpp
+        tests/regression_event_snapshot_tests.cpp
+        tests/regression_pipeline_error_tests.cpp
+        tests/regression_sleep_broadphase_tests.cpp
+        tests/regression_stress_constraint_tests.cpp
+        tests/regression_engine_feature_tests.cpp
+        tests/equivalence/equivalence_api_tests.cpp
+        tests/regression_scene_schema_tests.cpp
+        tests/regression_prefab_schema_tests.cpp
+        tests/regression_asset_database_tests.cpp
+        tests/regression_asset_importer_tests.cpp
+        tests/regression_asset_pipeline_tests.cpp
+        tests/regression_asset_hot_reload_tests.cpp
     )
     add_executable(physics_app_runtime_smoke
-        tests/app_runtime_tick_smoke.c
-        apps/sandbox_dwrite/domain/app_command.c
-        apps/sandbox_dwrite/infrastructure/app_event_bus.c
-        apps/sandbox_dwrite/application/app_controller.c
-        apps/sandbox_dwrite/application/app_runtime.c
+        tests/app_runtime_tick_smoke.cpp
+        apps/sandbox_dwrite/domain/app_command.cpp
+        apps/sandbox_dwrite/infrastructure/app_event_bus.cpp
+        apps/sandbox_dwrite/application/app_controller.cpp
+        apps/sandbox_dwrite/application/app_runtime.cpp
     )
     add_executable(physics_editor_undo_redo_smoke
-        tests/editor_undo_redo_smoke.c
-        apps/sandbox_dwrite/application/editor_command_bus.c
-        apps/sandbox_dwrite/application/history_service.c
+        tests/editor_undo_redo_smoke.cpp
+        apps/sandbox_dwrite/application/editor_command_bus.cpp
+        apps/sandbox_dwrite/application/history_service.cpp
     )
     add_executable(physics_editor_pie_lifecycle_smoke
-        tests/editor_pie_lifecycle_smoke.c
-        apps/sandbox_dwrite/application/pie_lifecycle.c
+        tests/editor_pie_lifecycle_smoke.cpp
+        apps/sandbox_dwrite/application/pie_lifecycle.cpp
     )
     add_executable(physics_subsystem_render_audio_animation_smoke
-        tests/subsystem_render_audio_animation_smoke.c
+        tests/subsystem_render_audio_animation_smoke.cpp
     )
     physics_add_cpp_smoke(physics_cpp_script_bridge_smoke tests/cpp_script_bridge_smoke.cpp TRUE)
     physics_add_cpp_smoke(physics_cpp_foundation_smoke tests/cpp_foundation_smoke.cpp TRUE)
-    add_executable(physics_bench tests/benchmark_suite.c)
-    add_executable(physics_invariants tests/invariant_tests.c)
+    add_executable(physics_bench tests/benchmark_suite.cpp)
+    add_executable(physics_invariants tests/invariant_tests.cpp)
     target_link_libraries(physics_tests PRIVATE physics2d)
     target_link_libraries(physics_app_runtime_smoke PRIVATE physics2d)
     target_link_libraries(physics_editor_undo_redo_smoke PRIVATE physics2d)
@@ -196,6 +210,9 @@ if(BUILD_TESTS)
     physics_force_cxx_link(physics_subsystem_render_audio_animation_smoke)
     physics_force_cxx_link(physics_bench)
     physics_force_cxx_link(physics_invariants)
+    physics_enable_win32_com_cpp_compat(physics_app_runtime_smoke)
+    physics_enable_win32_com_cpp_compat(physics_editor_undo_redo_smoke)
+    physics_enable_win32_com_cpp_compat(physics_editor_pie_lifecycle_smoke)
     if(MSVC)
         target_compile_options(physics_tests PRIVATE /W4)
         target_compile_options(physics_app_runtime_smoke PRIVATE /W4)
@@ -248,9 +265,12 @@ set_target_properties(scene_migrate PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
-add_executable(parallel_benchmark_compare tools/parallel_benchmark_compare.c)
+add_executable(parallel_benchmark_compare tools/parallel_benchmark_compare.cpp)
 target_link_libraries(parallel_benchmark_compare PRIVATE physics2d)
 physics_force_cxx_link(parallel_benchmark_compare)
+if(WIN32)
+    target_compile_definitions(parallel_benchmark_compare PRIVATE COBJMACROS)
+endif()
 if(MSVC)
     target_compile_options(parallel_benchmark_compare PRIVATE /W4)
 else()
@@ -260,9 +280,12 @@ set_target_properties(parallel_benchmark_compare PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
-add_executable(subsystem_workflow_demo tools/subsystem_workflow_demo.c)
+add_executable(subsystem_workflow_demo tools/subsystem_workflow_demo.cpp)
 target_link_libraries(subsystem_workflow_demo PRIVATE physics2d)
 physics_force_cxx_link(subsystem_workflow_demo)
+if(WIN32)
+    target_compile_definitions(subsystem_workflow_demo PRIVATE COBJMACROS)
+endif()
 if(MSVC)
     target_compile_options(subsystem_workflow_demo PRIVATE /W4)
 else()
@@ -272,10 +295,13 @@ set_target_properties(subsystem_workflow_demo PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
-add_executable(phase_d_profile_capture tools/phase_d_profile_capture.c)
+add_executable(phase_d_profile_capture tools/phase_d_profile_capture.cpp)
 target_link_libraries(phase_d_profile_capture PRIVATE physics2d)
 target_include_directories(phase_d_profile_capture PRIVATE ${CMAKE_SOURCE_DIR}/src)
 physics_force_cxx_link(phase_d_profile_capture)
+if(WIN32)
+    target_compile_definitions(phase_d_profile_capture PRIVATE COBJMACROS)
+endif()
 if(MSVC)
     target_compile_options(phase_d_profile_capture PRIVATE /W4)
 else()
@@ -310,13 +336,14 @@ if(BUILD_CPP_WRAPPER)
     physics_add_cpp_smoke(physics_cpp_runtime_multi_error_smoke tests/cpp_runtime_multi_error_smoke.cpp TRUE)
     add_executable(physics_cpp_runtime_app_bridge_smoke
         tests/cpp_runtime_app_bridge_smoke.cpp
-        apps/sandbox_dwrite/domain/app_command.c
-        apps/sandbox_dwrite/infrastructure/app_event_bus.c
-        apps/sandbox_dwrite/application/app_controller.c
-        apps/sandbox_dwrite/application/app_runtime.c
+        apps/sandbox_dwrite/domain/app_command.cpp
+        apps/sandbox_dwrite/infrastructure/app_event_bus.cpp
+        apps/sandbox_dwrite/application/app_controller.cpp
+        apps/sandbox_dwrite/application/app_runtime.cpp
     )
     target_include_directories(physics_cpp_runtime_app_bridge_smoke PRIVATE ${CMAKE_SOURCE_DIR}/cpp)
     target_link_libraries(physics_cpp_runtime_app_bridge_smoke PRIVATE physics2d)
+    physics_enable_win32_com_cpp_compat(physics_cpp_runtime_app_bridge_smoke)
     if(MSVC)
         target_compile_options(physics_cpp_runtime_app_bridge_smoke PRIVATE /W4)
     else()

@@ -1,5 +1,5 @@
 #include <string.h>
-#include "physics_internal.h"
+#include "physics_internal.hpp"
 
 extern "C" {
 

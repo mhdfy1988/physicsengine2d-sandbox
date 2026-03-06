@@ -1,6 +1,6 @@
 #include <math.h>
 #include <stddef.h>
-#include "physics_internal.h"
+#include "physics_internal.hpp"
 
 typedef struct {
     PhysicsEngine* engine;

@@ -1,4 +1,4 @@
-#include "physics.h"
+#include "physics.hpp"
 
 int main() {
     PhysicsEngine* engine = physics_engine_create();

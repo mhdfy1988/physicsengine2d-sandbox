@@ -1,7 +1,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../include/shape.h"
+#include "../include/shape.hpp"
 
 Shape* shape_create_circle(float radius) {
     Shape* shape = (Shape*)malloc(sizeof(Shape));

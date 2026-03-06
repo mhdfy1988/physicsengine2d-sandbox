@@ -1,7 +1,7 @@
 #include <float.h>
 #include <math.h>
 #include <stddef.h>
-#include "physics_internal.h"
+#include "physics_internal.hpp"
 
 static int point_in_polygon_world(RigidBody* body, Vec2 p) {
     PolygonShape* poly;

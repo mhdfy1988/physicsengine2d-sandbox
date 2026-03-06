@@ -2,7 +2,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
-#include "physics_internal.h"
+#include "physics_internal.hpp"
 
 #ifdef _WIN32
 typedef struct {

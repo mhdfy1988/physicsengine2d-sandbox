@@ -1,6 +1,6 @@
 #include <string.h>
-#include "physics_internal.h"
-#include "internal/physics_defaults.h"
+#include "physics_internal.hpp"
+#include "internal/physics_defaults.hpp"
 
 void physics_internal_sanitize_config(PhysicsConfig* config) {
     if (config == NULL) return;

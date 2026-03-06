@@ -2,8 +2,8 @@
 #define PHYSICS_BODY_RAII_HPP
 
 #include <memory>
-#include "body.h"
-#include "shape.h"
+#include "body.hpp"
+#include "shape.hpp"
 
 namespace physics2d {
 

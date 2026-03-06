@@ -127,9 +127,9 @@
 ### 7.2 D 阶段新增门禁（分阶段接入）
 
 1. `scripts/hot_reload_smoke_headless.ps1`（D1）
-2. `tests/editor_undo_redo_smoke.c`（D2）
-3. `tests/editor_pie_lifecycle_smoke.c`（D3）
-4. `tests/subsystem_render_audio_animation_smoke.c`（D4）
+2. `tests/editor_undo_redo_smoke.cpp`（D2）
+3. `tests/editor_pie_lifecycle_smoke.cpp`（D3）
+4. `tests/subsystem_render_audio_animation_smoke.cpp`（D4）
 
 ## 8. 风险与应对
 

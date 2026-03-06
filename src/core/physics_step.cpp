@@ -5,8 +5,8 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
-#include "physics_internal.h"
-#include "internal/physics_tuning.h"
+#include "physics_internal.hpp"
+#include "internal/physics_tuning.hpp"
 
 static double time_now_ms(void) {
 #ifdef _WIN32

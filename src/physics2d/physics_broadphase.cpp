@@ -1,6 +1,6 @@
 #include <math.h>
 #include <string.h>
-#include "physics_internal.h"
+#include "physics_internal.hpp"
 
 #define GRID_BUCKETS 2048
 #define GRID_MAX_ENTRIES 32768

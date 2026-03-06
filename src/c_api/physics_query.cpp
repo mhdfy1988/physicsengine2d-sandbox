@@ -1,5 +1,5 @@
 #include <stddef.h>
-#include "physics_internal.h"
+#include "physics_internal.hpp"
 
 PhysicsBodyHandle physics_engine_get_body_handle(const PhysicsEngine* engine, const RigidBody* body) {
     PhysicsBodyHandle h;

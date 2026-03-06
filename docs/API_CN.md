@@ -9,7 +9,7 @@
 
 跨项目复用时，请把以下内容作为同一版本工件一起提供：
 
-- `include/*.h`（头文件，定义对外 API）
+- `include/*.hpp`（头文件，定义对外 API；兼容入口 `.h` 仍保留）
 - `lib/libphysics2d.a`（静态库，编译产物）
 
 不要只拷贝 `lib` 不拷贝 `include`，也不要只拷贝 `include` 不拷贝 `lib`。
@@ -19,13 +19,13 @@
 ### 2.1 最小编译命令
 
 ```bash
-gcc your_app.c -I path/to/include path/to/lib/libphysics2d.a -lm
+g++ your_app.cpp -I path/to/include path/to/lib/libphysics2d.a -lm
 ```
 
 ### 2.2 最小运行示例
 
 ```c
-#include "physics.h"
+#include "physics.hpp"
 #include <stdio.h>
 
 int main(void) {
@@ -73,7 +73,7 @@ int main(void) {
 
 ### 4.1 `PhysicsEngine` 是不透明类型
 
-`PhysicsEngine` 不能直接访问内部字段，只能通过 `physics.h` 暴露的函数读写。
+`PhysicsEngine` 不能直接访问内部字段，只能通过 `physics.hpp` 暴露的函数读写。
 
 ### 4.2 刚体与形状所有权
 
@@ -196,7 +196,7 @@ for (int i = 0; i < count; ++i) {
 ## 8. 完整接入模板（推荐复制改造）
 
 ```c
-#include "physics.h"
+#include "physics.hpp"
 
 static PhysicsEngine* g_engine = NULL;
 
@@ -261,8 +261,8 @@ void physics_shutdown(void) {
 
 ## 11. 给内核维护者的同步规则
 
-- 改实现：`src/*.c`
-- 改对外能力：同步修改 `include/*.h` 与 `src/*.c`
+- 改实现：`src/*.cpp`
+- 改对外能力：同步修改 `include/*.hpp` 与 `src/*.cpp`
 - 回归验证：`make test`
 - 变更检查：`make check-core`
 
@@ -275,7 +275,7 @@ void physics_shutdown(void) {
 - `返回结果` 是函数签名返回类型
 - `结果说明` 包含成功/失败语义或边界行为
 
-### 13.1 引擎接口（`physics.h`）
+### 13.1 引擎接口（`physics.hpp`）
 
 | 名称 | 说明 | 参数（参数类型 + 参数示例） | 返回结果 | 结果说明 |
 |---|---|---|---|---|

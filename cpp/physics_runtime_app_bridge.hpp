@@ -2,7 +2,7 @@
 #define PHYSICS_RUNTIME_APP_BRIDGE_HPP
 
 #include "physics_runtime_facade.hpp"
-#include "../apps/sandbox_dwrite/application/app_runtime.h"
+#include "../apps/sandbox_dwrite/application/app_runtime.hpp"
 
 namespace physics2d {
 namespace runtime {

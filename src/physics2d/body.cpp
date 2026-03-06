@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include "../include/body.h"
+#include "../include/body.hpp"
 
 RigidBody* body_create(float x, float y, float mass, Shape* shape) {
     if (shape == NULL) {

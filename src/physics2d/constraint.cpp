@@ -1,8 +1,8 @@
 #include <math.h>
 #include <stddef.h>
-#include "../include/constraint.h"
-#include "internal/physics_math_internal.h"
-#include "internal/physics_tuning.h"
+#include "../include/constraint.hpp"
+#include "internal/physics_math_internal.hpp"
+#include "internal/physics_tuning.hpp"
 
 static float constraint_mass_denom(const RigidBody* a, const RigidBody* b, Vec2 ra, Vec2 rb, Vec2 n) {
     float ra_cn = vec2_cross(ra, n);

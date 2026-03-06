@@ -84,7 +84,7 @@
 - Updated sandbox hot-reload error reporting path to use taxonomy-specific codes instead of generic pipeline mapping code.
 - Added headless smoke script: `scripts/hot_reload_smoke_headless.ps1`.
 - Added runtime smoke assertion for taxonomy error propagation:
-  - `tests/app_runtime_tick_smoke.c`
+  - `tests/app_runtime_tick_smoke.cpp`
 - Added one-click D gate runner:
   - `scripts/run_phase_d_gate_suite.ps1`
 - Local verification:
@@ -108,9 +108,9 @@
   - text targets now bypass numeric-only validation path
   - new scene-name target and modal title mapping added
 - Touched files:
-  - `apps/sandbox_dwrite/main.c`
-  - `apps/sandbox_dwrite/application/scene_catalog.h`
-  - `apps/sandbox_dwrite/application/scene_catalog.c`
+  - `apps/sandbox_dwrite/main.cpp`
+  - `apps/sandbox_dwrite/application/scene_catalog.hpp`
+  - `apps/sandbox_dwrite/application/scene_catalog.cpp`
 - Verification:
   - `mingw32-make test`
   - `mingw32-make sandbox`
@@ -132,7 +132,7 @@
   - `Alt+Home`: reset scene order to default
 - Updated help modal usage text with sorting shortcut hints.
 - Touched files:
-  - `apps/sandbox_dwrite/main.c`
+  - `apps/sandbox_dwrite/main.cpp`
 - Verification:
   - `mingw32-make test`
   - `mingw32-make sandbox`
@@ -157,7 +157,7 @@
   - boundary-aware step clamp and no-op suppression
 - Updated inspector hints and help text to reflect validation ranges and micro-adjust controls.
 - Touched files:
-  - `apps/sandbox_dwrite/main.c`
+  - `apps/sandbox_dwrite/main.cpp`
 - Verification:
   - `mingw32-make test`
   - `mingw32-make sandbox`
@@ -178,13 +178,13 @@
   - Scene order shortcuts (`Alt+Up/Down/Home`)
   - Inspector value commit and micro-adjust
 - Integrated initial undo/redo smoke gate:
-  - added `tests/editor_undo_redo_smoke.c`
+- added `tests/editor_undo_redo_smoke.cpp`
   - wired into `mingw32-make test` pipeline
 - Touched files:
-  - `apps/sandbox_dwrite/application/editor_command_bus.h`
-  - `apps/sandbox_dwrite/application/editor_command_bus.c`
-  - `apps/sandbox_dwrite/main.c`
-  - `tests/editor_undo_redo_smoke.c`
+  - `apps/sandbox_dwrite/application/editor_command_bus.hpp`
+  - `apps/sandbox_dwrite/application/editor_command_bus.cpp`
+  - `apps/sandbox_dwrite/main.cpp`
+  - `tests/editor_undo_redo_smoke.cpp`
   - `Makefile`
 - Verification:
   - `mingw32-make test` (includes `editor_undo_redo_smoke`)
@@ -208,8 +208,8 @@
   - rename + order move/reset + inspector edits
   - multi-step undo/redo replay assertions
 - Touched files:
-  - `apps/sandbox_dwrite/main.c`
-  - `tests/editor_undo_redo_smoke.c`
+  - `apps/sandbox_dwrite/main.cpp`
+  - `tests/editor_undo_redo_smoke.cpp`
 - Verification:
   - `mingw32-make test` (includes extended `editor_undo_redo_smoke`)
   - `mingw32-make sandbox`
@@ -238,18 +238,18 @@
   - `F3` opens current-scene asset GUID edit input
   - hierarchy scene header now shows `F2/F3` edit hints
 - Expanded regression/smoke:
-  - `tests/regression_asset_database_tests.c` now validates GUID format rules
-  - `tests/editor_undo_redo_smoke.c` now covers scene asset GUID command with multi-step undo/redo replay
+  - `tests/regression_asset_database_tests.cpp` now validates GUID format rules
+  - `tests/editor_undo_redo_smoke.cpp` now covers scene asset GUID command with multi-step undo/redo replay
 - Touched files:
-  - `include/asset_database.h`
-  - `src/content/asset_database.c`
-  - `apps/sandbox_dwrite/application/scene_catalog.h`
-  - `apps/sandbox_dwrite/application/scene_catalog.c`
-  - `apps/sandbox_dwrite/application/editor_command_bus.h`
-  - `apps/sandbox_dwrite/application/editor_command_bus.c`
-  - `apps/sandbox_dwrite/main.c`
-  - `tests/regression_asset_database_tests.c`
-  - `tests/editor_undo_redo_smoke.c`
+  - `include/asset_database.hpp`
+  - `src/content/asset_database.cpp`
+  - `apps/sandbox_dwrite/application/scene_catalog.hpp`
+  - `apps/sandbox_dwrite/application/scene_catalog.cpp`
+  - `apps/sandbox_dwrite/application/editor_command_bus.hpp`
+  - `apps/sandbox_dwrite/application/editor_command_bus.cpp`
+  - `apps/sandbox_dwrite/main.cpp`
+  - `tests/regression_asset_database_tests.cpp`
+  - `tests/editor_undo_redo_smoke.cpp`
 - Verification:
   - `mingw32-make test`
   - `scripts/run_phase_d_gate_suite.ps1` (PASS, summary: `artifacts/phase_d_gate_suite_20260306_022153/summary.md`)
@@ -257,8 +257,8 @@
 ## 2026-03-06 D3 PIE Lifecycle + State Isolation Kickoff
 
 - Added a dedicated PIE lifecycle module:
-  - `apps/sandbox_dwrite/application/pie_lifecycle.h`
-  - `apps/sandbox_dwrite/application/pie_lifecycle.c`
+  - `apps/sandbox_dwrite/application/pie_lifecycle.hpp`
+  - `apps/sandbox_dwrite/application/pie_lifecycle.cpp`
 - Wired sandbox runtime controls to PIE semantics:
   - `Space`: enter PIE (first trigger) and run/pause toggle
   - `N`: single-step in PIE paused state
@@ -268,14 +268,14 @@
   - autosave no longer writes runtime-mutated state during PIE session
 - Updated physics menu run action to use command callback dispatch instead of direct `running` bit flip.
 - Added D3 gate smoke:
-  - `tests/editor_pie_lifecycle_smoke.c`
+  - `tests/editor_pie_lifecycle_smoke.cpp`
   - verifies enter/exit idempotence and save/load failure behavior
 - Touched files:
-  - `apps/sandbox_dwrite/main.c`
-  - `apps/sandbox_dwrite/presentation/input/menu_view_physics_window_actions.h`
-  - `apps/sandbox_dwrite/presentation/input/menu_view_physics_window_actions.c`
+  - `apps/sandbox_dwrite/main.cpp`
+  - `apps/sandbox_dwrite/presentation/input/menu_view_physics_window_actions.hpp`
+  - `apps/sandbox_dwrite/presentation/input/menu_view_physics_window_actions.cpp`
   - `Makefile`
-  - `tests/editor_pie_lifecycle_smoke.c`
+  - `tests/editor_pie_lifecycle_smoke.cpp`
 - Verification:
   - `mingw32-make test` (includes `editor_pie_lifecycle_smoke`)
   - `mingw32-make sandbox`
@@ -297,12 +297,12 @@
   - failed batches explicitly surface retained previous-cache semantics
 - Fixed PIE lifecycle log strings to readable text (removed mojibake output).
 - Touched files:
-  - `apps/sandbox_dwrite/main.c`
-  - `apps/sandbox_dwrite/infrastructure/app_event_bus.h`
-  - `apps/sandbox_dwrite/application/app_runtime.h`
-  - `apps/sandbox_dwrite/application/app_runtime.c`
-  - `apps/sandbox_dwrite/application/pie_lifecycle.c`
-  - `tests/app_runtime_tick_smoke.c`
+  - `apps/sandbox_dwrite/main.cpp`
+  - `apps/sandbox_dwrite/infrastructure/app_event_bus.hpp`
+  - `apps/sandbox_dwrite/application/app_runtime.hpp`
+  - `apps/sandbox_dwrite/application/app_runtime.cpp`
+  - `apps/sandbox_dwrite/application/pie_lifecycle.cpp`
+  - `tests/app_runtime_tick_smoke.cpp`
 - Verification:
   - `mingw32-make test`
   - `mingw32-make sandbox`
@@ -318,9 +318,9 @@
   - drive body transforms from animation keyframes
   - emit draw commands and audio play commands for smoke verification
 - New files:
-  - `include/subsystem_render_audio_animation.h`
-  - `src/content/subsystem_render_audio_animation.c`
-  - `tests/subsystem_render_audio_animation_smoke.c`
+  - `include/subsystem_render_audio_animation.hpp`
+  - `src/content/subsystem_render_audio_animation.cpp`
+  - `tests/subsystem_render_audio_animation_smoke.cpp`
 - Build wiring updated:
   - `Makefile` (`mingw32-make test` now runs the D4 smoke)
   - `CMakeLists.txt` (core source list and sandbox source list synchronized)
@@ -335,9 +335,9 @@
   - `cpp/physics_script_bridge.hpp`
   - `tests/cpp_script_bridge_smoke.cpp`
 - Added D4 demo / profiling utilities:
-  - `tools/subsystem_workflow_demo.c`
-  - `tools/parallel_benchmark_compare.c`
-  - `tools/phase_d_profile_capture.c`
+  - `tools/subsystem_workflow_demo.cpp`
+  - `tools/parallel_benchmark_compare.cpp`
+  - `tools/phase_d_profile_capture.cpp`
 - Updated Win32 parallel dispatch to use thread-pool work items instead of per-dispatch thread creation:
   - `src/core/physics_parallel.cpp`
 - Extended one-click gate coverage:

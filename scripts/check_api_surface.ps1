@@ -5,11 +5,22 @@ param(
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $headers = @(
+    (Join-Path $root "include\physics.hpp"),
+    (Join-Path $root "include\physics_ext.hpp"),
+    (Join-Path $root "include\physics_world.hpp")
+)
+$compatHeaders = @(
     (Join-Path $root "include\physics.h"),
     (Join-Path $root "include\physics_ext.h"),
     (Join-Path $root "include\physics_world.h")
 )
 $baseline = Join-Path $root "docs\api_surface_baseline.txt"
+
+foreach ($h in $compatHeaders) {
+    if (!(Test-Path $h)) {
+        throw "Missing compatibility header: $h"
+    }
+}
 
 function Get-ApiSurface {
     param([string[]]$HeaderPaths)

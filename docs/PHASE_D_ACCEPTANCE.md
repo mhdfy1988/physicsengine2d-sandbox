@@ -55,13 +55,13 @@
 
 ## 2026-03-06 D1 Snapshot
 
-- [x] 新增 watcher 抽象：`include/asset_fs_watch.h`, `src/content/asset_fs_watch.c`
-- [x] sandbox 接入 watcher 抽象：`apps/sandbox_dwrite/main.c`
+- [x] 新增 watcher 抽象：`include/asset_fs_watch.hpp`, `src/content/asset_fs_watch.cpp`
+- [x] sandbox 接入 watcher 抽象：`apps/sandbox_dwrite/main.cpp`
 - [x] 构建接入：`Makefile`
-- [x] 新增热重载错误 taxonomy：`apps/sandbox_dwrite/infrastructure/app_event_bus.h`, `apps/sandbox_dwrite/main.c`
+- [x] 新增热重载错误 taxonomy：`apps/sandbox_dwrite/infrastructure/app_event_bus.hpp`, `apps/sandbox_dwrite/main.cpp`
 - [x] 新增 headless smoke：`scripts/hot_reload_smoke_headless.ps1`
 - [x] 新增 D 阶段一键门禁：`scripts/run_phase_d_gate_suite.ps1`
-- [x] runtime smoke 增补 taxonomy 断言：`tests/app_runtime_tick_smoke.c`
+- [x] runtime smoke 增补 taxonomy 断言：`tests/app_runtime_tick_smoke.cpp`
 - [x] 验证通过：`mingw32-make test`, `mingw32-make sandbox`, `mingw32-make benchmark`, `scripts/hot_reload_smoke.ps1`, `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`, `scripts/check_arch_deps.ps1`, `scripts/check_api_surface.ps1`
 - [x] 门禁摘要：`artifacts/phase_d_gate_suite_20260306_010737/summary.md`
 
@@ -94,7 +94,7 @@
 
 - [x] 新增 `editor_command_bus` 模块并接入主编辑路径
 - [x] Scene Rename / Scene Order / Inspector Set Value 已统一走 command bus dispatch
-- [x] 新增 `tests/editor_undo_redo_smoke.c` 并接入 `mingw32-make test`
+- [x] 新增 `tests/editor_undo_redo_smoke.cpp` 并接入 `mingw32-make test`
 - [x] 验证通过：`mingw32-make test`, `mingw32-make sandbox`, `mingw32-make benchmark`, `scripts/check_arch_deps.ps1`, `scripts/check_api_surface.ps1`, `scripts/hot_reload_smoke.ps1`, `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
 - [x] 门禁摘要：`artifacts/phase_d_gate_suite_20260306_015548/summary.md`
 
@@ -102,7 +102,7 @@
 
 - [x] 历史快照已包含编辑器元数据（场景名/场景顺序/当前场景索引）
 - [x] Scene Rename 与 Scene Order 已接入可撤销路径
-- [x] `tests/editor_undo_redo_smoke.c` 已覆盖混合命令序列的多步 undo/redo 回放
+- [x] `tests/editor_undo_redo_smoke.cpp` 已覆盖混合命令序列的多步 undo/redo 回放
 - [x] 验证通过：`mingw32-make test`, `mingw32-make sandbox`, `mingw32-make benchmark`, `scripts/check_arch_deps.ps1`, `scripts/check_api_surface.ps1`, `scripts/hot_reload_smoke.ps1`, `scripts/hot_reload_smoke_headless.ps1 -SkipBuild`
 - [x] 门禁摘要：`artifacts/phase_d_gate_suite_20260306_020552/summary.md`
 
@@ -113,8 +113,8 @@
 - [x] Command bus extended with `EDITOR_CMD_SCENE_ASSET_REF_SET` and integrated into undo/redo.
 - [x] Snapshot metadata now persists/restores per-scene `SCENE_ASSET_GUID` entries.
 - [x] Regression + smoke coverage updated:
-  - `tests/regression_asset_database_tests.c` (GUID validator rules)
-  - `tests/editor_undo_redo_smoke.c` (scene asset GUID command + replay)
+  - `tests/regression_asset_database_tests.cpp` (GUID validator rules)
+  - `tests/editor_undo_redo_smoke.cpp` (scene asset GUID command + replay)
 - [x] Verification passed:
   - `mingw32-make test`
   - `scripts/run_phase_d_gate_suite.ps1` (summary: `artifacts/phase_d_gate_suite_20260306_022153/summary.md`)
@@ -131,7 +131,7 @@
   - scene switch/reorder/rename/GUID-edit paths are blocked while PIE is active
   - autosave is suppressed during PIE session
 - [x] Added D3 smoke gate:
-  - `tests/editor_pie_lifecycle_smoke.c`
+  - `tests/editor_pie_lifecycle_smoke.cpp`
   - included in `mingw32-make test`
 - [x] Verification passed:
   - `mingw32-make test`
@@ -151,7 +151,7 @@
   - imported asset GUIDs from recent batches are visible from the debug panel
 - [x] Runtime snapshot contract extended for D3 UI:
   - `AppHotReloadSnapshot` now carries `pie_active` and `rollback_retained`
-  - smoke coverage updated in `tests/app_runtime_tick_smoke.c`
+  - smoke coverage updated in `tests/app_runtime_tick_smoke.cpp`
 - [x] PIE lifecycle log text no longer emits mojibake in sandbox logs.
 - [x] Verification passed:
   - `mingw32-make test`
@@ -164,15 +164,15 @@
 ## 2026-03-06 D4 Subsystem Workflow Smoke Kickoff
 
 - [x] Added a minimal Render2D / Animation / Audio workflow module:
-  - `include/subsystem_render_audio_animation.h`
-  - `src/content/subsystem_render_audio_animation.c`
+  - `include/subsystem_render_audio_animation.hpp`
+  - `src/content/subsystem_render_audio_animation.cpp`
 - [x] Workflow smoke covers an end-to-end minimum path:
   - texture/audio asset import -> GUID binding
   - animation keyframe tick -> body transform update
   - draw command build
   - audio play command collection
 - [x] Added D4 smoke gate:
-  - `tests/subsystem_render_audio_animation_smoke.c`
+  - `tests/subsystem_render_audio_animation_smoke.cpp`
   - included in `mingw32-make test`
 - [x] Build-system wiring updated:
   - `Makefile`
@@ -185,15 +185,15 @@
 ## 2026-03-06 D4 Closure Snapshot
 
 - [x] Render2D / Animation / Audio workflow now has both regression and demo surfaces:
-  - smoke: `tests/subsystem_render_audio_animation_smoke.c`
-  - demo: `tools/subsystem_workflow_demo.c`
+  - smoke: `tests/subsystem_render_audio_animation_smoke.cpp`
+  - demo: `tools/subsystem_workflow_demo.cpp`
 - [x] Minimal script bridge path is complete and regression-covered:
   - bridge: `cpp/physics_script_bridge.hpp`
   - smoke: `tests/cpp_script_bridge_smoke.cpp`
 - [x] First-pass profiling and parallel scheduling evidence is archived:
   - scheduling path: `src/core/physics_parallel.cpp`
-  - compare tool: `tools/parallel_benchmark_compare.c`
-  - profile capture: `tools/phase_d_profile_capture.c`
+  - compare tool: `tools/parallel_benchmark_compare.cpp`
+  - profile capture: `tools/phase_d_profile_capture.cpp`
   - report: [`PHASE_D_PROFILE_REPORT.md`](./PHASE_D_PROFILE_REPORT.md)
 - [x] Closure verification passed:
   - `bin/subsystem_render_audio_animation_smoke.exe`

@@ -93,7 +93,7 @@
 - Added `asset_pipeline` state machine: source registry, changed queue, dependency wiring, batch reimport execution.
 - Added queue behavior guarantees: deduplicated change marks and no-op empty run.
 - Added failure-path handling report for missing source during reimport.
-- Added regression tests and design note: `tests/regression_asset_pipeline_tests.c`, `docs/ASSET_PIPELINE_V1.md`.
+- Added regression tests and design note: `tests/regression_asset_pipeline_tests.cpp`, `docs/ASSET_PIPELINE_V1.md`.
 
 ## 2026-03-05 C2 Structured Import Parameters
 - Added typed importer parameter model (texture/font/audio) with deterministic fingerprint generation.
@@ -118,7 +118,7 @@
 - Added regression coverage for fs-poll bridge and runtime hot-reload event publication.
 
 ## 2026-03-05 C3 Runtime Loop Integration (Sandbox)
-- Integrated `asset_hot_reload` service and `asset_fs_poll` into `apps/sandbox_dwrite/main.c` startup and tick loop.
+- Integrated `asset_hot_reload` service and `asset_fs_poll` into `apps/sandbox_dwrite/main.cpp` startup and tick loop.
 - Added recursive asset source auto-registration from `assets/` (supported importer extensions only).
 - Added runtime handling for `APP_EVENT_HOT_RELOAD_BATCH` with editor log output and in-memory counters.
 - Added status-bar hot-reload summary (`+imported / -failed`) with recent-activity highlighting.

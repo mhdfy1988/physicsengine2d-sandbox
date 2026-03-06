@@ -34,7 +34,7 @@
    - `collision_detect.c` (SAT/narrow-phase detect path)
    - `collision.c` (impulse/position resolution path)
 3. [x] Modularize regression tests by concern and centralize registration:
-   - `REGRESSION_TEST_LIST` single source in `tests/regression_tests.h`
+   - `REGRESSION_TEST_LIST` single source in `tests/regression_tests.hpp`
 4. [x] Centralize internal defaults and tuning constants:
    - `src/internal/physics_defaults.h`
    - `src/internal/physics_tuning.h`

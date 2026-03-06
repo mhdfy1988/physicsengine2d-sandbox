@@ -80,7 +80,7 @@
 实现变化：
 
 1. `src/core/physics_parallel.cpp` 的 Win32 路径已从“每次 dispatch 新建线程”改为 `QueueUserWorkItem` 线程池分发。
-2. `tools/parallel_benchmark_compare.c` 已从 `clock()` 切换到高精度 wall-clock，避免多线程 CPU 时间累计导致的错误结论。
+2. `tools/parallel_benchmark_compare.cpp` 已从 `clock()` 切换到高精度 wall-clock，避免多线程 CPU 时间累计导致的错误结论。
 
 结论：
 

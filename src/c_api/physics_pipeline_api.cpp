@@ -1,5 +1,5 @@
 #include <string.h>
-#include "physics_internal.h"
+#include "physics_internal.hpp"
 
 void physics_engine_set_callbacks(PhysicsEngine* engine, const PhysicsCallbacks* callbacks) {
     if (engine == NULL) return;

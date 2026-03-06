@@ -1,7 +1,7 @@
 #ifndef PHYSICS_STATUS_HPP
 #define PHYSICS_STATUS_HPP
 
-#include "physics.h"
+#include "physics.hpp"
 
 namespace physics2d {
 

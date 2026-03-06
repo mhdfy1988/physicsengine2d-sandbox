@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
-#include "physics_internal.h"
-#include "internal/physics_defaults.h"
+#include "physics_internal.hpp"
+#include "internal/physics_defaults.hpp"
 
 static PhysicsConfig physics_default_config(void) {
     PhysicsConfig cfg;

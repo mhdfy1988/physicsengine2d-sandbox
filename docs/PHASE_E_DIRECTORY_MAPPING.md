@@ -37,18 +37,18 @@
 ### 3.2 Systems
 
 1. `src/physics2d/*.cpp` -> `engine/systems/physics2d/*`
-2. `src/content/subsystem_render_audio_animation.c` -> `engine/systems/render_audio_animation/*`
-3. `src/content/scene_schema.c` -> `engine/systems/scene/schema/*`
-4. `src/content/prefab_schema.c` -> `engine/systems/prefab/schema/*`
-5. `src/content/asset_*.c/.cpp` -> `engine/systems/assets/*`
+2. `src/content/subsystem_render_audio_animation.cpp` -> `engine/systems/render_audio_animation/*`
+3. `src/content/scene_schema.cpp` -> `engine/systems/scene/schema/*`
+4. `src/content/prefab_schema.cpp` -> `engine/systems/prefab/schema/*`
+5. `src/content/asset_*.cpp` -> `engine/systems/assets/*`
 
 ### 3.3 Editor / Tools
 
 1. `apps/sandbox_dwrite/*` -> `tools/editor/*`
 2. `tools/scene_migrate_main.cpp` -> `tools/asset_pipeline/migrations/scene_migrate_main.cpp`
-3. `tools/subsystem_workflow_demo.c` -> `tools/dev/subsystem_workflow_demo.*`
-4. `tools/parallel_benchmark_compare.c` -> `tools/dev/parallel_benchmark_compare.*`
-5. `tools/phase_d_profile_capture.c` -> `tools/dev/phase_profile_capture.*`
+3. `tools/subsystem_workflow_demo.cpp` -> `tools/dev/subsystem_workflow_demo.*`
+4. `tools/parallel_benchmark_compare.cpp` -> `tools/dev/parallel_benchmark_compare.*`
+5. `tools/phase_d_profile_capture.cpp` -> `tools/dev/phase_profile_capture.*`
 
 ### 3.4 Third-party Adapters
 
