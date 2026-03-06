@@ -1,7 +1,11 @@
 build/
+Build/
+Build_mingw/
 bin/
 obj/
+lib/
 dist/
+build_recompile_check/
 backups/
 .vscode/
 *.exe
@@ -12,6 +16,8 @@ backups/
 *.dll
 Cache/
 artifacts/
+autosave_snapshot.txt
 history_*.txt
 spawn_trace.log
+sandbox_ui.ini
 assets/hot_reload_smoke/
