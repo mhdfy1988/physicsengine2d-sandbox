@@ -4,14 +4,16 @@
 #include <string.h>
 #include <filesystem>
 
+#include "../infrastructure/app_path.hpp"
+
 namespace {
-static const char* kProjectRoot = "samples/physics_sandbox_project";
-static const char* kSessionRecoveryPath = "samples/physics_sandbox_project/ProjectSettings/editor_session.physicssession";
-static const char* kWorkspacePath = "samples/physics_sandbox_project/ProjectSettings/workspace.physicsworkspace";
+static const char* kProjectRootRelative = "samples/physics_sandbox_project";
+static const char* kSessionRecoveryPathRelative = "samples/physics_sandbox_project/ProjectSettings/editor_session.physicssession";
+static const char* kWorkspacePathRelative = "samples/physics_sandbox_project/ProjectSettings/workspace.physicsworkspace";
 static const char* kSceneInspectorPluginId = "builtin.scene_inspector";
-static const char* kSceneInspectorManifestPath = "samples/physics_sandbox_project/Packages/builtin.scene_inspector.physicsplugin";
+static const char* kSceneInspectorManifestPathRelative = "samples/physics_sandbox_project/Packages/builtin.scene_inspector.physicsplugin";
 static const char* kFailingMenuPluginId = "builtin.failing_menu";
-static const char* kFailingMenuManifestPath = "samples/physics_sandbox_project/Packages/builtin.failing_menu.physicsplugin";
+static const char* kFailingMenuManifestPathRelative = "samples/physics_sandbox_project/Packages/builtin.failing_menu.physicsplugin";
 
 static void host_copy_text(char* out, int out_capacity, const char* src) {
     if (out == NULL || out_capacity <= 0) return;
@@ -21,16 +23,28 @@ static void host_copy_text(char* out, int out_capacity, const char* src) {
     out[out_capacity - 1] = '\0';
 }
 
+static const char* host_resolve_project_path(const char* relative_path) {
+    static char resolved[8][PROJECT_WORKSPACE_MAX_PATH];
+    static int next_slot = 0;
+    char* slot;
+    if (relative_path == NULL) return NULL;
+    slot = resolved[next_slot];
+    next_slot = (next_slot + 1) % 8;
+    if (sandbox_app_path_find_from_exe_ancestors_utf8(relative_path, 4, slot, PROJECT_WORKSPACE_MAX_PATH)) return slot;
+    host_copy_text(slot, PROJECT_WORKSPACE_MAX_PATH, relative_path);
+    return slot;
+}
+
 static void host_init_builtin_plugins(EditorExtensionBuiltinPlugin* builtin_plugins,
                                       const EditorPluginV1* scene_inspector_impl,
                                       const EditorPluginV1* failing_plugin_impl) {
     memset(builtin_plugins, 0, sizeof(EditorExtensionBuiltinPlugin) * 2);
     host_copy_text(builtin_plugins[0].plugin_id, EDITOR_PLUGIN_MAX_ID, kSceneInspectorPluginId);
-    host_copy_text(builtin_plugins[0].manifest_path, PROJECT_WORKSPACE_MAX_PATH, kSceneInspectorManifestPath);
+    host_copy_text(builtin_plugins[0].manifest_path, PROJECT_WORKSPACE_MAX_PATH, host_resolve_project_path(kSceneInspectorManifestPathRelative));
     if (scene_inspector_impl != NULL) builtin_plugins[0].implementation = *scene_inspector_impl;
 
     host_copy_text(builtin_plugins[1].plugin_id, EDITOR_PLUGIN_MAX_ID, kFailingMenuPluginId);
-    host_copy_text(builtin_plugins[1].manifest_path, PROJECT_WORKSPACE_MAX_PATH, kFailingMenuManifestPath);
+    host_copy_text(builtin_plugins[1].manifest_path, PROJECT_WORKSPACE_MAX_PATH, host_resolve_project_path(kFailingMenuManifestPathRelative));
     if (failing_plugin_impl != NULL) builtin_plugins[1].implementation = *failing_plugin_impl;
 }
 
@@ -88,15 +102,15 @@ void editor_extension_host_shutdown(EditorExtensionStartupResult* state) {
 }
 
 const char* editor_extension_host_default_project_root(void) {
-    return kProjectRoot;
+    return host_resolve_project_path(kProjectRootRelative);
 }
 
 const char* editor_extension_host_default_session_recovery_path(void) {
-    return kSessionRecoveryPath;
+    return host_resolve_project_path(kSessionRecoveryPathRelative);
 }
 
 const char* editor_extension_host_default_workspace_path(void) {
-    return kWorkspacePath;
+    return host_resolve_project_path(kWorkspacePathRelative);
 }
 
 void editor_extension_host_append_default_diagnostic_files(DiagnosticBundleRequest* request,

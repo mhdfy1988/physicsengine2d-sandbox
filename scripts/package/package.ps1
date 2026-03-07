@@ -13,6 +13,7 @@ $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 Set-Location $repoRoot
 $sampleProjectRoot = Join-Path $repoRoot "samples\\physics_sandbox_project"
 $buildOutputRoot = Join-Path $repoRoot "Build_mingw\\bin"
+$mingwBin = Split-Path (Get-Command g++).Source
 
 $exeName = if ($Flavor -eq "runtime") { "physics_runtime_cli.exe" } else { "physics_sandbox.exe" }
 $exeCandidates = @(
@@ -22,6 +23,7 @@ $exeCandidates = @(
 $exePath = $exeCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 $distRoot = Join-Path $repoRoot "dist"
 $portableRoot = Join-Path $distRoot ("PhysicsSandbox_" + $Flavor)
+$portableBinRoot = Join-Path $portableRoot "bin"
 $zipPath = Join-Path $distRoot ("PhysicsSandbox_" + $Flavor + "_portable_" + $Version + ".zip")
 
 if ($Build) {
@@ -42,18 +44,28 @@ if (Test-Path $portableRoot) {
     Remove-Item -Recurse -Force $portableRoot
 }
 New-Item -ItemType Directory -Force -Path $portableRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $portableBinRoot | Out-Null
 
-Copy-Item -Force $exePath (Join-Path $portableRoot $exeName)
+Copy-Item -Force $exePath (Join-Path $portableBinRoot $exeName)
+foreach ($dllName in @("libgcc_s_seh-1.dll", "libstdc++-6.dll")) {
+    $dllPath = Join-Path $mingwBin $dllName
+    if (Test-Path $dllPath) {
+        Copy-Item -Force $dllPath (Join-Path $portableBinRoot $dllName)
+    }
+}
 if (Test-Path "assets") {
     Copy-Item -Recurse -Force "assets" (Join-Path $portableRoot "assets")
 }
 if (Test-Path $sampleProjectRoot) {
     $portableSampleRoot = Join-Path $portableRoot "samples\\physics_sandbox_project"
     New-Item -ItemType Directory -Force -Path $portableSampleRoot | Out-Null
-    Copy-Item -Recurse -Force (Join-Path $sampleProjectRoot "*") $portableSampleRoot
+    & robocopy $sampleProjectRoot $portableSampleRoot /E /XD Build Cache | Out-Null
+    if ($LASTEXITCODE -gt 7) {
+        throw "robocopy sample project failed: $LASTEXITCODE"
+    }
 }
 if (Test-Path "sandbox_ui.ini") {
-    Copy-Item -Force "sandbox_ui.ini" (Join-Path $portableRoot "sandbox_ui.ini")
+    Copy-Item -Force "sandbox_ui.ini" (Join-Path $portableBinRoot "sandbox_ui.ini")
 }
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot "scripts\dev\emit_build_metadata.ps1") `
     -Target $Flavor -Configuration "portable" -Version $Version -OutputPath (Join-Path $portableRoot "build_metadata.json") | Out-Null
@@ -62,10 +74,11 @@ $readmeText = @"
 Physics Sandbox Portable
 
 Run:
-  $exeName
+  bin\$exeName
 
 Notes:
-- Keep the assets folder next to the exe.
+- Keep the folder structure unchanged.
+- The exe lives under bin, and runtime files are written next to it.
 - The bundled sample project content comes from samples/physics_sandbox_project.
 - This build targets Windows 10/11.
 - Build metadata is written to build_metadata.json.

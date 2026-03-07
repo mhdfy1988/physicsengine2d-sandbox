@@ -1,0 +1,38 @@
+#ifndef INSPECTOR_SCROLLBAR_H
+#define INSPECTOR_SCROLLBAR_H
+
+#include <d2d1.h>
+
+#include "../../design_system/ui_theme.hpp"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct {
+    D2D1_RECT_F host_rect;
+    D2D1_RECT_F viewport_rect;
+    float viewport_height;
+    float content_height;
+    int scroll_max;
+    int scroll_offset;
+    float mouse_x;
+    float mouse_y;
+} InspectorScrollbarModel;
+
+typedef struct {
+    D2D1_RECT_F track_rect;
+    D2D1_RECT_F thumb_rect;
+} InspectorScrollbarResult;
+
+void inspector_scrollbar_render(ID2D1HwndRenderTarget* target,
+                                ID2D1SolidColorBrush* brush,
+                                const UiTheme* theme,
+                                const InspectorScrollbarModel* model,
+                                InspectorScrollbarResult* out_result);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

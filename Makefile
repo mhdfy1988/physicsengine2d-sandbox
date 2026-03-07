@@ -22,7 +22,7 @@ CPP_OBJECTS = $(PHYSICS_KERNEL_OBJECTS) $(PHYSICS_CONTENT_OBJECTS) $(PHYSICS_RUN
 OBJECTS = $(C_OBJECTS) $(CPP_OBJECTS)
 DEPS = $(OBJECTS:.o=.d)
 
-SANDBOX_SRCS = $(APPDIR_DWRITE)/main.cpp $(APPDIR_DWRITE)/infrastructure/project_tree.cpp $(APPDIR_DWRITE)/infrastructure/ui_layout_repo.cpp $(APPDIR_DWRITE)/presentation/render/ui_icons.cpp $(APPDIR_DWRITE)/presentation/render/editor_screen_renderer.cpp $(APPDIR_DWRITE)/presentation/render/ui_text.cpp $(APPDIR_DWRITE)/presentation/render/ui_primitives.cpp $(APPDIR_DWRITE)/presentation/render/ui_widgets.cpp $(APPDIR_DWRITE)/presentation/status/status_presenter.cpp $(APPDIR_DWRITE)/presentation/window/window_host.cpp $(APPDIR_DWRITE)/domain/app_command.cpp $(APPDIR_DWRITE)/infrastructure/app_event_bus.cpp $(APPDIR_DWRITE)/application/app_controller.cpp $(APPDIR_DWRITE)/application/app_runtime.cpp $(APPDIR_DWRITE)/application/editor_session_service.cpp $(APPDIR_DWRITE)/application/pie_lifecycle.cpp $(APPDIR_DWRITE)/application/editor_command_bus.cpp $(APPDIR_DWRITE)/application/scene_catalog.cpp $(APPDIR_DWRITE)/application/scene_builder.cpp $(APPDIR_DWRITE)/application/history_service.cpp $(APPDIR_DWRITE)/application/runtime_param_service.cpp $(APPDIR_DWRITE)/application/editor_extension_host_service.cpp $(APPDIR_DWRITE)/application/editor_extension_state_service.cpp $(APPDIR_DWRITE)/presentation/input/input_router.cpp $(APPDIR_DWRITE)/presentation/input/input_mapping.cpp $(APPDIR_DWRITE)/presentation/input/menu_file_edit_actions.cpp $(APPDIR_DWRITE)/presentation/input/menu_view_physics_window_actions.cpp $(APPDIR_DWRITE)/presentation/input/menu_help_actions.cpp $(APPDIR_DWRITE)/presentation/input/menu_model.cpp
+SANDBOX_SRCS = $(APPDIR_DWRITE)/main.cpp $(APPDIR_DWRITE)/infrastructure/app_path.cpp $(APPDIR_DWRITE)/infrastructure/project_tree.cpp $(APPDIR_DWRITE)/infrastructure/ui_layout_repo.cpp $(APPDIR_DWRITE)/presentation/design_system/ui_theme.cpp $(APPDIR_DWRITE)/presentation/components/button/button.cpp $(APPDIR_DWRITE)/presentation/components/panel/panel.cpp $(APPDIR_DWRITE)/presentation/components/status_chip/status_chip.cpp $(APPDIR_DWRITE)/presentation/overlay/status_bar.cpp $(APPDIR_DWRITE)/presentation/modal/modal_shell.cpp $(APPDIR_DWRITE)/presentation/modal/modal_content.cpp $(APPDIR_DWRITE)/presentation/panels/console/console_tabs.cpp $(APPDIR_DWRITE)/presentation/panels/console/console_perf.cpp $(APPDIR_DWRITE)/presentation/panels/console/console_panel_shell.cpp $(APPDIR_DWRITE)/presentation/panels/console/console_renderer.cpp $(APPDIR_DWRITE)/presentation/panels/hierarchy/hierarchy_layout.cpp $(APPDIR_DWRITE)/presentation/panels/hierarchy/hierarchy_renderer.cpp $(APPDIR_DWRITE)/presentation/panels/hierarchy/hierarchy_scrollbar.cpp $(APPDIR_DWRITE)/presentation/panels/inspector/inspector_layout.cpp $(APPDIR_DWRITE)/presentation/panels/inspector/inspector_debug_renderer.cpp $(APPDIR_DWRITE)/presentation/panels/inspector/inspector_panel_shell.cpp $(APPDIR_DWRITE)/presentation/panels/inspector/inspector_renderer.cpp $(APPDIR_DWRITE)/presentation/panels/inspector/inspector_scrollbar.cpp $(APPDIR_DWRITE)/presentation/topbar/top_toolbar.cpp $(APPDIR_DWRITE)/presentation/render/ui_icons.cpp $(APPDIR_DWRITE)/presentation/render/editor_screen_renderer.cpp $(APPDIR_DWRITE)/presentation/render/ui_text.cpp $(APPDIR_DWRITE)/presentation/render/ui_primitives.cpp $(APPDIR_DWRITE)/presentation/render/ui_widgets.cpp $(APPDIR_DWRITE)/presentation/shell/side_fold_buttons.cpp $(APPDIR_DWRITE)/presentation/stage/stage_panel.cpp $(APPDIR_DWRITE)/presentation/status/status_presenter.cpp $(APPDIR_DWRITE)/presentation/window/window_host.cpp $(APPDIR_DWRITE)/domain/app_command.cpp $(APPDIR_DWRITE)/infrastructure/app_event_bus.cpp $(APPDIR_DWRITE)/application/app_controller.cpp $(APPDIR_DWRITE)/application/app_runtime.cpp $(APPDIR_DWRITE)/application/workbench/workbench_service.cpp $(APPDIR_DWRITE)/application/editor_session_service.cpp $(APPDIR_DWRITE)/application/pie_lifecycle.cpp $(APPDIR_DWRITE)/application/editor_command_bus.cpp $(APPDIR_DWRITE)/application/scene_catalog.cpp $(APPDIR_DWRITE)/application/scene_builder.cpp $(APPDIR_DWRITE)/application/history_service.cpp $(APPDIR_DWRITE)/application/runtime_param_service.cpp $(APPDIR_DWRITE)/application/editor_extension_host_service.cpp $(APPDIR_DWRITE)/application/editor_extension_state_service.cpp $(APPDIR_DWRITE)/presentation/input/input_router.cpp $(APPDIR_DWRITE)/presentation/input/input_mapping.cpp $(APPDIR_DWRITE)/presentation/input/menu_file_edit_actions.cpp $(APPDIR_DWRITE)/presentation/input/menu_view_physics_window_actions.cpp $(APPDIR_DWRITE)/presentation/input/menu_help_actions.cpp $(APPDIR_DWRITE)/presentation/input/menu_model.cpp
 SANDBOX_ICON_RC = $(APPDIR_DWRITE)/app_icon.rc
 SANDBOX_ICON_ICO = assets/icons/physics_sandbox.ico
 SANDBOX_ICON_OBJ = $(OBJDIR)/app_icon.res.o
@@ -35,7 +35,8 @@ APP_RUNTIME_SMOKE_SRC = $(TESTDIR)/app_runtime_tick_smoke.cpp $(APPDIR_DWRITE)/d
 EDITOR_UNDO_REDO_SMOKE_SRC = $(TESTDIR)/editor_undo_redo_smoke.cpp $(APPDIR_DWRITE)/application/editor_command_bus.cpp $(APPDIR_DWRITE)/application/history_service.cpp
 EDITOR_PIE_LIFECYCLE_SMOKE_SRC = $(TESTDIR)/editor_pie_lifecycle_smoke.cpp $(APPDIR_DWRITE)/application/pie_lifecycle.cpp
 SUBSYSTEM_RENDER_AUDIO_ANIMATION_SMOKE_SRC = $(TESTDIR)/subsystem_render_audio_animation_smoke.cpp
-EDITOR_EXTENSION_STATE_SERVICE_SMOKE_SRC = $(TESTDIR)/editor_extension_state_service_smoke.cpp $(APPDIR_DWRITE)/application/editor_extension_state_service.cpp
+EDITOR_EXTENSION_STATE_SERVICE_SMOKE_SRC = $(TESTDIR)/editor_extension_state_service_smoke.cpp $(APPDIR_DWRITE)/infrastructure/app_path.cpp $(APPDIR_DWRITE)/application/editor_extension_state_service.cpp $(APPDIR_DWRITE)/application/editor_extension_host_service.cpp
+WORKBENCH_SERVICE_SMOKE_SRC = $(TESTDIR)/editor/workbench_service_smoke.cpp $(APPDIR_DWRITE)/domain/app_command.cpp $(APPDIR_DWRITE)/infrastructure/app_event_bus.cpp $(APPDIR_DWRITE)/application/app_controller.cpp $(APPDIR_DWRITE)/application/app_runtime.cpp $(APPDIR_DWRITE)/application/workbench/workbench_service.cpp
 PHYSICS_CORE_HEADER_SMOKE_SRC = $(TESTDIR)/physics_core_header_smoke.cpp
 CPP_SCRIPT_BRIDGE_SMOKE_SRC = $(TESTDIR)/cpp_script_bridge_smoke.cpp
 CPP_FOUNDATION_SMOKE_SRC = $(TESTDIR)/cpp_foundation_smoke.cpp
@@ -60,6 +61,7 @@ EDITOR_UNDO_REDO_SMOKE_EXECUTABLE = $(BINDIR)/editor_undo_redo_smoke
 EDITOR_PIE_LIFECYCLE_SMOKE_EXECUTABLE = $(BINDIR)/editor_pie_lifecycle_smoke
 SUBSYSTEM_RENDER_AUDIO_ANIMATION_SMOKE_EXECUTABLE = $(BINDIR)/subsystem_render_audio_animation_smoke
 EDITOR_EXTENSION_STATE_SERVICE_SMOKE_EXECUTABLE = $(BINDIR)/editor_extension_state_service_smoke
+WORKBENCH_SERVICE_SMOKE_EXECUTABLE = $(BINDIR)/workbench_service_smoke
 PHYSICS_CORE_HEADER_SMOKE_EXECUTABLE = $(BINDIR)/physics_core_header_smoke
 CPP_SCRIPT_BRIDGE_SMOKE_EXECUTABLE = $(BINDIR)/cpp_script_bridge_smoke
 CPP_FOUNDATION_SMOKE_EXECUTABLE = $(BINDIR)/cpp_foundation_smoke
@@ -132,6 +134,9 @@ $(SUBSYSTEM_RENDER_AUDIO_ANIMATION_SMOKE_EXECUTABLE): $(KERNEL_LIB) $(CONTENT_LI
 $(EDITOR_EXTENSION_STATE_SERVICE_SMOKE_EXECUTABLE): $(KERNEL_LIB) $(CONTENT_LIB) $(EDITOR_EXTENSION_STATE_SERVICE_SMOKE_SRC) | $(BINDIR)
 	$(CXX) $(CXXFLAGS) $(EDITOR_EXTENSION_STATE_SERVICE_SMOKE_SRC) $(CORE_LIBS) -o $@ $(LDFLAGS)
 
+$(WORKBENCH_SERVICE_SMOKE_EXECUTABLE): $(KERNEL_LIB) $(CONTENT_LIB) $(WORKBENCH_SERVICE_SMOKE_SRC) | $(BINDIR)
+	$(CXX) $(CXXFLAGS) $(WORKBENCH_SERVICE_SMOKE_SRC) $(CORE_LIBS) -o $@ $(LDFLAGS)
+
 $(PHYSICS_CORE_HEADER_SMOKE_EXECUTABLE): $(KERNEL_LIB) $(RUNTIME_SUPPORT_LIB) $(PHYSICS_CORE_HEADER_SMOKE_SRC) | $(BINDIR)
 	$(CXX) $(CXXFLAGS) $(PHYSICS_CORE_HEADER_SMOKE_SRC) $(RUNTIME_SUPPORT_LIB) $(KERNEL_LIB) -o $@ $(LDFLAGS)
 
@@ -164,10 +169,13 @@ scene-migrate: $(SCENE_MIGRATE_EXECUTABLE)
 
 runtime-cli: $(RUNTIME_CLI_EXECUTABLE)
 
+package-sandbox: $(SANDBOX_EXECUTABLE)
+	powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\package\package.ps1 -Version 1.0.0 -Flavor editor
+
 run: $(SANDBOX_EXECUTABLE)
 	./$(SANDBOX_EXECUTABLE)
 
-test: $(KERNEL_TEST_EXECUTABLE) $(CONTENT_TEST_EXECUTABLE) $(TEST_EXECUTABLE) $(APP_RUNTIME_SMOKE_EXECUTABLE) $(EDITOR_UNDO_REDO_SMOKE_EXECUTABLE) $(EDITOR_PIE_LIFECYCLE_SMOKE_EXECUTABLE) $(SUBSYSTEM_RENDER_AUDIO_ANIMATION_SMOKE_EXECUTABLE) $(EDITOR_EXTENSION_STATE_SERVICE_SMOKE_EXECUTABLE) $(PHYSICS_CORE_HEADER_SMOKE_EXECUTABLE) $(CPP_SCRIPT_BRIDGE_SMOKE_EXECUTABLE) $(CPP_FOUNDATION_SMOKE_EXECUTABLE)
+test: $(KERNEL_TEST_EXECUTABLE) $(CONTENT_TEST_EXECUTABLE) $(TEST_EXECUTABLE) $(APP_RUNTIME_SMOKE_EXECUTABLE) $(EDITOR_UNDO_REDO_SMOKE_EXECUTABLE) $(EDITOR_PIE_LIFECYCLE_SMOKE_EXECUTABLE) $(SUBSYSTEM_RENDER_AUDIO_ANIMATION_SMOKE_EXECUTABLE) $(EDITOR_EXTENSION_STATE_SERVICE_SMOKE_EXECUTABLE) $(WORKBENCH_SERVICE_SMOKE_EXECUTABLE) $(PHYSICS_CORE_HEADER_SMOKE_EXECUTABLE) $(CPP_SCRIPT_BRIDGE_SMOKE_EXECUTABLE) $(CPP_FOUNDATION_SMOKE_EXECUTABLE)
 	./$(KERNEL_TEST_EXECUTABLE)
 	./$(CONTENT_TEST_EXECUTABLE)
 	./$(TEST_EXECUTABLE)
@@ -176,6 +184,7 @@ test: $(KERNEL_TEST_EXECUTABLE) $(CONTENT_TEST_EXECUTABLE) $(TEST_EXECUTABLE) $(
 	./$(EDITOR_PIE_LIFECYCLE_SMOKE_EXECUTABLE)
 	./$(SUBSYSTEM_RENDER_AUDIO_ANIMATION_SMOKE_EXECUTABLE)
 	./$(EDITOR_EXTENSION_STATE_SERVICE_SMOKE_EXECUTABLE)
+	./$(WORKBENCH_SERVICE_SMOKE_EXECUTABLE)
 	./$(PHYSICS_CORE_HEADER_SMOKE_EXECUTABLE)
 	./$(CPP_SCRIPT_BRIDGE_SMOKE_EXECUTABLE)
 	./$(CPP_FOUNDATION_SMOKE_EXECUTABLE)
@@ -214,4 +223,4 @@ clean:
 
 -include $(DEPS)
 
-.PHONY: all core sandbox scene-migrate runtime-cli run test benchmark parallel-benchmark-compare subsystem-workflow-demo phase-d-profile test-long check-core check-arch check-api check-cpp-convergence clean
+.PHONY: all core sandbox scene-migrate runtime-cli package-sandbox run test benchmark parallel-benchmark-compare subsystem-workflow-demo phase-d-profile test-long check-core check-arch check-api check-cpp-convergence clean

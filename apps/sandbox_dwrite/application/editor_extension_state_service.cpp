@@ -5,6 +5,7 @@
 #include <string.h>
 #include <filesystem>
 
+#include "../infrastructure/app_path.hpp"
 #include "physics_content/prefab_schema.hpp"
 
 static const char* EDITOR_SAMPLE_PROJECT_ROOT = "samples/physics_sandbox_project";
@@ -20,6 +21,18 @@ static void startup_copy_text(char* out, int out_cap, const char* src) {
     if (src == NULL) return;
     strncpy(out, src, (size_t)(out_cap - 1));
     out[out_cap - 1] = '\0';
+}
+
+static const char* startup_resolve_project_path(const char* relative_path) {
+    static char resolved[12][PROJECT_WORKSPACE_MAX_PATH];
+    static int next_slot = 0;
+    char* slot;
+    if (relative_path == NULL) return NULL;
+    slot = resolved[next_slot];
+    next_slot = (next_slot + 1) % 12;
+    if (sandbox_app_path_find_from_exe_ancestors_utf8(relative_path, 4, slot, PROJECT_WORKSPACE_MAX_PATH)) return slot;
+    startup_copy_text(slot, PROJECT_WORKSPACE_MAX_PATH, relative_path);
+    return slot;
 }
 
 static void startup_push_diagnostic(EditorExtensionStartupResult* result,
@@ -91,8 +104,20 @@ static void startup_attach_builtin_plugins(const EditorExtensionStartupConfig* c
     for (i = 0; i < config->builtin_plugin_count; ++i) {
         const EditorExtensionBuiltinPlugin* builtin = &config->builtin_plugins[i];
         if (!editor_plugin_registry_attach(&result->plugin_registry, builtin->plugin_id, &builtin->implementation)) {
-            startup_push_diagnostic(result, EDITOR_EXTENSION_STARTUP_SEVERITY_WARNING, "attach_plugin",
-                                    builtin->plugin_id, "failed to attach builtin plugin");
+            if (result->plugin_registry.plugin_count < EDITOR_PLUGIN_MAX_COUNT) {
+                EditorPluginRecord* record = &result->plugin_registry.plugins[result->plugin_registry.plugin_count++];
+                memset(record, 0, sizeof(*record));
+                if (!editor_plugin_manifest_load_v1(builtin->manifest_path, &record->manifest)) {
+                    record->manifest.api_version = EDITOR_PLUGIN_API_VERSION_1;
+                    startup_copy_text(record->manifest.plugin_id, EDITOR_PLUGIN_MAX_ID, builtin->plugin_id);
+                }
+                startup_copy_text(record->manifest_path, EDITOR_PLUGIN_MAX_PATH, builtin->manifest_path);
+                record->implementation = builtin->implementation;
+                record->state = EDITOR_PLUGIN_STATE_DISCOVERED;
+            } else {
+                startup_push_diagnostic(result, EDITOR_EXTENSION_STARTUP_SEVERITY_WARNING, "attach_plugin",
+                                        builtin->plugin_id, "failed to attach builtin plugin");
+            }
         }
     }
 }
@@ -168,17 +193,17 @@ static void startup_run_prefab_analysis(const EditorExtensionStartupConfig* conf
 void editor_extension_startup_config_init(EditorExtensionStartupConfig* config) {
     if (config == NULL) return;
     memset(config, 0, sizeof(*config));
-    config->root_path = EDITOR_SAMPLE_PROJECT_ROOT;
-    config->project_root = EDITOR_SAMPLE_PROJECT_ROOT;
-    config->workspace_path = "samples/physics_sandbox_project/ProjectSettings/workspace.physicsworkspace";
-    config->project_path = "samples/physics_sandbox_project/ProjectSettings/project.physicsproject";
-    config->package_path = "samples/physics_sandbox_project/Packages/core_tools.physicspackage";
-    config->settings_path = "samples/physics_sandbox_project/ProjectSettings/editor.physicssettings";
-    config->session_recovery_path = "samples/physics_sandbox_project/ProjectSettings/editor_session.physicssession";
-    config->packages_dir = "samples/physics_sandbox_project/Packages";
-    config->prefab_base_path = "samples/physics_sandbox_project/Prefabs/phase_g_base.prefab";
-    config->prefab_nested_path = "samples/physics_sandbox_project/Prefabs/phase_g_nested.prefab";
-    config->prefab_variant_path = "samples/physics_sandbox_project/Prefabs/phase_g_variant.prefab";
+    config->root_path = startup_resolve_project_path(EDITOR_SAMPLE_PROJECT_ROOT);
+    config->project_root = startup_resolve_project_path(EDITOR_SAMPLE_PROJECT_ROOT);
+    config->workspace_path = startup_resolve_project_path("samples/physics_sandbox_project/ProjectSettings/workspace.physicsworkspace");
+    config->project_path = startup_resolve_project_path("samples/physics_sandbox_project/ProjectSettings/project.physicsproject");
+    config->package_path = startup_resolve_project_path("samples/physics_sandbox_project/Packages/core_tools.physicspackage");
+    config->settings_path = startup_resolve_project_path("samples/physics_sandbox_project/ProjectSettings/editor.physicssettings");
+    config->session_recovery_path = startup_resolve_project_path("samples/physics_sandbox_project/ProjectSettings/editor_session.physicssession");
+    config->packages_dir = startup_resolve_project_path("samples/physics_sandbox_project/Packages");
+    config->prefab_base_path = startup_resolve_project_path("samples/physics_sandbox_project/Prefabs/phase_g_base.prefab");
+    config->prefab_nested_path = startup_resolve_project_path("samples/physics_sandbox_project/Prefabs/phase_g_nested.prefab");
+    config->prefab_variant_path = startup_resolve_project_path("samples/physics_sandbox_project/Prefabs/phase_g_variant.prefab");
 }
 
 void editor_extension_startup_result_init(EditorExtensionStartupResult* result) {
@@ -215,11 +240,10 @@ int editor_extension_startup_run(const EditorExtensionStartupConfig* config, Edi
     if (!editor_plugin_registry_scan_v1(config->packages_dir, &out_result->plugin_registry)) {
         startup_push_diagnostic(out_result, EDITOR_EXTENSION_STARTUP_SEVERITY_WARNING, "scan_plugins", config->packages_dir,
                                 "failed to scan plugin manifests");
-    } else {
-        startup_attach_builtin_plugins(config, out_result);
-        editor_plugin_registry_initialize_all(&out_result->plugin_registry);
-        startup_collect_plugin_diagnostics(out_result);
     }
+    startup_attach_builtin_plugins(config, out_result);
+    editor_plugin_registry_initialize_all(&out_result->plugin_registry);
+    startup_collect_plugin_diagnostics(out_result);
 
     startup_run_prefab_analysis(config, out_result);
 

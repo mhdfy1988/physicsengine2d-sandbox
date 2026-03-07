@@ -136,19 +136,43 @@ add_library(physics_core ALIAS physics_kernel)
 if(BUILD_EDITOR)
     set(SANDBOX_SOURCES
         apps/sandbox_dwrite/main.cpp
+        apps/sandbox_dwrite/infrastructure/app_path.cpp
         apps/sandbox_dwrite/infrastructure/project_tree.cpp
         apps/sandbox_dwrite/infrastructure/ui_layout_repo.cpp
+        apps/sandbox_dwrite/presentation/design_system/ui_theme.cpp
+        apps/sandbox_dwrite/presentation/components/button/button.cpp
+        apps/sandbox_dwrite/presentation/components/panel/panel.cpp
+        apps/sandbox_dwrite/presentation/components/status_chip/status_chip.cpp
+        apps/sandbox_dwrite/presentation/overlay/status_bar.cpp
+        apps/sandbox_dwrite/presentation/modal/modal_shell.cpp
+        apps/sandbox_dwrite/presentation/modal/modal_content.cpp
+        apps/sandbox_dwrite/presentation/panels/console/console_tabs.cpp
+        apps/sandbox_dwrite/presentation/panels/console/console_perf.cpp
+        apps/sandbox_dwrite/presentation/panels/console/console_panel_shell.cpp
+        apps/sandbox_dwrite/presentation/panels/console/console_renderer.cpp
+        apps/sandbox_dwrite/presentation/panels/hierarchy/hierarchy_layout.cpp
+        apps/sandbox_dwrite/presentation/panels/hierarchy/hierarchy_renderer.cpp
+        apps/sandbox_dwrite/presentation/panels/hierarchy/hierarchy_scrollbar.cpp
+        apps/sandbox_dwrite/presentation/panels/inspector/inspector_layout.cpp
+        apps/sandbox_dwrite/presentation/panels/inspector/inspector_debug_renderer.cpp
+        apps/sandbox_dwrite/presentation/panels/inspector/inspector_panel_shell.cpp
+        apps/sandbox_dwrite/presentation/panels/inspector/inspector_renderer.cpp
+        apps/sandbox_dwrite/presentation/panels/inspector/inspector_scrollbar.cpp
+        apps/sandbox_dwrite/presentation/topbar/top_toolbar.cpp
         apps/sandbox_dwrite/presentation/render/ui_icons.cpp
         apps/sandbox_dwrite/presentation/render/editor_screen_renderer.cpp
         apps/sandbox_dwrite/presentation/render/ui_text.cpp
         apps/sandbox_dwrite/presentation/render/ui_primitives.cpp
         apps/sandbox_dwrite/presentation/render/ui_widgets.cpp
+        apps/sandbox_dwrite/presentation/shell/side_fold_buttons.cpp
+        apps/sandbox_dwrite/presentation/stage/stage_panel.cpp
         apps/sandbox_dwrite/presentation/status/status_presenter.cpp
         apps/sandbox_dwrite/presentation/window/window_host.cpp
         apps/sandbox_dwrite/domain/app_command.cpp
         apps/sandbox_dwrite/infrastructure/app_event_bus.cpp
         apps/sandbox_dwrite/application/app_controller.cpp
         apps/sandbox_dwrite/application/app_runtime.cpp
+        apps/sandbox_dwrite/application/workbench/workbench_service.cpp
         apps/sandbox_dwrite/application/editor_session_service.cpp
         apps/sandbox_dwrite/application/pie_lifecycle.cpp
         apps/sandbox_dwrite/application/editor_command_bus.cpp
@@ -181,6 +205,16 @@ if(BUILD_EDITOR)
     endif()
     set_target_properties(physics_sandbox PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+
+    add_custom_target(package_sandbox
+        COMMAND powershell -NoProfile -ExecutionPolicy Bypass
+            -File ${CMAKE_SOURCE_DIR}/scripts/package/package.ps1
+            -Version 1.0.0
+            -Flavor editor
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        DEPENDS physics_sandbox
+        COMMENT "Packaging physics_sandbox portable distribution"
     )
 endif()
 
@@ -249,8 +283,17 @@ if(BUILD_TESTS)
     )
     add_executable(physics_editor_extension_state_service_smoke
         tests/editor/editor_extension_state_service_smoke.cpp
+        apps/sandbox_dwrite/infrastructure/app_path.cpp
         apps/sandbox_dwrite/application/editor_extension_state_service.cpp
         apps/sandbox_dwrite/application/editor_extension_host_service.cpp
+    )
+    add_executable(physics_workbench_service_smoke
+        tests/editor/workbench_service_smoke.cpp
+        apps/sandbox_dwrite/domain/app_command.cpp
+        apps/sandbox_dwrite/infrastructure/app_event_bus.cpp
+        apps/sandbox_dwrite/application/app_controller.cpp
+        apps/sandbox_dwrite/application/app_runtime.cpp
+        apps/sandbox_dwrite/application/workbench/workbench_service.cpp
     )
     add_executable(physics_core_header_smoke
         tests/smoke/physics_core_header_smoke.cpp
@@ -267,6 +310,7 @@ if(BUILD_TESTS)
     target_link_libraries(physics_editor_pie_lifecycle_smoke PRIVATE physics2d)
     target_link_libraries(physics_subsystem_render_audio_animation_smoke PRIVATE physics2d)
     target_link_libraries(physics_editor_extension_state_service_smoke PRIVATE physics2d)
+    target_link_libraries(physics_workbench_service_smoke PRIVATE physics2d)
     target_link_libraries(physics_core_header_smoke PRIVATE physics_kernel physics_runtime_support)
     target_link_libraries(physics_bench PRIVATE physics2d)
     target_link_libraries(physics_invariants PRIVATE physics2d)
@@ -278,12 +322,14 @@ if(BUILD_TESTS)
     physics_force_cxx_link(physics_editor_pie_lifecycle_smoke)
     physics_force_cxx_link(physics_subsystem_render_audio_animation_smoke)
     physics_force_cxx_link(physics_editor_extension_state_service_smoke)
+    physics_force_cxx_link(physics_workbench_service_smoke)
     physics_force_cxx_link(physics_core_header_smoke)
     physics_force_cxx_link(physics_bench)
     physics_force_cxx_link(physics_invariants)
     physics_enable_win32_com_cpp_compat(physics_app_runtime_smoke)
     physics_enable_win32_com_cpp_compat(physics_editor_undo_redo_smoke)
     physics_enable_win32_com_cpp_compat(physics_editor_pie_lifecycle_smoke)
+    physics_enable_win32_com_cpp_compat(physics_workbench_service_smoke)
     if(MSVC)
         target_compile_options(physics_kernel_tests PRIVATE /W4)
         target_compile_options(physics_content_tests PRIVATE /W4)
@@ -293,6 +339,7 @@ if(BUILD_TESTS)
         target_compile_options(physics_editor_pie_lifecycle_smoke PRIVATE /W4)
         target_compile_options(physics_subsystem_render_audio_animation_smoke PRIVATE /W4)
         target_compile_options(physics_editor_extension_state_service_smoke PRIVATE /W4)
+        target_compile_options(physics_workbench_service_smoke PRIVATE /W4)
         target_compile_options(physics_core_header_smoke PRIVATE /W4)
         target_compile_options(physics_bench PRIVATE /W4)
         target_compile_options(physics_invariants PRIVATE /W4)
@@ -305,6 +352,7 @@ if(BUILD_TESTS)
         target_compile_options(physics_editor_pie_lifecycle_smoke PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
         target_compile_options(physics_subsystem_render_audio_animation_smoke PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
         target_compile_options(physics_editor_extension_state_service_smoke PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
+        target_compile_options(physics_workbench_service_smoke PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
         target_compile_options(physics_core_header_smoke PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
         target_compile_options(physics_bench PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
         target_compile_options(physics_invariants PRIVATE -Wall -Wextra -Wpedantic -finput-charset=UTF-8 -fexec-charset=UTF-8)
@@ -331,6 +379,9 @@ if(BUILD_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
     set_target_properties(physics_editor_extension_state_service_smoke PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+    set_target_properties(physics_workbench_service_smoke PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
     set_target_properties(physics_core_header_smoke PROPERTIES
