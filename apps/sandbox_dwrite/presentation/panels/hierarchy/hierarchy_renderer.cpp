@@ -29,7 +29,18 @@ static float hierarchy_renderer_render_scene_section(const HierarchyRendererCont
     int row_count = 0;
     wchar_t line[128];
     float content_right = context->viewport_rect.right - 2.0f;
+    float header_width;
+    float shortcut_width = 0.0f;
+    const wchar_t* shortcut_text = 0;
     output->header_rects.scene_header_rect = hierarchy_renderer_rc(hierarchy_rect.left + 10.0f, y, hierarchy_rect.right - 10.0f, y + row_h);
+    header_width = output->header_rects.scene_header_rect.right - output->header_rects.scene_header_rect.left;
+    if (header_width >= 280.0f) {
+        shortcut_text = L"F2重命名 / F3资产GUID";
+        shortcut_width = 184.0f;
+    } else if (header_width >= 210.0f) {
+        shortcut_text = L"F2/F3";
+        shortcut_width = 56.0f;
+    }
     context->draw_tree_disclosure_icon(hierarchy_renderer_rc(output->header_rects.scene_header_rect.left + 2.0f,
                                                              output->header_rects.scene_header_rect.top + 3.0f,
                                                              output->header_rects.scene_header_rect.left + 14.0f,
@@ -38,12 +49,17 @@ static float hierarchy_renderer_render_scene_section(const HierarchyRendererCont
                                        hierarchy_renderer_rgba(0.82f, 0.87f, 0.94f, 1.0f), 1.4f);
     context->draw_text(L"场景",
                        hierarchy_renderer_rc(output->header_rects.scene_header_rect.left + 16.0f, output->header_rects.scene_header_rect.top,
-                                             output->header_rects.scene_header_rect.right, output->header_rects.scene_header_rect.bottom),
+                                             output->header_rects.scene_header_rect.right - shortcut_width,
+                                             output->header_rects.scene_header_rect.bottom),
                        context->fmt_mono, hierarchy_renderer_rgba(0.82f, 0.87f, 0.94f, 1.0f));
-    context->draw_text(L"F2重命名 / F3资产GUID",
-                       hierarchy_renderer_rc(output->header_rects.scene_header_rect.right - 190.0f, output->header_rects.scene_header_rect.top,
-                                             output->header_rects.scene_header_rect.right - 6.0f, output->header_rects.scene_header_rect.bottom),
-                       context->fmt_info, hierarchy_renderer_rgba(0.63f, 0.72f, 0.84f, 1.0f));
+    if (shortcut_text != 0) {
+        context->draw_text(shortcut_text,
+                           hierarchy_renderer_rc(output->header_rects.scene_header_rect.right - shortcut_width,
+                                                 output->header_rects.scene_header_rect.top,
+                                                 output->header_rects.scene_header_rect.right - 6.0f,
+                                                 output->header_rects.scene_header_rect.bottom),
+                           context->fmt_info, hierarchy_renderer_rgba(0.63f, 0.72f, 0.84f, 1.0f));
+    }
     y += row_h;
     output->scene_count = 0;
     if (!context->state->tree_scene_expanded) return y;

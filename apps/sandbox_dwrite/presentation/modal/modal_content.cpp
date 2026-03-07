@@ -33,7 +33,7 @@ void help_modal_content_render(
         callbacks->draw_text(L"构建: DirectWrite + 自研物理内核", modal_content_rect(modal_rect.left + 22.0f, modal_rect.top + 164.0f, modal_rect.right - 24.0f, modal_rect.top + 194.0f), fmt_mono, D2D1::ColorF(0.74f, 0.81f, 0.90f, 1.0f));
     } else {
         callbacks->draw_text(L"使用说明", modal_content_rect(modal_rect.left + 18.0f, modal_rect.top + 14.0f, modal_rect.right - 60.0f, modal_rect.top + 46.0f), fmt_title, D2D1::ColorF(0.88f, 0.92f, 0.97f, 1.0f));
-        callbacks->draw_text(L"1) 场景: F1~F9切换；F2/双击重命名；F3编辑资产GUID；Alt+Up/Down排序", modal_content_rect(modal_rect.left + 22.0f, modal_rect.top + 72.0f, modal_rect.right - 24.0f, modal_rect.top + 102.0f), fmt_mono, D2D1::ColorF(0.74f, 0.81f, 0.90f, 1.0f));
+        callbacks->draw_text(L"1) 场景: Ctrl+F1~Ctrl+F9切换；[/]前后切换；F2/双击重命名；F3编辑资产GUID", modal_content_rect(modal_rect.left + 22.0f, modal_rect.top + 72.0f, modal_rect.right - 24.0f, modal_rect.top + 102.0f), fmt_mono, D2D1::ColorF(0.74f, 0.81f, 0.90f, 1.0f));
         callbacks->draw_text(L"2) PIE: Space进入/运行/暂停  N单步  Esc退出回滚  R重置场景", modal_content_rect(modal_rect.left + 22.0f, modal_rect.top + 102.0f, modal_rect.right - 24.0f, modal_rect.top + 132.0f), fmt_mono, D2D1::ColorF(0.74f, 0.81f, 0.90f, 1.0f));
         callbacks->draw_text(L"3) 文件/编辑: Ctrl+S保存 Ctrl+O加载 Ctrl+C复制 Ctrl+V粘贴", modal_content_rect(modal_rect.left + 22.0f, modal_rect.top + 132.0f, modal_rect.right - 24.0f, modal_rect.top + 162.0f), fmt_mono, D2D1::ColorF(0.74f, 0.81f, 0.90f, 1.0f));
         callbacks->draw_text(L"4) 创建与删除: 1生成圆 2生成方块 Delete删除选中", modal_content_rect(modal_rect.left + 22.0f, modal_rect.top + 162.0f, modal_rect.right - 24.0f, modal_rect.top + 192.0f), fmt_mono, D2D1::ColorF(0.74f, 0.81f, 0.90f, 1.0f));

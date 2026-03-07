@@ -5700,7 +5700,7 @@ static void app_cmd_step_once(void* user) {
 static void app_cmd_reset_scene(void* user) {
     (void)user;
     if (pie_runtime_active()) {
-        push_console_log(L"[PIE] 运行中禁止重置场景，请先按 Esc 退出");
+        push_console_log(L"[PIE] 会话中禁止重置场景，请先按 Esc 退出");
         return;
     }
     apply_scene(g_state.scene_index);
@@ -6017,7 +6017,7 @@ static int handle_ctrl_shortcuts_keydown(HWND hwnd, WPARAM wparam) {
     UiIntent intent{};
     if (!ctrl_down) return 0;
     if (pie_runtime_active() && wparam == 'O') {
-        push_console_log(L"[PIE] 运行中禁止加载快照，请先按 Esc 退出");
+        push_console_log(L"[PIE] 会话中禁止加载快照，请先按 Esc 退出");
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
@@ -6122,6 +6122,7 @@ static int handle_open_menu_keydown(HWND hwnd, WPARAM wparam) {
 }
 
 static int handle_modal_keydown(HWND hwnd, WPARAM wparam) {
+    if (!(g_state.show_config_modal || g_state.show_help_modal)) return 0;
     if (wparam == VK_ESCAPE) {
         g_state.open_menu_id = 0;
         g_state.show_config_modal = 0;
@@ -6658,7 +6659,7 @@ static int handle_tree_and_search_lbuttondown(HWND hwnd) {
     for (idx = 0; idx < g_explorer_scene_count && point_in_rect(g_state.mouse_screen, g_hierarchy_viewport_rect); idx++) {
         if (point_in_rect(g_state.mouse_screen, g_explorer_scene_rect[idx])) {
             if (pie_runtime_active()) {
-                push_console_log(L"[PIE] 运行中禁止切换场景，请先按 Esc 退出");
+                push_console_log(L"[PIE] 会话中禁止切换场景，请先按 Esc 退出");
                 InvalidateRect(hwnd, NULL, FALSE);
                 return 1;
             }
@@ -6875,9 +6876,10 @@ static int handle_keydown_scene_switch(WPARAM wparam) {
     int changed = 0;
     int scene_index = 0;
     int scene_step = 0;
-    if (input_try_map_scene_index((unsigned int)wparam, &scene_index)) {
+    int ctrl_down = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+    if (ctrl_down && input_try_map_scene_index((unsigned int)wparam, &scene_index)) {
         if (pie_runtime_active()) {
-            push_console_log(L"[PIE] 运行中禁止切换场景，请先按 Esc 退出");
+            push_console_log(L"[PIE] 会话中禁止切换场景，请先按 Esc 退出");
             return 1;
         }
         apply_scene(scene_index);
@@ -6885,7 +6887,7 @@ static int handle_keydown_scene_switch(WPARAM wparam) {
     }
     if (input_try_map_scene_step((unsigned int)wparam, &scene_step)) {
         if (pie_runtime_active()) {
-            push_console_log(L"[PIE] 运行中禁止切换场景，请先按 Esc 退出");
+            push_console_log(L"[PIE] 会话中禁止切换场景，请先按 Esc 退出");
             return 1;
         }
         apply_scene((g_state.scene_index + scene_step + SCENE_COUNT) % SCENE_COUNT);
@@ -6903,7 +6905,7 @@ static int handle_keydown_scene_reorder(HWND hwnd, WPARAM wparam) {
     if (wparam != VK_UP && wparam != VK_DOWN && wparam != VK_HOME) return 0;
     if (g_state.keyboard_focus_area != 1) return 1;
     if (pie_runtime_active()) {
-        push_console_log(L"[PIE] 运行中禁止调整场景顺序，请先按 Esc 退出");
+        push_console_log(L"[PIE] 会话中禁止调整场景顺序，请先按 Esc 退出");
         return 1;
     }
     if (g_state.selected != NULL || selected_constraint_ref() != NULL) return 1;
@@ -7108,7 +7110,7 @@ static int handle_lbuttondblclk(HWND hwnd) {
     for (idx = 0; idx < g_explorer_scene_count && point_in_rect(g_state.mouse_screen, g_hierarchy_viewport_rect); idx++) {
         if (point_in_rect(g_state.mouse_screen, g_explorer_scene_rect[idx])) {
             if (pie_runtime_active()) {
-                push_console_log(L"[PIE] 运行中禁止重命名场景，请先按 Esc 退出");
+                push_console_log(L"[PIE] 会话中禁止重命名场景，请先按 Esc 退出");
                 InvalidateRect(hwnd, NULL, FALSE);
                 return 1;
             }
@@ -7139,14 +7141,15 @@ static int handle_lbuttondblclk(HWND hwnd) {
 }
 
 static int handle_keydown(HWND hwnd, WPARAM wparam) {
+    int ctrl_down = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
     if (handle_ctrl_shortcuts_keydown(hwnd, wparam)) return 1;
     if (handle_value_input_keydown(hwnd, wparam)) return 1;
     if (handle_open_menu_keydown(hwnd, wparam)) return 1;
     if (handle_modal_keydown(hwnd, wparam)) return 1;
     if (handle_keydown_scene_reorder(hwnd, wparam)) return 1;
-    if (wparam == VK_F2 && g_state.keyboard_focus_area == 1) {
+    if (!ctrl_down && wparam == VK_F2 && g_state.keyboard_focus_area == 1) {
         if (pie_runtime_active()) {
-            push_console_log(L"[PIE] 运行中禁止重命名场景，请先按 Esc 退出");
+            push_console_log(L"[PIE] 会话中禁止重命名场景，请先按 Esc 退出");
             InvalidateRect(hwnd, NULL, FALSE);
             return 1;
         }
@@ -7154,9 +7157,9 @@ static int handle_keydown(HWND hwnd, WPARAM wparam) {
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
-    if (wparam == VK_F3 && g_state.keyboard_focus_area == 1) {
+    if (!ctrl_down && wparam == VK_F3 && g_state.keyboard_focus_area == 1) {
         if (pie_runtime_active()) {
-            push_console_log(L"[PIE] 运行中禁止编辑场景资产引用，请先按 Esc 退出");
+            push_console_log(L"[PIE] 会话中禁止编辑场景资产引用，请先按 Esc 退出");
             InvalidateRect(hwnd, NULL, FALSE);
             return 1;
         }
