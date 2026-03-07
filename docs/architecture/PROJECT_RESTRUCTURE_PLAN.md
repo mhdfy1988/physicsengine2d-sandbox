@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document proposes a repository-wide structure cleanup for `simple_project`.
+This document proposes a repository-wide structure cleanup for `Forge2D`.
 
 The goal is not to redesign the engine architecture from scratch. The goal is to make the current architecture easier to read, maintain, and extend by aligning directory layout with actual module boundaries that already exist in the codebase.
 
@@ -39,7 +39,7 @@ And sample-project content should live under an explicit project root rather tha
 Recommended model:
 
 ```text
-simple_project/
+Forge2D/
 鈹溾攢 apps/
 鈹溾攢 src/
 鈹溾攢 include/
@@ -153,7 +153,7 @@ These should be grouped by purpose.
 The following target structure is recommended.
 
 ```text
-simple_project/
+Forge2D/
 鈹溾攢 .github/
 鈹溾攢 apps/
 鈹? 鈹溾攢 runtime_cli/

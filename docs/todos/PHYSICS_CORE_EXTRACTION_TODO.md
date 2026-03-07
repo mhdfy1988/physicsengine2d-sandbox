@@ -67,7 +67,7 @@ They do not assert that the pure physics core stays free of content/project/edit
 
 ### Follow-up Direction
 
-Extend [check_arch_deps.ps1](/d:/C_Project/simple_project/scripts/check/check_arch_deps.ps1) to enforce:
+Extend [check_arch_deps.ps1](/d:/C_Project/Forge2D/scripts/check/check_arch_deps.ps1) to enforce:
 
 1. `src/physics2d/*`, `src/core/*`, `src/c_api/*` must not depend on:
    - `src/content/*`

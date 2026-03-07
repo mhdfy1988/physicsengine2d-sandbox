@@ -3,7 +3,7 @@
 ## Overview
 
 ```text
-simple_project/
+Forge2D/
 |-- .github/
 |   `-- workflows/
 |       `-- regression.yml

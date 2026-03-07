@@ -28,7 +28,7 @@
 推荐的长期目标结构如下：
 
 ```text
-simple_project/
+Forge2D/
 ├─ .github/
 ├─ apps/
 │  ├─ runtime_cli/
