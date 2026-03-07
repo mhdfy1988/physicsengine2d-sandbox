@@ -21,3 +21,4 @@ history_*.txt
 spawn_trace.log
 sandbox_ui.ini
 assets/hot_reload_smoke/
+samples/physics_sandbox_project/ProjectSettings/editor_session.physicssession
