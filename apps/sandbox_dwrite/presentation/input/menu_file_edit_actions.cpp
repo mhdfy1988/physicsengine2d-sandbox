@@ -11,20 +11,27 @@ int menu_file_edit_execute(int menu_id, int item_idx, const MenuFileEditOps* ops
     if (ops == NULL) return 0;
     if (menu_id == 1) {
         if (item_idx == 0) {
-            if (ops->save_snapshot != NULL && ops->save_snapshot("scene_snapshot.txt", ops->user)) log_text(ops, L"[文件] 已保存 scene_snapshot.txt");
-            else log_text(ops, L"[错误] 保存 scene_snapshot.txt 失败");
+            if (ops->new_project != NULL) ops->new_project(ops->user);
         } else if (item_idx == 1) {
-            if (ops->load_snapshot != NULL && ops->load_snapshot("scene_snapshot.txt", ops->user)) {
-                if (ops->history_reset != NULL) ops->history_reset(ops->user);
-                log_text(ops, L"[文件] 已加载 scene_snapshot.txt");
-            } else log_text(ops, L"[错误] 加载 scene_snapshot.txt 失败");
+            if (ops->open_project != NULL) ops->open_project(ops->user);
         } else if (item_idx == 2) {
-            if (ops->load_snapshot != NULL && ops->load_snapshot("autosave_snapshot.txt", ops->user)) {
-                if (ops->history_reset != NULL) ops->history_reset(ops->user);
-                log_text(ops, L"[文件] 已恢复 autosave_snapshot.txt");
-            } else log_text(ops, L"[错误] 恢复 autosave_snapshot.txt 失败");
-        } else if (item_idx == 3 && ops->draw_constraints != NULL) {
-            *ops->draw_constraints = !(*ops->draw_constraints);
+            if (ops->new_scene != NULL) ops->new_scene(ops->user);
+        } else if (item_idx == 3) {
+            if (ops->save_scene != NULL && ops->save_scene("scene_snapshot.txt", ops->user)) log_text(ops, L"[文件] 已保存 scene_snapshot.txt");
+            else log_text(ops, L"[错误] 保存 scene_snapshot.txt 失败");
+        } else if (item_idx == 4) {
+            if (ops->save_scene_as != NULL && ops->save_scene_as("scene_snapshot_copy.txt", ops->user)) log_text(ops, L"[文件] 已另存为 scene_snapshot_copy.txt");
+            else log_text(ops, L"[提示] 另存为暂未实现");
+        } else if (item_idx == 5) {
+            if (ops->layout_settings != NULL) ops->layout_settings(ops->user);
+        } else if (item_idx == 6) {
+            if (ops->open_preferences != NULL) ops->open_preferences(ops->user);
+        } else if (item_idx == 7) {
+            if (ops->open_shortcuts != NULL) ops->open_shortcuts(ops->user);
+        } else if (item_idx == 8) {
+            if (ops->close_window != NULL) ops->close_window(ops->user);
+        } else if (item_idx == 9) {
+            if (ops->quit_app != NULL) ops->quit_app(ops->user);
         }
         return 1;
     }

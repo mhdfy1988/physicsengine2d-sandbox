@@ -2,6 +2,16 @@
 #define MENU_FILE_EDIT_ACTIONS_H
 
 typedef struct {
+    void (*new_project)(void* user);
+    void (*open_project)(void* user);
+    void (*new_scene)(void* user);
+    int (*save_scene)(const char* path, void* user);
+    int (*save_scene_as)(const char* path, void* user);
+    void (*layout_settings)(void* user);
+    void (*open_preferences)(void* user);
+    void (*open_shortcuts)(void* user);
+    void (*close_window)(void* user);
+    void (*quit_app)(void* user);
     int (*save_snapshot)(const char* path, void* user);
     int (*load_snapshot)(const char* path, void* user);
     void (*history_reset)(void* user);

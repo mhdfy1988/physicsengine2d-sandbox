@@ -186,6 +186,37 @@ typedef struct {
 } HotReloadHistoryEntry;
 
 typedef struct {
+    unsigned int key;
+    int ctrl;
+    int shift;
+    int alt;
+} ShortcutBinding;
+
+typedef enum {
+    SHORTCUT_NEW_SCENE = 0,
+    SHORTCUT_SAVE_SCENE,
+    SHORTCUT_SAVE_SCENE_AS,
+    SHORTCUT_QUIT_APP,
+    SHORTCUT_UNDO,
+    SHORTCUT_REDO,
+    SHORTCUT_COPY,
+    SHORTCUT_PASTE,
+    SHORTCUT_RUN_PAUSE,
+    SHORTCUT_STEP_ONCE,
+    SHORTCUT_RESET_SCENE,
+    SHORTCUT_PREV_SCENE,
+    SHORTCUT_NEXT_SCENE,
+    SHORTCUT_RENAME_SCENE,
+    SHORTCUT_EDIT_SCENE_GUID,
+    SHORTCUT_NEXT_LAYOUT_PRESET,
+    SHORTCUT_TOGGLE_LEFT_PANEL,
+    SHORTCUT_TOGGLE_RIGHT_PANEL,
+    SHORTCUT_TOGGLE_BOTTOM_PANEL,
+    SHORTCUT_TOGGLE_THEME_LIGHT,
+    SHORTCUT_ACTION_COUNT
+} ShortcutActionId;
+
+typedef struct {
     PhysicsEngine* engine;
     SceneConfig scenes[SCENE_COUNT];
     wchar_t scene_names[SCENE_COUNT][SCENE_NAME_MAX];
@@ -215,6 +246,10 @@ typedef struct {
     int value_input_caret;
     int open_menu_id;
     int open_menu_focus_index;
+    int open_submenu_id;
+    ShortcutBinding shortcuts[SHORTCUT_ACTION_COUNT];
+    int shortcut_modal_focus_index;
+    int shortcut_modal_capture_index;
     int bottom_panel_collapsed;
     int bottom_active_tab;
     int ui_show_left_panel;
@@ -344,6 +379,7 @@ enum { INSPECTOR_MAX_ROWS = 12 };
 enum { RUNTIME_HISTORY_ROWS_MAX = 3 };
 enum { DEBUG_HISTORY_CAP = 8 };
 enum { DEBUG_HISTORY_ROWS_MAX = 4 };
+enum { SHORTCUT_ROWS_MAX = 24 };
 enum { HOT_RELOAD_SCAN_INTERVAL_MS = 250 };
 enum { HOT_RELOAD_DISCOVER_INTERVAL_MS = 3000 };
 enum { HOT_RELOAD_DEBOUNCE_MS = 180 };
@@ -392,9 +428,13 @@ typedef struct {
     D2D1_RECT_F win_max_rect;
     D2D1_RECT_F win_close_rect;
     D2D1_RECT_F menu_dropdown_rect;
-    D2D1_RECT_F menu_item_rect[8];
-    int menu_item_enabled[8];
+    D2D1_RECT_F menu_item_rect[MENU_MODEL_MAX_ITEMS];
+    int menu_item_enabled[MENU_MODEL_MAX_ITEMS];
     int menu_item_count;
+    D2D1_RECT_F submenu_dropdown_rect;
+    D2D1_RECT_F submenu_item_rect[MENU_MODEL_MAX_ITEMS];
+    int submenu_item_enabled[MENU_MODEL_MAX_ITEMS];
+    int submenu_item_count;
     D2D1_RECT_F explorer_scene_rect[EXPLORER_SCENE_MAX_ITEMS];
     int explorer_scene_index[EXPLORER_SCENE_MAX_ITEMS];
     int explorer_scene_count;
@@ -457,6 +497,8 @@ typedef struct {
     D2D1_RECT_F dbg_runtime_state_row_rect[RUNTIME_HISTORY_ROWS_MAX];
     int dbg_runtime_state_row_entry_index[RUNTIME_HISTORY_ROWS_MAX];
     int dbg_runtime_state_row_count;
+    D2D1_RECT_F shortcut_row_rect[SHORTCUT_ROWS_MAX];
+    int shortcut_row_count;
     int log_scroll_max;
     D2D1_RECT_F splitter_left_rect;
     D2D1_RECT_F splitter_right_rect;
@@ -505,6 +547,10 @@ static UiLayoutState g_layout{};
 #define g_menu_item_rect g_layout.menu_item_rect
 #define g_menu_item_enabled g_layout.menu_item_enabled
 #define g_menu_item_count g_layout.menu_item_count
+#define g_submenu_dropdown_rect g_layout.submenu_dropdown_rect
+#define g_submenu_item_rect g_layout.submenu_item_rect
+#define g_submenu_item_enabled g_layout.submenu_item_enabled
+#define g_submenu_item_count g_layout.submenu_item_count
 #define g_explorer_scene_rect g_layout.explorer_scene_rect
 #define g_explorer_scene_index g_layout.explorer_scene_index
 #define g_explorer_scene_count g_layout.explorer_scene_count
@@ -638,6 +684,7 @@ static PieLifecycleOps pie_lifecycle_ops(void);
 static int pie_enter_session(void);
 static int pie_exit_session(void);
 static int pie_runtime_active(void);
+static int handle_modal_keydown(HWND hwnd, WPARAM wparam);
 static int body_index_of(const PhysicsEngine* engine, const RigidBody* b);
 static void clear_collision_events(void);
 static void push_collision_event(int body_a_index, int body_b_index, Vec2 point, float rel_speed, float penetration);
@@ -1458,11 +1505,75 @@ static void menu_cb_save_layout(void* user) {
     dispatch_ui_intent(&intent);
 }
 
+static void menu_cb_new_project(void* user) {
+    (void)user;
+    push_console_log(L"[文件] 新建项目暂未实现");
+}
+
+static void menu_cb_open_project(void* user) {
+    (void)user;
+    push_console_log(L"[文件] 打开项目暂未实现");
+}
+
+static void menu_cb_new_scene(void* user) {
+    (void)user;
+    push_console_log(L"[文件] 新建场景暂未实现");
+}
+
+static int menu_cb_save_scene(const char* path, void* user) {
+    (void)user;
+    return save_scene_snapshot(path);
+}
+
+static int menu_cb_save_scene_as(const char* path, void* user) {
+    (void)user;
+    return save_scene_snapshot(path);
+}
+
+static void menu_cb_layout_settings(void* user) {
+    (void)user;
+    push_console_log(L"[文件] 布局设置暂未实现，可先使用窗口菜单切换布局");
+}
+
+static void menu_cb_open_preferences(void* user) {
+    (void)user;
+    g_state.show_config_modal = 1;
+    g_state.show_help_modal = 0;
+}
+
+static void menu_cb_open_shortcuts(void* user) {
+    (void)user;
+    g_state.show_help_modal = 1;
+    g_state.show_config_modal = 0;
+    g_state.help_modal_page = 3;
+    g_state.shortcut_modal_capture_index = -1;
+    g_state.shortcut_modal_focus_index = 0;
+}
+
+static void menu_cb_close_window(void* user) {
+    HWND hwnd = (HWND)user;
+    if (hwnd != NULL) SendMessageW(hwnd, WM_CLOSE, 0, 0);
+}
+
+static void menu_cb_quit_app(void* user) {
+    HWND hwnd = (HWND)user;
+    if (hwnd != NULL) SendMessageW(hwnd, WM_CLOSE, 0, 0);
+}
+
 static void execute_menu_action(HWND hwnd, int menu_id, int item_idx) {
-    (void)hwnd;
     MenuFileEditOps fe_ops;
     MenuViewPhysicsWindowOps vpw_ops;
     MenuHelpOps help_ops;
+    fe_ops.new_project = menu_cb_new_project;
+    fe_ops.open_project = menu_cb_open_project;
+    fe_ops.new_scene = menu_cb_new_scene;
+    fe_ops.save_scene = menu_cb_save_scene;
+    fe_ops.save_scene_as = menu_cb_save_scene_as;
+    fe_ops.layout_settings = menu_cb_layout_settings;
+    fe_ops.open_preferences = menu_cb_open_preferences;
+    fe_ops.open_shortcuts = menu_cb_open_shortcuts;
+    fe_ops.close_window = menu_cb_close_window;
+    fe_ops.quit_app = menu_cb_quit_app;
     fe_ops.save_snapshot = menu_cb_save_snapshot;
     fe_ops.load_snapshot = menu_cb_load_snapshot;
     fe_ops.history_reset = menu_cb_history_reset;
@@ -1476,7 +1587,7 @@ static void execute_menu_action(HWND hwnd, int menu_id, int item_idx) {
     fe_ops.clear_logs = menu_cb_clear_logs;
     fe_ops.log_text = menu_cb_log_text;
     fe_ops.draw_constraints = &g_state.draw_constraints;
-    fe_ops.user = NULL;
+    fe_ops.user = hwnd;
     if (menu_file_edit_execute(menu_id, item_idx, &fe_ops)) {
         return;
     }
@@ -1507,7 +1618,173 @@ static void execute_menu_action(HWND hwnd, int menu_id, int item_idx) {
     }
 }
 
+static const wchar_t* shortcut_action_name(ShortcutActionId action) {
+    switch (action) {
+        case SHORTCUT_NEW_SCENE: return L"新建场景";
+        case SHORTCUT_SAVE_SCENE: return L"保存场景";
+        case SHORTCUT_SAVE_SCENE_AS: return L"另存为";
+        case SHORTCUT_QUIT_APP: return L"退出";
+        case SHORTCUT_UNDO: return L"撤销";
+        case SHORTCUT_REDO: return L"重做";
+        case SHORTCUT_COPY: return L"复制对象";
+        case SHORTCUT_PASTE: return L"粘贴对象";
+        case SHORTCUT_RUN_PAUSE: return L"运行/暂停";
+        case SHORTCUT_STEP_ONCE: return L"单步";
+        case SHORTCUT_RESET_SCENE: return L"重置场景";
+        case SHORTCUT_PREV_SCENE: return L"上一场景";
+        case SHORTCUT_NEXT_SCENE: return L"下一场景";
+        case SHORTCUT_RENAME_SCENE: return L"重命名场景";
+        case SHORTCUT_EDIT_SCENE_GUID: return L"编辑场景资产GUID";
+        case SHORTCUT_NEXT_LAYOUT_PRESET: return L"切换布局预设";
+        case SHORTCUT_TOGGLE_LEFT_PANEL: return L"显示左侧栏";
+        case SHORTCUT_TOGGLE_RIGHT_PANEL: return L"显示右侧栏";
+        case SHORTCUT_TOGGLE_BOTTOM_PANEL: return L"显示底部栏";
+        case SHORTCUT_TOGGLE_THEME_LIGHT: return L"切换浅色主题";
+        default: return L"";
+    }
+}
+
+static void shortcut_set_default_bindings(void) {
+    ZeroMemory(g_state.shortcuts, sizeof(g_state.shortcuts));
+    g_state.shortcuts[SHORTCUT_NEW_SCENE] = { 'N', 1, 0, 0 };
+    g_state.shortcuts[SHORTCUT_SAVE_SCENE] = { 'S', 1, 0, 0 };
+    g_state.shortcuts[SHORTCUT_SAVE_SCENE_AS] = { 'S', 1, 1, 0 };
+    g_state.shortcuts[SHORTCUT_QUIT_APP] = { 'Q', 1, 0, 0 };
+    g_state.shortcuts[SHORTCUT_UNDO] = { 'Z', 1, 0, 0 };
+    g_state.shortcuts[SHORTCUT_REDO] = { 'Y', 1, 0, 0 };
+    g_state.shortcuts[SHORTCUT_COPY] = { 'C', 1, 0, 0 };
+    g_state.shortcuts[SHORTCUT_PASTE] = { 'V', 1, 0, 0 };
+    g_state.shortcuts[SHORTCUT_RUN_PAUSE] = { VK_SPACE, 0, 0, 0 };
+    g_state.shortcuts[SHORTCUT_STEP_ONCE] = { 'N', 0, 0, 0 };
+    g_state.shortcuts[SHORTCUT_RESET_SCENE] = { 'R', 0, 0, 0 };
+    g_state.shortcuts[SHORTCUT_PREV_SCENE] = { VK_OEM_4, 0, 0, 0 };
+    g_state.shortcuts[SHORTCUT_NEXT_SCENE] = { VK_OEM_6, 0, 0, 0 };
+    g_state.shortcuts[SHORTCUT_RENAME_SCENE] = { VK_F2, 0, 0, 0 };
+    g_state.shortcuts[SHORTCUT_EDIT_SCENE_GUID] = { VK_F3, 0, 0, 0 };
+    g_state.shortcuts[SHORTCUT_NEXT_LAYOUT_PRESET] = { VK_F11, 0, 0, 0 };
+    g_state.shortcuts[SHORTCUT_TOGGLE_LEFT_PANEL] = { '1', 0, 0, 1 };
+    g_state.shortcuts[SHORTCUT_TOGGLE_RIGHT_PANEL] = { '2', 0, 0, 1 };
+    g_state.shortcuts[SHORTCUT_TOGGLE_BOTTOM_PANEL] = { '3', 0, 0, 1 };
+    g_state.shortcuts[SHORTCUT_TOGGLE_THEME_LIGHT] = { 'T', 0, 0, 1 };
+}
+
+static int shortcut_current_ctrl(void) { return (GetKeyState(VK_CONTROL) & 0x8000) != 0; }
+static int shortcut_current_shift(void) { return (GetKeyState(VK_SHIFT) & 0x8000) != 0; }
+static int shortcut_current_alt(void) { return (GetKeyState(VK_MENU) & 0x8000) != 0; }
+
+static int shortcut_matches(ShortcutActionId action, WPARAM wparam) {
+    const ShortcutBinding* b = &g_state.shortcuts[action];
+    if (b->key == 0) return 0;
+    return b->key == (unsigned int)wparam &&
+           b->ctrl == shortcut_current_ctrl() &&
+           b->shift == shortcut_current_shift() &&
+           b->alt == shortcut_current_alt();
+}
+
+static void shortcut_key_name(unsigned int key, wchar_t* out, int cap) {
+    if (out == NULL || cap <= 0) return;
+    out[0] = L'\0';
+    if (key >= 'A' && key <= 'Z') { swprintf(out, cap, L"%lc", (wchar_t)key); return; }
+    if (key >= '0' && key <= '9') { swprintf(out, cap, L"%lc", (wchar_t)key); return; }
+    if (key >= VK_F1 && key <= VK_F24) { swprintf(out, cap, L"F%u", (unsigned int)(key - VK_F1 + 1)); return; }
+    if (key == VK_SPACE) { lstrcpynW(out, L"Space", cap); return; }
+    if (key == VK_OEM_4) { lstrcpynW(out, L"[", cap); return; }
+    if (key == VK_OEM_6) { lstrcpynW(out, L"]", cap); return; }
+    if (key == VK_DELETE) { lstrcpynW(out, L"Delete", cap); return; }
+    if (key == VK_RETURN) { lstrcpynW(out, L"Enter", cap); return; }
+    if (key == VK_TAB) { lstrcpynW(out, L"Tab", cap); return; }
+    if (key == VK_ESCAPE) { lstrcpynW(out, L"Esc", cap); return; }
+    swprintf(out, cap, L"VK_%u", key);
+}
+
+static void shortcut_binding_text(ShortcutActionId action, wchar_t* out, int cap) {
+    wchar_t key_name[32];
+    const ShortcutBinding* b = &g_state.shortcuts[action];
+    if (out == NULL || cap <= 0) return;
+    if (b->key == 0) {
+        lstrcpynW(out, L"(未绑定)", cap);
+        return;
+    }
+    shortcut_key_name(b->key, key_name, 32);
+    out[0] = L'\0';
+    if (b->ctrl) lstrcatW(out, L"Ctrl+");
+    if (b->shift) lstrcatW(out, L"Shift+");
+    if (b->alt) lstrcatW(out, L"Alt+");
+    lstrcatW(out, key_name);
+}
+
+static void shortcut_clear_duplicates(ShortcutActionId keep_action) {
+    int i;
+    ShortcutBinding keep = g_state.shortcuts[keep_action];
+    for (i = 0; i < SHORTCUT_ACTION_COUNT; i++) {
+        if (i == keep_action) continue;
+        if (g_state.shortcuts[i].key == keep.key &&
+            g_state.shortcuts[i].ctrl == keep.ctrl &&
+            g_state.shortcuts[i].shift == keep.shift &&
+            g_state.shortcuts[i].alt == keep.alt) {
+            ZeroMemory(&g_state.shortcuts[i], sizeof(g_state.shortcuts[i]));
+        }
+    }
+}
+
+static int shortcut_assign_key(ShortcutActionId action, WPARAM wparam) {
+    if (wparam == VK_CONTROL || wparam == VK_SHIFT || wparam == VK_MENU) return 0;
+    g_state.shortcuts[action].key = (unsigned int)wparam;
+    g_state.shortcuts[action].ctrl = shortcut_current_ctrl();
+    g_state.shortcuts[action].shift = shortcut_current_shift();
+    g_state.shortcuts[action].alt = shortcut_current_alt();
+    shortcut_clear_duplicates(action);
+    return 1;
+}
+
+static void shortcut_clear_binding(ShortcutActionId action) {
+    ZeroMemory(&g_state.shortcuts[action], sizeof(g_state.shortcuts[action]));
+}
+
+static int shortcut_action_for_menu_item(int menu_id, int item_idx, ShortcutActionId* out_action) {
+    if (out_action == NULL) return 0;
+    if (menu_id == 1) {
+        if (item_idx == 2) { *out_action = SHORTCUT_NEW_SCENE; return 1; }
+        if (item_idx == 3) { *out_action = SHORTCUT_SAVE_SCENE; return 1; }
+        if (item_idx == 4) { *out_action = SHORTCUT_SAVE_SCENE_AS; return 1; }
+        if (item_idx == 9) { *out_action = SHORTCUT_QUIT_APP; return 1; }
+    }
+    if (menu_id == 2) {
+        if (item_idx == 0) { *out_action = SHORTCUT_UNDO; return 1; }
+        if (item_idx == 1) { *out_action = SHORTCUT_REDO; return 1; }
+        if (item_idx == 2) { *out_action = SHORTCUT_COPY; return 1; }
+        if (item_idx == 3) { *out_action = SHORTCUT_PASTE; return 1; }
+    }
+    if (menu_id == 5) {
+        if (item_idx == 0) { *out_action = SHORTCUT_RUN_PAUSE; return 1; }
+        if (item_idx == 1) { *out_action = SHORTCUT_STEP_ONCE; return 1; }
+        if (item_idx == 2) { *out_action = SHORTCUT_RESET_SCENE; return 1; }
+    }
+    if (menu_id == 8) {
+        if (item_idx == 0) { *out_action = SHORTCUT_NEXT_LAYOUT_PRESET; return 1; }
+        if (item_idx == 1) { *out_action = SHORTCUT_TOGGLE_LEFT_PANEL; return 1; }
+        if (item_idx == 2) { *out_action = SHORTCUT_TOGGLE_RIGHT_PANEL; return 1; }
+        if (item_idx == 3) { *out_action = SHORTCUT_TOGGLE_BOTTOM_PANEL; return 1; }
+        if (item_idx == 5) { *out_action = SHORTCUT_TOGGLE_THEME_LIGHT; return 1; }
+    }
+    return 0;
+}
+
+static const wchar_t* menu_shortcut_dynamic_label(int menu_id, int item_idx) {
+    static wchar_t labels[4][32];
+    static int next_slot = 0;
+    ShortcutActionId action;
+    wchar_t* out;
+    if (!shortcut_action_for_menu_item(menu_id, item_idx, &action)) return 0;
+    out = labels[next_slot];
+    next_slot = (next_slot + 1) % 4;
+    shortcut_binding_text(action, out, 32);
+    return out;
+}
+
 static const wchar_t* menu_shortcut_text(int menu_id, int item_idx) {
+    const wchar_t* dynamic = menu_shortcut_dynamic_label(menu_id, item_idx);
+    if (dynamic != 0) return dynamic;
     return menu_model_shortcut_text(menu_id, item_idx);
 }
 
@@ -4913,7 +5190,7 @@ static HierarchyStats compute_hierarchy_stats(void) {
 }
 
 static void render_menu_bar_and_window_controls(D2D1_RECT_F menu_rect, int is_zoomed) {
-    static const wchar_t* menu_items[] = {L"文件", L"编辑", L"查看", L"调试", L"窗口", L"帮助"};
+        static const wchar_t* menu_items[] = {L"文件", L"编辑", L"查看", L"调试", L"帮助"};
     int mi;
     float menu_item_gap = 4.0f;
     float menu_item_w = 56.0f;
@@ -4941,7 +5218,7 @@ static void render_menu_bar_and_window_controls(D2D1_RECT_F menu_rect, int is_zo
     g_win_max_rect = rc(g_win_close_rect.left - btn_w - 4.0f, btn_y, g_win_close_rect.left - 4.0f, btn_y + btn_h);
     g_win_min_rect = rc(g_win_max_rect.left - btn_w - 4.0f, btn_y, g_win_max_rect.left - 4.0f, btn_y + btn_h);
     g_menu_bar_drag_rect = rc(g_menu_help_word_rect.right + 8.0f, menu_rect.top + 2.0f, g_win_min_rect.left - 8.0f, menu_rect.bottom - 2.0f);
-    for (mi = 0; mi < 6; mi++) {
+    for (mi = 0; mi < 5; mi++) {
         float mw = menu_item_w;
         D2D1_RECT_F mr = rc(mx, menu_rect.top + 4.0f, mx + mw, menu_rect.bottom - 4.0f);
         D2D1_COLOR_F mc = g_state.ui_theme_light ? rgba(0.20f, 0.27f, 0.38f, 1.0f) : rgba(0.82f, 0.86f, 0.92f, 1.0f);
@@ -4949,14 +5226,13 @@ static void render_menu_bar_and_window_controls(D2D1_RECT_F menu_rect, int is_zo
         if (mi == 1) g_menu_edit_rect = mr;
         if (mi == 2) g_menu_view_rect = mr;
         if (mi == 3) g_menu_physics_rect = mr;
-        if (mi == 4) g_menu_window_rect = mr;
-        if (mi == 5) {
+        if (mi == 4) {
             g_menu_help_word_rect = mr;
             if (point_in_rect(g_state.mouse_screen, mr)) {
                 mc = rgba(0.66f, 0.74f, 0.86f, 1.0f);
             }
         }
-        if (mi != 5 && point_in_rect(g_state.mouse_screen, mr)) {
+        if (mi != 4 && point_in_rect(g_state.mouse_screen, mr)) {
             mc = rgba(0.66f, 0.74f, 0.86f, 1.0f);
         }
         draw_text(menu_items[mi], mr, g_ui.fmt_info, mc);
@@ -5011,6 +5287,7 @@ static D2D1_RECT_F menu_anchor_rect(int menu_id) {
     if (menu_id == 5) return g_menu_physics_rect;
     if (menu_id == 6) return g_menu_window_rect;
     if (menu_id == 7) return g_menu_help_word_rect;
+    if (menu_id == 8) return g_menu_item_rect[5];
     return g_menu_file_rect;
 }
 
@@ -5424,7 +5701,7 @@ static void render_workspace_content(D2D1_RECT_F top_rect, float work_bottom,
 
 static void render_open_menu_dropdown(void) {
     if (g_state.open_menu_id > 0) {
-        const wchar_t* rows[8] = {0};
+        const wchar_t* rows[MENU_MODEL_MAX_ITEMS] = {0};
         int row_n = 0;
         int ri;
         MenuUiState menu_state = build_menu_ui_state();
@@ -5434,7 +5711,7 @@ static void render_open_menu_dropdown(void) {
         float shortcut_slot = 0.0f;
         float dropdown_w = 0.0f;
         row_n = menu_model_item_count_for_menu(g_state.open_menu_id);
-        for (ri = 0; ri < row_n && ri < 8; ri++) {
+        for (ri = 0; ri < row_n && ri < MENU_MODEL_MAX_ITEMS; ri++) {
             rows[ri] = menu_model_item_text(g_state.open_menu_id, ri);
         }
         anchor = menu_anchor_rect(g_state.open_menu_id);
@@ -5481,10 +5758,80 @@ static void render_open_menu_dropdown(void) {
                               enabled ? rgba(0.63f, 0.72f, 0.84f, 1.0f) : rgba(0.45f, 0.51f, 0.60f, 1.0f));
                 }
             }
+            if (g_state.open_menu_id == 1 && ri == 5) {
+                D2D1_POINT_2F a = pt(rr.right - 14.0f, rr.top + 7.0f);
+                D2D1_POINT_2F b = pt(rr.right - 8.0f, (rr.top + rr.bottom) * 0.5f);
+                D2D1_POINT_2F c = pt(rr.right - 14.0f, rr.bottom - 7.0f);
+                set_brush_color(enabled ? 0.63f : 0.45f, enabled ? 0.72f : 0.51f, enabled ? 0.84f : 0.60f, 1.0f);
+                ID2D1HwndRenderTarget_DrawLine(g_ui.target, a, b, (ID2D1Brush*)g_ui.brush, 1.4f, NULL);
+                ID2D1HwndRenderTarget_DrawLine(g_ui.target, b, c, (ID2D1Brush*)g_ui.brush, 1.4f, NULL);
+            }
+        }
+        if (g_state.open_menu_id == 1) {
+            int hover_layout_row = (row_n > 5) && point_in_rect(g_state.mouse_screen, g_menu_item_rect[5]);
+            int hover_submenu = point_in_rect(g_state.mouse_screen, g_submenu_dropdown_rect);
+            if (hover_layout_row || hover_submenu) g_state.open_submenu_id = 8;
+            else if (g_state.open_submenu_id == 8) g_state.open_submenu_id = 0;
+        }
+        if (g_state.open_submenu_id == 8 && g_state.open_menu_id == 1) {
+            const wchar_t* sub_rows[MENU_MODEL_MAX_ITEMS] = {0};
+            int sub_n = menu_model_item_count_for_menu(8);
+            float sub_max_item_w = 0.0f;
+            float sub_max_short_w = 0.0f;
+            float sub_shortcut_slot = 0.0f;
+            float sub_dropdown_w = 0.0f;
+            D2D1_RECT_F sub_anchor = g_menu_item_rect[5];
+            for (ri = 0; ri < sub_n && ri < MENU_MODEL_MAX_ITEMS; ri++) {
+                wchar_t measure_row[96];
+                const wchar_t* sk = menu_shortcut_text(8, ri);
+                float iw;
+                float sw;
+                sub_rows[ri] = menu_model_item_text(8, ri);
+                swprintf(measure_row, 96, L"%ls", sub_rows[ri]);
+                iw = measure_text_width(measure_row, g_ui.fmt_info) + 20.0f;
+                sw = measure_text_width(sk, g_ui.fmt_info);
+                if (iw > sub_max_item_w) sub_max_item_w = iw;
+                if (sw > sub_max_short_w) sub_max_short_w = sw;
+            }
+            if (sub_max_short_w > 0.0f) sub_shortcut_slot = sub_max_short_w + 16.0f;
+            sub_dropdown_w = sub_max_item_w + 24.0f + (sub_shortcut_slot > 0.0f ? (sub_shortcut_slot + 4.0f) : 0.0f);
+            if (sub_dropdown_w < 160.0f) sub_dropdown_w = 160.0f;
+            g_submenu_item_count = sub_n;
+            g_submenu_dropdown_rect = rc(sub_anchor.right + 2.0f, sub_anchor.top - 3.0f,
+                                         sub_anchor.right + 2.0f + sub_dropdown_w, sub_anchor.top - 3.0f + sub_n * 28.0f + 6.0f);
+            draw_card_round(g_submenu_dropdown_rect, 7.0f, rgba(0.15f, 0.16f, 0.20f, 1.0f), rgba(0.28f, 0.31f, 0.37f, 1.0f));
+            for (ri = 0; ri < sub_n; ri++) {
+                D2D1_RECT_F rr = rc(g_submenu_dropdown_rect.left + 4.0f, g_submenu_dropdown_rect.top + 3.0f + ri * 28.0f,
+                                    g_submenu_dropdown_rect.right - 4.0f, g_submenu_dropdown_rect.top + 3.0f + ri * 28.0f + 24.0f);
+                int enabled = menu_model_item_enabled_state(8, ri, &menu_state);
+                int checked = menu_model_item_checked_state(8, ri, &menu_state);
+                g_submenu_item_rect[ri] = rr;
+                g_submenu_item_enabled[ri] = enabled;
+                draw_card_round(rr, 5.0f,
+                                (enabled && point_in_rect(g_state.mouse_screen, rr))
+                                    ? rgba(0.25f, 0.33f, 0.45f, 1.0f)
+                                    : rgba(0.18f, 0.20f, 0.25f, 1.0f),
+                                rgba(0.30f, 0.33f, 0.40f, 1.0f));
+                if (checked) draw_menu_check_mark(rr, enabled);
+                draw_text(sub_rows[ri], rc(rr.left + 24.0f, rr.top, rr.right - (sub_shortcut_slot > 0.0f ? (sub_shortcut_slot + 10.0f) : 6.0f), rr.bottom),
+                          g_ui.fmt_info, enabled ? rgba(0.87f, 0.91f, 0.97f, 1.0f) : rgba(0.53f, 0.59f, 0.68f, 1.0f));
+                {
+                    const wchar_t* sk = menu_shortcut_text(8, ri);
+                    if (sk[0] != L'\0') {
+                        draw_text(sk, rc(rr.right - (sub_shortcut_slot + 6.0f), rr.top, rr.right - 6.0f, rr.bottom), g_ui.fmt_info,
+                                  enabled ? rgba(0.63f, 0.72f, 0.84f, 1.0f) : rgba(0.45f, 0.51f, 0.60f, 1.0f));
+                    }
+                }
+            }
+        } else {
+            g_submenu_item_count = 0;
+            g_submenu_dropdown_rect = rc(0, 0, 0, 0);
         }
     } else {
         g_menu_item_count = 0;
         g_menu_dropdown_rect = rc(0, 0, 0, 0);
+        g_submenu_item_count = 0;
+        g_submenu_dropdown_rect = rc(0, 0, 0, 0);
     }
 }
 
@@ -5559,6 +5906,40 @@ static void render_status_bar(D2D1_RECT_F status_rect) {
 }
 
 static void render_help_modal_content(D2D1_RECT_F modal) {
+    int i;
+    if (g_state.help_modal_page == 3) {
+        D2D1_RECT_F header = rc(modal.left + 20.0f, modal.top + 18.0f, modal.right - 24.0f, modal.top + 48.0f);
+        D2D1_RECT_F tip = rc(modal.left + 24.0f, modal.top + 56.0f, modal.right - 24.0f, modal.top + 84.0f);
+        D2D1_RECT_F col_name = rc(modal.left + 28.0f, modal.top + 94.0f, modal.left + 280.0f, modal.top + 118.0f);
+        D2D1_RECT_F col_key = rc(modal.right - 250.0f, modal.top + 94.0f, modal.right - 28.0f, modal.top + 118.0f);
+        float row_top = modal.top + 124.0f;
+        g_layout.shortcut_row_count = SHORTCUT_ACTION_COUNT;
+        draw_text(L"快捷键", header, g_ui.fmt_title, rgba(0.88f, 0.92f, 0.97f, 1.0f));
+        draw_text(g_state.shortcut_modal_capture_index >= 0
+                      ? L"按下新的快捷键以完成改绑，Esc 取消，Delete 清空当前绑定"
+                      : L"点击一行开始改绑。左列为操作名称，右列为当前快捷键。",
+                  tip, g_ui.fmt_info, rgba(0.66f, 0.74f, 0.84f, 1.0f));
+        draw_text(L"操作", col_name, g_ui.fmt_info, rgba(0.74f, 0.81f, 0.90f, 1.0f));
+        draw_text(L"快捷键", col_key, g_ui.fmt_info, rgba(0.74f, 0.81f, 0.90f, 1.0f));
+        for (i = 0; i < SHORTCUT_ACTION_COUNT && i < SHORTCUT_ROWS_MAX; i++) {
+            D2D1_RECT_F row = rc(modal.left + 24.0f, row_top + i * 26.0f, modal.right - 24.0f, row_top + i * 26.0f + 22.0f);
+            D2D1_RECT_F key_col = rc(row.right - 220.0f, row.top + 2.0f, row.right - 10.0f, row.bottom - 2.0f);
+            wchar_t binding[32];
+            g_layout.shortcut_row_rect[i] = row;
+            draw_card_round(row, 5.0f,
+                            i == g_state.shortcut_modal_capture_index ? rgba(0.29f, 0.37f, 0.49f, 1.0f)
+                            : (i == g_state.shortcut_modal_focus_index ? rgba(0.23f, 0.29f, 0.39f, 1.0f) : rgba(0.17f, 0.20f, 0.26f, 1.0f)),
+                            i == g_state.shortcut_modal_focus_index || i == g_state.shortcut_modal_capture_index
+                                ? rgba(0.42f, 0.54f, 0.70f, 1.0f)
+                                : rgba(0.28f, 0.33f, 0.40f, 1.0f));
+            draw_text(shortcut_action_name((ShortcutActionId)i), rc(row.left + 12.0f, row.top, key_col.left - 10.0f, row.bottom),
+                      g_ui.fmt_info, rgba(0.87f, 0.91f, 0.97f, 1.0f));
+            if (i == g_state.shortcut_modal_capture_index) lstrcpynW(binding, L"按键输入中...", 32);
+            else shortcut_binding_text((ShortcutActionId)i, binding, 32);
+            draw_text(binding, key_col, g_ui.fmt_mono, rgba(0.73f, 0.82f, 0.92f, 1.0f));
+        }
+        return;
+    }
     HelpModalContentModel model{};
     ModalContentCallbacks callbacks{};
     model.help_modal_page = g_state.help_modal_page;
@@ -6013,19 +6394,33 @@ static int handle_value_input_keydown(HWND hwnd, WPARAM wparam) {
 }
 
 static int handle_ctrl_shortcuts_keydown(HWND hwnd, WPARAM wparam) {
-    int ctrl_down = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
     UiIntent intent{};
-    if (!ctrl_down) return 0;
-    if (pie_runtime_active() && wparam == 'O') {
-        push_console_log(L"[PIE] 会话中禁止加载快照，请先按 Esc 退出");
+    if (shortcut_matches(SHORTCUT_NEW_SCENE, wparam)) {
+        menu_cb_new_scene(hwnd);
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
-
-    if (wparam == 'S') {
+    if (shortcut_matches(SHORTCUT_SAVE_SCENE, wparam)) {
         intent.type = UI_INTENT_SAVE_SNAPSHOT;
         intent.path_utf8 = "scene_snapshot.txt";
         dispatch_ui_intent(&intent);
+        InvalidateRect(hwnd, NULL, FALSE);
+        return 1;
+    }
+    if (shortcut_matches(SHORTCUT_SAVE_SCENE_AS, wparam)) {
+        intent.type = UI_INTENT_SAVE_SNAPSHOT;
+        intent.path_utf8 = "scene_snapshot_copy.txt";
+        dispatch_ui_intent(&intent);
+        InvalidateRect(hwnd, NULL, FALSE);
+        return 1;
+    }
+    if (shortcut_matches(SHORTCUT_QUIT_APP, wparam)) {
+        SendMessageW(hwnd, WM_CLOSE, 0, 0);
+        return 1;
+    }
+    if (!shortcut_current_ctrl()) return 0;
+    if (pie_runtime_active() && wparam == 'O') {
+        push_console_log(L"[PIE] 会话中禁止加载快照，请先按 Esc 退出");
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
@@ -6042,25 +6437,25 @@ static int handle_ctrl_shortcuts_keydown(HWND hwnd, WPARAM wparam) {
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
-    if (wparam == 'Z') {
+    if (shortcut_matches(SHORTCUT_UNDO, wparam)) {
         intent.type = UI_INTENT_HISTORY_UNDO;
         dispatch_ui_intent(&intent);
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
-    if (wparam == 'Y') {
+    if (shortcut_matches(SHORTCUT_REDO, wparam)) {
         intent.type = UI_INTENT_HISTORY_REDO;
         dispatch_ui_intent(&intent);
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
-    if (wparam == 'C') {
+    if (shortcut_matches(SHORTCUT_COPY, wparam)) {
         intent.type = UI_INTENT_COPY_SELECTED;
         dispatch_ui_intent(&intent);
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
-    if (wparam == 'V') {
+    if (shortcut_matches(SHORTCUT_PASTE, wparam)) {
         trace_spawn_step("key.ctrlv.begin", "");
         intent.type = UI_INTENT_PASTE_SELECTED;
         dispatch_ui_intent(&intent);
@@ -6086,6 +6481,7 @@ static int handle_open_menu_keydown(HWND hwnd, WPARAM wparam) {
         int n = menu_item_count_for_menu(g_state.open_menu_id);
         if (wparam == VK_ESCAPE) {
             g_state.open_menu_id = 0;
+            g_state.open_submenu_id = 0;
             InvalidateRect(hwnd, NULL, FALSE);
             return 1;
         }
@@ -6100,8 +6496,14 @@ static int handle_open_menu_keydown(HWND hwnd, WPARAM wparam) {
             return 1;
         }
         if (wparam == VK_LEFT || wparam == VK_RIGHT) {
+            if (g_state.open_menu_id == 1 && g_state.open_menu_focus_index == 5 && wparam == VK_RIGHT) {
+                g_state.open_submenu_id = 8;
+                InvalidateRect(hwnd, NULL, FALSE);
+                return 1;
+            }
             int next = menu_next_visible_id(g_state.open_menu_id, (wparam == VK_RIGHT) ? 1 : -1);
             g_state.open_menu_id = next;
+            g_state.open_submenu_id = 0;
             g_state.open_menu_focus_index = menu_find_enabled_from(next, 0, 1);
             InvalidateRect(hwnd, NULL, FALSE);
             return 1;
@@ -6109,11 +6511,17 @@ static int handle_open_menu_keydown(HWND hwnd, WPARAM wparam) {
         if (wparam == VK_RETURN && n > 0) {
             int fi = g_state.open_menu_focus_index;
             if (fi >= 0 && fi < n && menu_item_enabled_state(g_state.open_menu_id, fi)) {
+                if (g_state.open_menu_id == 1 && fi == 5) {
+                    g_state.open_submenu_id = 8;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                    return 1;
+                }
                 execute_menu_action(hwnd, g_state.open_menu_id, fi);
             } else {
                 push_console_log(L"[提示] 该菜单项当前不可用");
             }
             g_state.open_menu_id = 0;
+            g_state.open_submenu_id = 0;
             InvalidateRect(hwnd, NULL, FALSE);
             return 1;
         }
@@ -6123,10 +6531,17 @@ static int handle_open_menu_keydown(HWND hwnd, WPARAM wparam) {
 
 static int handle_modal_keydown(HWND hwnd, WPARAM wparam) {
     if (!(g_state.show_config_modal || g_state.show_help_modal)) return 0;
+    if (g_state.show_help_modal && g_state.help_modal_page == 3 &&
+        g_state.shortcut_modal_capture_index >= 0 && wparam == VK_ESCAPE) {
+        g_state.shortcut_modal_capture_index = -1;
+        InvalidateRect(hwnd, NULL, FALSE);
+        return 1;
+    }
     if (wparam == VK_ESCAPE) {
         g_state.open_menu_id = 0;
         g_state.show_config_modal = 0;
         g_state.show_help_modal = 0;
+        g_state.shortcut_modal_capture_index = -1;
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
@@ -6139,6 +6554,41 @@ static int handle_modal_keydown(HWND hwnd, WPARAM wparam) {
         return 1;
     }
     if (g_state.show_help_modal) {
+        if (g_state.help_modal_page == 3) {
+            if (g_state.shortcut_modal_capture_index >= 0) {
+                if (wparam == VK_DELETE || wparam == VK_BACK) {
+                    shortcut_clear_binding((ShortcutActionId)g_state.shortcut_modal_capture_index);
+                    g_state.shortcut_modal_capture_index = -1;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                    return 1;
+                }
+                if (shortcut_assign_key((ShortcutActionId)g_state.shortcut_modal_capture_index, wparam)) {
+                    g_state.shortcut_modal_capture_index = -1;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                }
+                return 1;
+            }
+            if (wparam == VK_UP) {
+                g_state.shortcut_modal_focus_index = (g_state.shortcut_modal_focus_index + SHORTCUT_ACTION_COUNT - 1) % SHORTCUT_ACTION_COUNT;
+                InvalidateRect(hwnd, NULL, FALSE);
+                return 1;
+            }
+            if (wparam == VK_DOWN) {
+                g_state.shortcut_modal_focus_index = (g_state.shortcut_modal_focus_index + 1) % SHORTCUT_ACTION_COUNT;
+                InvalidateRect(hwnd, NULL, FALSE);
+                return 1;
+            }
+            if (wparam == VK_RETURN) {
+                g_state.shortcut_modal_capture_index = g_state.shortcut_modal_focus_index;
+                InvalidateRect(hwnd, NULL, FALSE);
+                return 1;
+            }
+            if (wparam == VK_DELETE || wparam == VK_BACK) {
+                shortcut_clear_binding((ShortcutActionId)g_state.shortcut_modal_focus_index);
+                InvalidateRect(hwnd, NULL, FALSE);
+                return 1;
+            }
+        }
         return 1;
     }
     return 0;
@@ -6157,12 +6607,14 @@ static int handle_modal_lbuttondown(HWND hwnd) {
     if (point_in_rect(g_state.mouse_screen, g_modal_close_rect)) {
         g_state.show_config_modal = 0;
         g_state.show_help_modal = 0;
+        g_state.shortcut_modal_capture_index = -1;
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
     if (!point_in_rect(g_state.mouse_screen, g_modal_rect)) {
         g_state.show_config_modal = 0;
         g_state.show_help_modal = 0;
+        g_state.shortcut_modal_capture_index = -1;
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
@@ -6183,63 +6635,95 @@ static int handle_modal_lbuttondown(HWND hwnd) {
         }
         InvalidateRect(hwnd, NULL, FALSE);
     }
+    if (g_state.show_help_modal && g_state.help_modal_page == 3) {
+        for (r = 0; r < g_layout.shortcut_row_count && r < SHORTCUT_ROWS_MAX; r++) {
+            if (point_in_rect(g_state.mouse_screen, g_layout.shortcut_row_rect[r])) {
+                g_state.shortcut_modal_focus_index = r;
+                g_state.shortcut_modal_capture_index = r;
+                InvalidateRect(hwnd, NULL, FALSE);
+                return 1;
+            }
+        }
+    }
     return 1;
 }
 
 static int handle_menu_lbuttondown(HWND hwnd) {
     int idx;
     if (g_state.open_menu_id > 0) {
+        if (g_state.open_submenu_id > 0) {
+            for (idx = 0; idx < g_submenu_item_count; idx++) {
+                if (point_in_rect(g_state.mouse_screen, g_submenu_item_rect[idx])) {
+                    if (g_submenu_item_enabled[idx]) {
+                        execute_menu_action(hwnd, g_state.open_submenu_id, idx);
+                    } else {
+                        push_console_log(L"[提示] 该菜单项当前不可用");
+                    }
+                    g_state.open_submenu_id = 0;
+                    g_state.open_menu_id = 0;
+                    InvalidateRect(hwnd, NULL, FALSE);
+                    return 1;
+                }
+            }
+        }
         for (idx = 0; idx < g_menu_item_count; idx++) {
             if (point_in_rect(g_state.mouse_screen, g_menu_item_rect[idx])) {
                 if (g_menu_item_enabled[idx]) {
+                    if (g_state.open_menu_id == 1 && idx == 5) {
+                        return 1;
+                    }
                     execute_menu_action(hwnd, g_state.open_menu_id, idx);
                 } else {
                     push_console_log(L"[提示] 该菜单项当前不可用");
                 }
+                g_state.open_submenu_id = 0;
                 g_state.open_menu_id = 0;
                 InvalidateRect(hwnd, NULL, FALSE);
                 return 1;
             }
         }
+        if (g_state.open_submenu_id > 0 && point_in_rect(g_state.mouse_screen, g_submenu_dropdown_rect)) {
+            return 1;
+        }
     }
     if (point_in_rect(g_state.mouse_screen, g_menu_file_rect)) {
         g_state.open_menu_id = (g_state.open_menu_id == 1) ? 0 : 1;
+        g_state.open_submenu_id = 0;
         g_state.open_menu_focus_index = (g_state.open_menu_id > 0) ? -1 : 0;
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
     if (point_in_rect(g_state.mouse_screen, g_menu_edit_rect)) {
         g_state.open_menu_id = (g_state.open_menu_id == 2) ? 0 : 2;
+        g_state.open_submenu_id = 0;
         g_state.open_menu_focus_index = (g_state.open_menu_id > 0) ? -1 : 0;
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
     if (point_in_rect(g_state.mouse_screen, g_menu_view_rect)) {
         g_state.open_menu_id = (g_state.open_menu_id == 3) ? 0 : 3;
+        g_state.open_submenu_id = 0;
         g_state.open_menu_focus_index = (g_state.open_menu_id > 0) ? -1 : 0;
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
     if (point_in_rect(g_state.mouse_screen, g_menu_physics_rect)) {
         g_state.open_menu_id = (g_state.open_menu_id == 5) ? 0 : 5;
-        g_state.open_menu_focus_index = (g_state.open_menu_id > 0) ? -1 : 0;
-        InvalidateRect(hwnd, NULL, FALSE);
-        return 1;
-    }
-    if (point_in_rect(g_state.mouse_screen, g_menu_window_rect)) {
-        g_state.open_menu_id = (g_state.open_menu_id == 6) ? 0 : 6;
+        g_state.open_submenu_id = 0;
         g_state.open_menu_focus_index = (g_state.open_menu_id > 0) ? -1 : 0;
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
     if (point_in_rect(g_state.mouse_screen, g_menu_help_word_rect)) {
         g_state.open_menu_id = (g_state.open_menu_id == 7) ? 0 : 7;
+        g_state.open_submenu_id = 0;
         g_state.open_menu_focus_index = (g_state.open_menu_id > 0) ? -1 : 0;
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
     if (g_state.open_menu_id > 0) {
         g_state.open_menu_id = 0;
+        g_state.open_submenu_id = 0;
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
@@ -6744,9 +7228,23 @@ static int handle_keydown_runtime_controls(WPARAM wparam) {
             changed = 1;
         }
     }
-    if (wparam == VK_SPACE || wparam == 'N' || wparam == 'R') {
+    if (shortcut_matches(SHORTCUT_RUN_PAUSE, wparam) ||
+        shortcut_matches(SHORTCUT_STEP_ONCE, wparam) ||
+        shortcut_matches(SHORTCUT_RESET_SCENE, wparam)) {
         AppCommand cmd;
-        if (input_try_map_keydown_command((unsigned int)wparam, &cmd)) {
+        if (shortcut_matches(SHORTCUT_RUN_PAUSE, wparam) && input_try_map_keydown_command((unsigned int)VK_SPACE, &cmd)) {
+            UiIntent intent{};
+            intent.type = UI_INTENT_APP_COMMAND;
+            intent.app_command = cmd;
+            dispatch_ui_intent(&intent);
+            changed = 1;
+        } else if (shortcut_matches(SHORTCUT_STEP_ONCE, wparam) && input_try_map_keydown_command((unsigned int)'N', &cmd)) {
+            UiIntent intent{};
+            intent.type = UI_INTENT_APP_COMMAND;
+            intent.app_command = cmd;
+            dispatch_ui_intent(&intent);
+            changed = 1;
+        } else if (shortcut_matches(SHORTCUT_RESET_SCENE, wparam) && input_try_map_keydown_command((unsigned int)'R', &cmd)) {
             UiIntent intent{};
             intent.type = UI_INTENT_APP_COMMAND;
             intent.app_command = cmd;
@@ -6885,7 +7383,10 @@ static int handle_keydown_scene_switch(WPARAM wparam) {
         apply_scene(scene_index);
         changed = 1;
     }
-    if (input_try_map_scene_step((unsigned int)wparam, &scene_step)) {
+    if (shortcut_matches(SHORTCUT_PREV_SCENE, wparam)) scene_step = -1;
+    else if (shortcut_matches(SHORTCUT_NEXT_SCENE, wparam)) scene_step = 1;
+    else if (input_try_map_scene_step((unsigned int)wparam, &scene_step)) {}
+    if (scene_step != 0) {
         if (pie_runtime_active()) {
             push_console_log(L"[PIE] 会话中禁止切换场景，请先按 Esc 退出");
             return 1;
@@ -7048,6 +7549,7 @@ static int handle_mousewheel_dispatch(HWND hwnd, int delta) {
 
 static int handle_syskeydown(HWND hwnd, WPARAM wparam) {
     int mid = 0;
+    if (handle_modal_keydown(hwnd, wparam)) return 1;
     if (handle_keydown_scene_reorder(hwnd, wparam)) return 1;
     if (wparam == 'F') mid = 1;
     if (wparam == 'E') mid = 2;
@@ -7056,25 +7558,25 @@ static int handle_syskeydown(HWND hwnd, WPARAM wparam) {
     if (wparam == 'P') mid = 5;
     if (wparam == 'W') mid = 6;
     if (wparam == 'H') mid = 7;
-    if (wparam == '1') {
+    if (shortcut_matches(SHORTCUT_TOGGLE_LEFT_PANEL, wparam)) {
         g_state.ui_show_left_panel = !g_state.ui_show_left_panel;
         save_ui_layout();
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
-    if (wparam == '2') {
+    if (shortcut_matches(SHORTCUT_TOGGLE_RIGHT_PANEL, wparam)) {
         g_state.ui_show_right_panel = !g_state.ui_show_right_panel;
         save_ui_layout();
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
-    if (wparam == '3') {
+    if (shortcut_matches(SHORTCUT_TOGGLE_BOTTOM_PANEL, wparam)) {
         g_state.ui_show_bottom_panel = !g_state.ui_show_bottom_panel;
         save_ui_layout();
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
-    if (wparam == 'T') {
+    if (shortcut_matches(SHORTCUT_TOGGLE_THEME_LIGHT, wparam)) {
         g_state.ui_theme_light = !g_state.ui_theme_light;
         save_ui_layout();
         InvalidateRect(hwnd, NULL, FALSE);
@@ -7141,13 +7643,18 @@ static int handle_lbuttondblclk(HWND hwnd) {
 }
 
 static int handle_keydown(HWND hwnd, WPARAM wparam) {
-    int ctrl_down = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
     if (handle_ctrl_shortcuts_keydown(hwnd, wparam)) return 1;
     if (handle_value_input_keydown(hwnd, wparam)) return 1;
     if (handle_open_menu_keydown(hwnd, wparam)) return 1;
     if (handle_modal_keydown(hwnd, wparam)) return 1;
     if (handle_keydown_scene_reorder(hwnd, wparam)) return 1;
-    if (!ctrl_down && wparam == VK_F2 && g_state.keyboard_focus_area == 1) {
+    if (shortcut_matches(SHORTCUT_NEXT_LAYOUT_PRESET, wparam)) {
+        menu_cb_apply_next_layout(NULL);
+        menu_cb_save_layout(NULL);
+        InvalidateRect(hwnd, NULL, FALSE);
+        return 1;
+    }
+    if (shortcut_matches(SHORTCUT_RENAME_SCENE, wparam) && g_state.keyboard_focus_area == 1) {
         if (pie_runtime_active()) {
             push_console_log(L"[PIE] 会话中禁止重命名场景，请先按 Esc 退出");
             InvalidateRect(hwnd, NULL, FALSE);
@@ -7157,7 +7664,7 @@ static int handle_keydown(HWND hwnd, WPARAM wparam) {
         InvalidateRect(hwnd, NULL, FALSE);
         return 1;
     }
-    if (!ctrl_down && wparam == VK_F3 && g_state.keyboard_focus_area == 1) {
+    if (shortcut_matches(SHORTCUT_EDIT_SCENE_GUID, wparam) && g_state.keyboard_focus_area == 1) {
         if (pie_runtime_active()) {
             push_console_log(L"[PIE] 会话中禁止编辑场景资产引用，请先按 Esc 退出");
             InvalidateRect(hwnd, NULL, FALSE);
@@ -7473,6 +7980,10 @@ static void init_state_defaults(void) {
     g_state.tree_constraint_spring_expanded = 1;
     g_state.open_menu_id = 0;
     g_state.open_menu_focus_index = -1;
+    g_state.open_submenu_id = 0;
+    g_state.shortcut_modal_focus_index = 0;
+    g_state.shortcut_modal_capture_index = -1;
+    shortcut_set_default_bindings();
     g_state.show_config_modal = 0;
     g_state.show_help_modal = 0;
     g_state.help_modal_page = 0;

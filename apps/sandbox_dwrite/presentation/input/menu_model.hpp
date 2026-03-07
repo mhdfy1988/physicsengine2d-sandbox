@@ -19,6 +19,8 @@ typedef struct {
     int theme_light;
 } MenuUiState;
 
+enum { MENU_MODEL_MAX_ITEMS = 12 };
+
 const wchar_t* menu_model_shortcut_text(int menu_id, int item_idx);
 const wchar_t* menu_model_item_text(int menu_id, int item_idx);
 int menu_model_item_enabled_state(int menu_id, int item_idx, const MenuUiState* state);
