@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "physics.hpp"
-#include "runtime_snapshot_repo.hpp"
+#include "physics_core/physics.hpp"
+#include "physics_runtime/runtime_snapshot_repo.hpp"
 
 static int parse_int_arg(const char* text, int fallback) {
     char* endptr = NULL;

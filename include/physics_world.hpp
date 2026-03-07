@@ -1,7 +1,7 @@
 #ifndef PHYSICS_WORLD_H
 #define PHYSICS_WORLD_H
 
-#include "physics.hpp"
+#include "physics_core/physics.hpp"
 
 #ifdef __cplusplus
 extern "C" {

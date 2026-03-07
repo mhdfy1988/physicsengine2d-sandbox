@@ -1,10 +1,10 @@
 #ifndef EDITOR_EXTENSION_STATE_SERVICE_H
 #define EDITOR_EXTENSION_STATE_SERVICE_H
 
-#include "editor_plugin.hpp"
-#include "prefab_semantics.hpp"
-#include "project_workspace.hpp"
-#include "session_recovery.hpp"
+#include "physics_content/editor_plugin.hpp"
+#include "physics_content/prefab_semantics.hpp"
+#include "physics_content/project_workspace.hpp"
+#include "physics_runtime/session_recovery.hpp"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,6 +30,7 @@ typedef struct {
 
 typedef struct {
     const char* root_path;
+    const char* project_root;
     const char* workspace_path;
     const char* project_path;
     const char* package_path;

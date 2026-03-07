@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include "../include/physics.hpp"
+#include "../include/physics_core/physics.hpp"
 
 static double now_ms(void) {
     return (double)clock() * 1000.0 / (double)CLOCKS_PER_SEC;

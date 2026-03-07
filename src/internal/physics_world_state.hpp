@@ -1,7 +1,7 @@
 #ifndef PHYSICS_INTERNAL_WORLD_STATE_H
 #define PHYSICS_INTERNAL_WORLD_STATE_H
 
-#include "../../include/physics.hpp"
+#include "../../include/physics_core/physics.hpp"
 #include "physics_ids.hpp"
 #include "physics_memory.hpp"
 #include "physics_pipeline.hpp"

@@ -1,11 +1,11 @@
 #ifndef PHYSICS_ENGINE_H
 #define PHYSICS_ENGINE_H
 
-#include "physics_math.hpp"
-#include "body.hpp"
-#include "shape.hpp"
-#include "collision.hpp"
-#include "constraint.hpp"
+#include "physics_core/physics_math.hpp"
+#include "physics_core/body.hpp"
+#include "physics_core/shape.hpp"
+#include "physics_core/collision.hpp"
+#include "physics_core/constraint.hpp"
 
 #ifdef __cplusplus
 extern "C" {
@@ -83,7 +83,7 @@ RigidBody* physics_engine_raycast(PhysicsEngine* engine, Vec2 start, Vec2 end);
 int physics_engine_get_bodies_in_area(PhysicsEngine* engine, Vec2 center, float radius, RigidBody** out_bodies, int max_bodies);
 
 #ifndef PHYSICS_NO_EXTENSIONS
-#include "physics_ext.hpp"
+#include "physics_core/physics_ext.hpp"
 #endif
 
 #ifdef __cplusplus

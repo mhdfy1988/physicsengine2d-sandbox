@@ -1,9 +1,9 @@
 #ifndef PHYSICS_INTERNAL_IDS_H
 #define PHYSICS_INTERNAL_IDS_H
 
-#include "../../include/body.hpp"
-#include "../../include/collision.hpp"
-#include "../../include/constraint.hpp"
+#include "../../include/physics_core/body.hpp"
+#include "../../include/physics_core/collision.hpp"
+#include "../../include/physics_core/constraint.hpp"
 
 struct PhysicsEngine;
 

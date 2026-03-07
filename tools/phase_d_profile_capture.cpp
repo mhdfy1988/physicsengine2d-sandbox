@@ -6,9 +6,9 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
-#include "../include/asset_importer.hpp"
-#include "../include/physics.hpp"
-#include "../include/subsystem_render_audio_animation.hpp"
+#include "../include/physics_content/asset_importer.hpp"
+#include "../include/physics_core/physics.hpp"
+#include "../include/physics_content/subsystem_render_audio_animation.hpp"
 #include "internal/physics_world_state.hpp"
 
 static double now_ms(void) {

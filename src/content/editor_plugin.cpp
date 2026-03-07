@@ -1,4 +1,4 @@
-#include "editor_plugin.hpp"
+#include "physics_content/editor_plugin.hpp"
 
 #include <errno.h>
 #include <stdio.h>

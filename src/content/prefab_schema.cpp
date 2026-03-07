@@ -1,4 +1,4 @@
-#include "prefab_schema.hpp"
+#include "physics_content/prefab_schema.hpp"
 
 #include <errno.h>
 #include <stdio.h>

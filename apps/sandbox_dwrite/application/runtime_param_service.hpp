@@ -1,7 +1,7 @@
 #ifndef RUNTIME_PARAM_SERVICE_H
 #define RUNTIME_PARAM_SERVICE_H
 
-#include "physics.hpp"
+#include "physics_core/physics.hpp"
 #include "scene_catalog.hpp"
 
 void runtime_param_sync_engine(PhysicsEngine* engine, SceneConfig* cfg);

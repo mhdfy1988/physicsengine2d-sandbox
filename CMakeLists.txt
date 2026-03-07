@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.16)
 project(PhysicsEngine2D CXX RC)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -94,7 +94,7 @@ set(PHYSICS_CONTENT_SOURCES
 )
 
 set(PHYSICS_RUNTIME_SUPPORT_SOURCES
-    src/runtime_support/snapshot_repo.cpp
+    src/runtime/snapshot_repo.cpp
 )
 
 function(physics_configure_library target)
@@ -139,20 +139,26 @@ if(BUILD_EDITOR)
         apps/sandbox_dwrite/infrastructure/project_tree.cpp
         apps/sandbox_dwrite/infrastructure/ui_layout_repo.cpp
         apps/sandbox_dwrite/presentation/render/ui_icons.cpp
+        apps/sandbox_dwrite/presentation/render/editor_screen_renderer.cpp
         apps/sandbox_dwrite/presentation/render/ui_text.cpp
         apps/sandbox_dwrite/presentation/render/ui_primitives.cpp
         apps/sandbox_dwrite/presentation/render/ui_widgets.cpp
+        apps/sandbox_dwrite/presentation/status/status_presenter.cpp
+        apps/sandbox_dwrite/presentation/window/window_host.cpp
         apps/sandbox_dwrite/domain/app_command.cpp
         apps/sandbox_dwrite/infrastructure/app_event_bus.cpp
         apps/sandbox_dwrite/application/app_controller.cpp
         apps/sandbox_dwrite/application/app_runtime.cpp
+        apps/sandbox_dwrite/application/editor_session_service.cpp
         apps/sandbox_dwrite/application/pie_lifecycle.cpp
         apps/sandbox_dwrite/application/editor_command_bus.cpp
         apps/sandbox_dwrite/application/scene_catalog.cpp
         apps/sandbox_dwrite/application/scene_builder.cpp
         apps/sandbox_dwrite/application/history_service.cpp
         apps/sandbox_dwrite/application/runtime_param_service.cpp
+        apps/sandbox_dwrite/application/editor_extension_host_service.cpp
         apps/sandbox_dwrite/application/editor_extension_state_service.cpp
+        apps/sandbox_dwrite/presentation/input/input_router.cpp
         apps/sandbox_dwrite/presentation/input/input_mapping.cpp
         apps/sandbox_dwrite/presentation/input/menu_file_edit_actions.cpp
         apps/sandbox_dwrite/presentation/input/menu_view_physics_window_actions.cpp
@@ -180,76 +186,77 @@ endif()
 
 if(BUILD_TESTS)
     add_executable(physics_kernel_tests
-        tests/kernel_regression_runner.cpp
-        tests/regression_collision_core_tests.cpp
-        tests/regression_event_snapshot_tests.cpp
-        tests/regression_pipeline_error_tests.cpp
-        tests/regression_sleep_broadphase_tests.cpp
-        tests/regression_stress_constraint_tests.cpp
-        tests/regression_engine_feature_tests.cpp
+        tests/kernel/kernel_regression_runner.cpp
+        tests/kernel/regression_collision_core_tests.cpp
+        tests/kernel/regression_event_snapshot_tests.cpp
+        tests/kernel/regression_pipeline_error_tests.cpp
+        tests/kernel/regression_sleep_broadphase_tests.cpp
+        tests/kernel/regression_stress_constraint_tests.cpp
+        tests/kernel/regression_engine_feature_tests.cpp
         tests/equivalence/equivalence_api_tests.cpp
     )
     add_executable(physics_content_tests
-        tests/content_regression_runner.cpp
-        tests/regression_scene_schema_tests.cpp
-        tests/regression_prefab_schema_tests.cpp
-        tests/regression_project_workspace_tests.cpp
-        tests/regression_prefab_semantics_tests.cpp
-        tests/regression_editor_plugin_tests.cpp
-        tests/regression_session_recovery_tests.cpp
-        tests/regression_asset_database_tests.cpp
-        tests/regression_asset_importer_tests.cpp
-        tests/regression_asset_pipeline_tests.cpp
-        tests/regression_asset_hot_reload_tests.cpp
+        tests/content/content_regression_runner.cpp
+        tests/content/regression_scene_schema_tests.cpp
+        tests/content/regression_prefab_schema_tests.cpp
+        tests/content/regression_project_workspace_tests.cpp
+        tests/content/regression_prefab_semantics_tests.cpp
+        tests/content/regression_editor_plugin_tests.cpp
+        tests/content/regression_session_recovery_tests.cpp
+        tests/content/regression_asset_database_tests.cpp
+        tests/content/regression_asset_importer_tests.cpp
+        tests/content/regression_asset_pipeline_tests.cpp
+        tests/content/regression_asset_hot_reload_tests.cpp
     )
     add_executable(physics_tests
         tests/regression_tests.cpp
-        tests/regression_collision_core_tests.cpp
-        tests/regression_event_snapshot_tests.cpp
-        tests/regression_pipeline_error_tests.cpp
-        tests/regression_sleep_broadphase_tests.cpp
-        tests/regression_stress_constraint_tests.cpp
-        tests/regression_engine_feature_tests.cpp
+        tests/kernel/regression_collision_core_tests.cpp
+        tests/kernel/regression_event_snapshot_tests.cpp
+        tests/kernel/regression_pipeline_error_tests.cpp
+        tests/kernel/regression_sleep_broadphase_tests.cpp
+        tests/kernel/regression_stress_constraint_tests.cpp
+        tests/kernel/regression_engine_feature_tests.cpp
         tests/equivalence/equivalence_api_tests.cpp
-        tests/regression_scene_schema_tests.cpp
-        tests/regression_prefab_schema_tests.cpp
-        tests/regression_project_workspace_tests.cpp
-        tests/regression_prefab_semantics_tests.cpp
-        tests/regression_editor_plugin_tests.cpp
-        tests/regression_session_recovery_tests.cpp
-        tests/regression_asset_database_tests.cpp
-        tests/regression_asset_importer_tests.cpp
-        tests/regression_asset_pipeline_tests.cpp
-        tests/regression_asset_hot_reload_tests.cpp
+        tests/content/regression_scene_schema_tests.cpp
+        tests/content/regression_prefab_schema_tests.cpp
+        tests/content/regression_project_workspace_tests.cpp
+        tests/content/regression_prefab_semantics_tests.cpp
+        tests/content/regression_editor_plugin_tests.cpp
+        tests/content/regression_session_recovery_tests.cpp
+        tests/content/regression_asset_database_tests.cpp
+        tests/content/regression_asset_importer_tests.cpp
+        tests/content/regression_asset_pipeline_tests.cpp
+        tests/content/regression_asset_hot_reload_tests.cpp
     )
     add_executable(physics_app_runtime_smoke
-        tests/app_runtime_tick_smoke.cpp
+        tests/runtime/app_runtime_tick_smoke.cpp
         apps/sandbox_dwrite/domain/app_command.cpp
         apps/sandbox_dwrite/infrastructure/app_event_bus.cpp
         apps/sandbox_dwrite/application/app_controller.cpp
         apps/sandbox_dwrite/application/app_runtime.cpp
     )
     add_executable(physics_editor_undo_redo_smoke
-        tests/editor_undo_redo_smoke.cpp
+        tests/editor/editor_undo_redo_smoke.cpp
         apps/sandbox_dwrite/application/editor_command_bus.cpp
         apps/sandbox_dwrite/application/history_service.cpp
     )
     add_executable(physics_editor_pie_lifecycle_smoke
-        tests/editor_pie_lifecycle_smoke.cpp
+        tests/editor/editor_pie_lifecycle_smoke.cpp
         apps/sandbox_dwrite/application/pie_lifecycle.cpp
     )
     add_executable(physics_subsystem_render_audio_animation_smoke
-        tests/subsystem_render_audio_animation_smoke.cpp
+        tests/smoke/subsystem_render_audio_animation_smoke.cpp
     )
     add_executable(physics_editor_extension_state_service_smoke
-        tests/editor_extension_state_service_smoke.cpp
+        tests/editor/editor_extension_state_service_smoke.cpp
         apps/sandbox_dwrite/application/editor_extension_state_service.cpp
+        apps/sandbox_dwrite/application/editor_extension_host_service.cpp
     )
     add_executable(physics_core_header_smoke
-        tests/physics_core_header_smoke.cpp
+        tests/smoke/physics_core_header_smoke.cpp
     )
-    physics_add_cpp_smoke(physics_cpp_script_bridge_smoke tests/cpp_script_bridge_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_foundation_smoke tests/cpp_foundation_smoke.cpp physics_kernel)
+    physics_add_cpp_smoke(physics_cpp_script_bridge_smoke tests/smoke/cpp_script_bridge_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_foundation_smoke tests/smoke/cpp_foundation_smoke.cpp physics_kernel)
     add_executable(physics_bench tests/benchmark_suite.cpp)
     add_executable(physics_invariants tests/invariant_tests.cpp)
     target_link_libraries(physics_kernel_tests PRIVATE physics_kernel)
@@ -408,30 +415,30 @@ set_target_properties(phase_d_profile_capture PROPERTIES
 )
 
 if(BUILD_CPP_COMPAT)
-    physics_add_cpp_smoke(physics_cpp_smoke tests/cpp_api_smoke.cpp physics_kernel)
+    physics_add_cpp_smoke(physics_cpp_smoke tests/smoke/cpp_api_smoke.cpp physics_kernel)
 endif()
 
 if(BUILD_CPP_WRAPPER)
-    physics_add_cpp_smoke(physics_cpp_raii_smoke tests/cpp_raii_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_status_smoke tests/cpp_status_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_world_raii_smoke tests/cpp_world_raii_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_body_raii_smoke tests/cpp_body_raii_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_constraint_raii_smoke tests/cpp_constraint_raii_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_snapshot_smoke tests/cpp_snapshot_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_single_include_smoke tests/cpp_single_include_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_engine_view_smoke tests/cpp_engine_view_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_ecs_smoke tests/cpp_ecs_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_ecs_dirty_sync_smoke tests/cpp_ecs_dirty_sync_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_ecs_query_smoke tests/cpp_ecs_query_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_ecs_bridge_smoke tests/cpp_ecs_bridge_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_ecs_pipeline_smoke tests/cpp_ecs_pipeline_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_ecs_pipeline_config_smoke tests/cpp_ecs_pipeline_config_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_runtime_facade_smoke tests/cpp_runtime_facade_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_runtime_error_channel_smoke tests/cpp_runtime_error_channel_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_runtime_error_recovery_smoke tests/cpp_runtime_error_recovery_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_runtime_multi_error_smoke tests/cpp_runtime_multi_error_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_raii_smoke tests/smoke/cpp_raii_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_status_smoke tests/smoke/cpp_status_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_world_raii_smoke tests/smoke/cpp_world_raii_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_body_raii_smoke tests/smoke/cpp_body_raii_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_constraint_raii_smoke tests/smoke/cpp_constraint_raii_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_snapshot_smoke tests/runtime/cpp_snapshot_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_single_include_smoke tests/smoke/cpp_single_include_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_engine_view_smoke tests/smoke/cpp_engine_view_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_ecs_smoke tests/smoke/cpp_ecs_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_ecs_dirty_sync_smoke tests/smoke/cpp_ecs_dirty_sync_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_ecs_query_smoke tests/smoke/cpp_ecs_query_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_ecs_bridge_smoke tests/smoke/cpp_ecs_bridge_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_ecs_pipeline_smoke tests/smoke/cpp_ecs_pipeline_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_ecs_pipeline_config_smoke tests/smoke/cpp_ecs_pipeline_config_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_runtime_facade_smoke tests/runtime/cpp_runtime_facade_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_runtime_error_channel_smoke tests/runtime/cpp_runtime_error_channel_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_runtime_error_recovery_smoke tests/runtime/cpp_runtime_error_recovery_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_runtime_multi_error_smoke tests/runtime/cpp_runtime_multi_error_smoke.cpp physics2d)
     add_executable(physics_cpp_runtime_app_bridge_smoke
-        tests/cpp_runtime_app_bridge_smoke.cpp
+        tests/runtime/cpp_runtime_app_bridge_smoke.cpp
         apps/sandbox_dwrite/domain/app_command.cpp
         apps/sandbox_dwrite/infrastructure/app_event_bus.cpp
         apps/sandbox_dwrite/application/app_controller.cpp
@@ -447,8 +454,8 @@ if(BUILD_CPP_WRAPPER)
     set_target_properties(physics_cpp_runtime_app_bridge_smoke PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
     )
-    physics_add_cpp_smoke(physics_cpp_runtime_events_smoke tests/cpp_runtime_events_smoke.cpp physics2d)
-    physics_add_cpp_smoke(physics_cpp_runtime_pause_step_smoke tests/cpp_runtime_pause_step_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_runtime_events_smoke tests/runtime/cpp_runtime_events_smoke.cpp physics2d)
+    physics_add_cpp_smoke(physics_cpp_runtime_pause_step_smoke tests/runtime/cpp_runtime_pause_step_smoke.cpp physics2d)
 endif()
 
 set_target_properties(physics_kernel PROPERTIES

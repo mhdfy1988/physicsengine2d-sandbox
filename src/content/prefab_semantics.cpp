@@ -1,4 +1,4 @@
-#include "prefab_semantics.hpp"
+#include "physics_content/prefab_semantics.hpp"
 
 #include <string.h>
 

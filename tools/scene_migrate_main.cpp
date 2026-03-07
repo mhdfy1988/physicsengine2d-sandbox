@@ -1,6 +1,6 @@
 #include <cstdio>
 #include <string>
-#include "scene_schema.hpp"
+#include "physics_content/scene_schema.hpp"
 #include "physics2d/physics_filesystem.hpp"
 
 static void print_usage() {

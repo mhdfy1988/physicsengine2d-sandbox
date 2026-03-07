@@ -1,4 +1,4 @@
-#include "scene_schema.hpp"
+#include "physics_content/scene_schema.hpp"
 
 #include <ctype.h>
 #include <errno.h>

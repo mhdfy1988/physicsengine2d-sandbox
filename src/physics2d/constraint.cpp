@@ -1,6 +1,6 @@
 #include <math.h>
 #include <stddef.h>
-#include "../include/constraint.hpp"
+#include "../include/physics_core/constraint.hpp"
 #include "internal/physics_math_internal.hpp"
 #include "internal/physics_tuning.hpp"
 

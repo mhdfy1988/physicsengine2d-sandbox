@@ -4,4 +4,4 @@
  * Legacy public header retained for downstream compatibility.
  * New integrations should include "physics.hpp" directly.
  */
-#include "physics.hpp"
+#include "physics_core/physics.hpp"

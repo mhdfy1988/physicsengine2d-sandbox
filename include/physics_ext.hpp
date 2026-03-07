@@ -2,7 +2,7 @@
 #define PHYSICS_EXT_H
 
 #ifndef PHYSICS_ENGINE_H
-#include "physics.hpp"
+#include "physics_core/physics.hpp"
 #endif
 
 #ifdef __cplusplus

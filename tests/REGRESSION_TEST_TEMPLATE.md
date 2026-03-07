@@ -37,7 +37,7 @@ static int test_name_here(void) {
 ## Rules
 
 - Always free the engine on all return paths after creation.
-- Use only public APIs from `include/physics.hpp` (no internal struct access).
+- Use only public APIs from `include/physics_core/physics.hpp` or approved umbrella headers (no internal struct access).
 - Prefer numeric tolerances (`EPS`) over exact float equality.
 - Keep each test focused on one behavior/regression.
 

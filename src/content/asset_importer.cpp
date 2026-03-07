@@ -1,4 +1,4 @@
-#include "asset_importer.hpp"
+#include "physics_content/asset_importer.hpp"
 
 #include <ctype.h>
 #include <stdio.h>

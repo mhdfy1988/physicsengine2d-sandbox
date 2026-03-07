@@ -21,6 +21,7 @@ Name: "desktopicon"; Description: "Create desktop icon"; GroupDescription: "Addi
 [Files]
 Source: "bin\physics_sandbox.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "assets\*"; DestDir: "{app}\assets"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "samples\physics_sandbox_project\*"; DestDir: "{app}\samples\physics_sandbox_project"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "sandbox_ui.ini"; DestDir: "{app}"; Flags: onlyifdoesntexist
 
 [Icons]
@@ -29,4 +30,3 @@ Name: "{autodesktop}\Physics Sandbox"; Filename: "{app}\physics_sandbox.exe"; Ta
 
 [Run]
 Filename: "{app}\physics_sandbox.exe"; Description: "Launch Physics Sandbox"; Flags: nowait postinstall skipifsilent
-

@@ -1,7 +1,7 @@
-#include "asset_pipeline.hpp"
+#include "physics_content/asset_pipeline.hpp"
 
-#include "asset_importer.hpp"
-#include "asset_invalidation.hpp"
+#include "physics_content/asset_importer.hpp"
+#include "physics_content/asset_invalidation.hpp"
 
 #include <stdio.h>
 #include <string.h>

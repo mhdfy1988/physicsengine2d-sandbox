@@ -1,7 +1,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "../include/physics.hpp"
+#include "../include/physics_core/physics.hpp"
 
 static int is_finite_body(const RigidBody* b) {
     if (b == NULL) return 1;

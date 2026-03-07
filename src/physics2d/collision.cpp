@@ -1,7 +1,7 @@
 #include <float.h>
 #include <math.h>
 #include <stddef.h>
-#include "../include/collision.hpp"
+#include "../include/physics_core/collision.hpp"
 #include "internal/physics_math_internal.hpp"
 #include "internal/physics_tuning.hpp"
 

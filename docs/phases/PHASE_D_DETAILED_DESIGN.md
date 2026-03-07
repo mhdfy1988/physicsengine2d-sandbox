@@ -1,0 +1,178 @@
+# 阶段 D 详细设计（编辑器化与工具链完善）
+
+更新时间：2026-03-06  
+分支：`cpp-migration-baseline`  
+前置条件：阶段 C 已封板（内容管线、增量导入、热重载基线就绪）
+
+架构基线：[`ENGINE_ARCHITECTURE.md`](../architecture/ENGINE_ARCHITECTURE.md)  
+阶段 C 收口：[`PHASE_C_FINAL_REPORT.md`](../reports/PHASE_C_FINAL_REPORT.md)
+进度跟踪：[`PHASE_D_PROGRESS.md`](./PHASE_D_PROGRESS.md)  
+验收清单：[`PHASE_D_ACCEPTANCE.md`](./PHASE_D_ACCEPTANCE.md)  
+证据归档：[`PHASE_D_EVIDENCE.md`](../reports/PHASE_D_EVIDENCE.md)  
+性能报告：[`PHASE_D_PROFILE_REPORT.md`](../reports/PHASE_D_PROFILE_REPORT.md)  
+封板报告：[`PHASE_D_FINAL_REPORT.md`](../reports/PHASE_D_FINAL_REPORT.md)
+
+## 1. 文档目标
+
+阶段 D 目标是把“可运行的内核 + 可用的数据管线”提升为“可持续生产内容的编辑器与工具链”。
+
+本设计文档用于：
+
+1. 明确阶段 D 的范围边界与拆解顺序。
+2. 给出可落地的 D1~D4 里程碑与验收门禁。
+3. 限制跨阶段风险，保证 C 阶段基线不被破坏。
+
+## 2. 范围定义
+
+### 2.1 In Scope（阶段 D 必须完成）
+
+1. Inspector 与组件编辑主流程。
+2. 资源浏览器与场景树（含基础搜索、定位、双向选中）。
+3. Play-In-Editor（PIE）运行/暂停/停止/回切闭环。
+4. Undo/Redo 覆盖核心编辑操作。
+5. 阶段 C 热重载链路增强：
+   - 原生文件监听后端（保留轮询回退）
+   - 更细粒度错误分类
+   - CI 友好的无界面 smoke harness
+6. Render2D / Animation / Audio 子系统达到“可演示、可调试、可回归”状态。
+7. 性能剖析与并行调度优化的首轮落地（有预算、有报告）。
+
+### 2.2 Out of Scope（阶段 D 不做）
+
+1. 完整商业化分发工具链（商店打包、自动更新平台等）。
+2. 跨平台编辑器完整适配（本阶段继续优先 Windows）。
+3. 重型脚本生态全量建设（仅完成桥接与最小可用闭环）。
+
+## 3. 成功标准（Definition of Success）
+
+阶段 D 结束时必须同时满足：
+
+1. 编辑器可完成场景编辑、保存、运行、回切。
+2. Undo/Redo 覆盖核心编辑行为并通过回归。
+3. 子系统链路可演示端到端开发流程（资源导入 -> 编辑 -> 运行调试）。
+4. 帧时间、内存、加载时长达到阶段预算目标（见第 10 节）。
+5. 关键模块具备基准测试与剖析报告。
+
+## 4. 关键约束
+
+1. C 阶段协议冻结：Scene/Prefab schema v1 与 importer 元数据协议默认只做兼容扩展。
+2. 运行时优先：编辑器功能不得绕开 facade/runtime 边界直接写内核状态。
+3. 观测先行：所有新增链路必须有错误码、日志、回归或 smoke 验证。
+4. 渐进迁移：禁止一次性重写 UI/工具链主路径。
+
+## 5. 里程碑拆解（D1-D4）
+
+### D1：热重载与开发体验基线强化
+
+目标：缩短“改资源 -> 见结果”的反馈回路，提升稳定性与可观测性。
+
+交付：
+
+1. 原生文件监听后端接入（Windows native watch）+ 轮询 fallback。
+2. 热重载错误分类从共享错误码升级为可定位 taxonomy。
+3. 无界面 smoke harness（CI 可运行，不依赖桌面窗口）。
+4. 保留并扩展 C 阶段 hot-reload 回归集。
+
+### D2：编辑器核心工作流
+
+目标：把“读写数据”提升为“可编辑、可撤销、可保存”的标准工作流。
+
+交付：
+
+1. Scene Tree：层级显示、选择同步、重命名与基础拖拽排序。
+2. Inspector：核心组件字段编辑、约束输入、错误提示。
+3. 命令模型：所有编辑操作统一走 command bus，支持 Undo/Redo。
+4. 资产引用编辑：通过 GUID 安全引用，避免路径硬编码。
+
+### D3：PIE 与调试面板
+
+目标：建立编辑态与运行态的稳定切换机制。
+
+交付：
+
+1. PIE 生命周期：Enter/Exit/Pause/Step。
+2. 状态隔离：运行态改动不污染编辑态快照（除显式应用操作）。
+3. 调试面板：事件流、错误流、性能关键指标可视化。
+4. 热重载与 PIE 共存：运行态中资源更新可观察且可回退。
+
+### D4：子系统与工具链补齐
+
+目标：把编辑器能力延伸到真实生产链路。
+
+交付：
+
+1. Render2D / Animation / Audio 工作流打通。
+2. 脚本桥接层最小可用（与 ECS 数据交互可回归验证）。
+3. 关键路径剖析报告（CPU、内存、加载时长）。
+4. 并行调度优化首轮落地并有基准对比。
+
+## 6. 数据与协议策略
+
+1. Scene/Prefab：遵循 v1 + 兼容扩展，新增字段必须有默认值与迁移策略。
+2. Asset Meta：继续沿用 GUID/import settings/source hash 约束，禁止破坏性改字段语义。
+3. Runtime Event/Error：新增字段向后兼容，旧消费者不应崩溃。
+4. Undo/Redo 操作记录：采用命令事件序列，避免直接快照覆盖全状态。
+
+## 7. 测试与门禁
+
+### 7.1 继承门禁（必须持续为绿）
+
+1. `mingw32-make test`
+2. `mingw32-make sandbox`
+3. `mingw32-make benchmark`
+4. `scripts/check/check_arch_deps.ps1`
+5. `scripts/check/check_api_surface.ps1`
+6. `scripts/dev/hot_reload_smoke.ps1`
+
+### 7.2 D 阶段新增门禁（分阶段接入）
+
+1. `scripts/dev/hot_reload_smoke_headless.ps1`（D1）
+2. `tests/editor_undo_redo_smoke.cpp`（D2）
+3. `tests/editor_pie_lifecycle_smoke.cpp`（D3）
+4. `tests/subsystem_render_audio_animation_smoke.cpp`（D4）
+
+## 8. 风险与应对
+
+1. UI 功能堆叠导致结构失控：
+   - 对策：强制 command bus + facade 边界，拒绝临时直连。
+2. PIE 与编辑态数据串扰：
+   - 对策：会话隔离 + 明确 apply-back 机制 + 回归测试。
+3. 热重载路径在 CI 不稳定：
+   - 对策：headless harness + 目录沙箱 + 重试窗口标准化。
+4. 子系统并行推进导致集成风险：
+   - 对策：按 D4 子里程碑逐一收口，禁止跨里程碑大合并。
+
+## 9. 验收清单（阶段级）
+
+- [x] D1 交付与门禁通过
+- [x] D2 交付与门禁通过
+- [x] D3 交付与门禁通过
+- [x] D4 交付与门禁通过
+- [x] 阶段 D 证据包归档
+- [x] 阶段 D 封板报告输出
+
+## 10. 性能预算（初版）
+
+1. 编辑器空场景帧时间：`<= 16.7ms`（60 FPS 目标）。
+2. 常规场景（项目基准样例）帧时间 P95：`<= 25ms`。
+3. 编辑器常驻内存上限：由基线测量后在 D1 冻结，并在 D4 对比收敛。
+4. 资源热重载端到端延迟：以 D1 基线测量，D4 目标至少优化 20%。
+
+> 说明：预算数值允许在 D1 完成后依据基线实测微调，但必须记录变更理由与对比数据。
+
+## 11. 交付清单
+
+1. 阶段 D 详细设计文档（本文件）。
+2. 阶段 D 进度文档（见 [PHASE_D_PROGRESS.md](./PHASE_D_PROGRESS.md)）。
+3. 阶段 D 验收清单（见 [PHASE_D_ACCEPTANCE.md](./PHASE_D_ACCEPTANCE.md)）。
+4. 阶段 D 证据归档（见 [PHASE_D_EVIDENCE.md](../reports/PHASE_D_EVIDENCE.md)）。
+5. 阶段 D 性能/剖析报告（见 [PHASE_D_PROFILE_REPORT.md](../reports/PHASE_D_PROFILE_REPORT.md)）。
+6. 阶段 D 封板报告（见 [PHASE_D_FINAL_REPORT.md](../reports/PHASE_D_FINAL_REPORT.md)）。
+7. 对应测试、脚本、门禁报告与证据归档。
+
+## 12. 执行纪律
+
+1. 每个 D 子里程碑必须有“功能 + 测试 + 文档”三件套。
+2. 高风险改动先加护栏测试再落实现。
+3. 门禁未通过不得进入下一子里程碑。
+4. 文档与实现不一致时，以最新合并代码为准，并在 24 小时内修正文档。

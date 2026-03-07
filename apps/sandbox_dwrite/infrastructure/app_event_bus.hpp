@@ -2,8 +2,8 @@
 #define APP_EVENT_BUS_H
 
 #include "../domain/app_command.hpp"
-#include "physics.hpp"
-#include "asset_database.hpp"
+#include "physics_core/physics.hpp"
+#include "physics_content/asset_database.hpp"
 
 #ifdef __cplusplus
 extern "C" {

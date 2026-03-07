@@ -4,7 +4,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
-#include "../include/physics.hpp"
+#include "../include/physics_core/physics.hpp"
 
 static double now_ms(void) {
 #ifdef _WIN32

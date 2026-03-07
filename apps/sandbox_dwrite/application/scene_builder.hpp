@@ -1,7 +1,7 @@
 #ifndef SCENE_BUILDER_H
 #define SCENE_BUILDER_H
 
-#include "physics.hpp"
+#include "physics_core/physics.hpp"
 #include "scene_catalog.hpp"
 
 typedef int (*SceneOverlapResolver)(PhysicsEngine* engine, RigidBody* body, void* user);

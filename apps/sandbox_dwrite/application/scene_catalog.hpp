@@ -2,7 +2,7 @@
 #define SCENE_CATALOG_H
 
 #include <stddef.h>
-#include "asset_database.hpp"
+#include "physics_content/asset_database.hpp"
 
 typedef struct {
     float gravity_y;

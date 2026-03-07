@@ -1,4 +1,4 @@
-#include "asset_invalidation.hpp"
+#include "physics_content/asset_invalidation.hpp"
 
 #include <string.h>
 

@@ -20,15 +20,19 @@
 #include <string.h>
 #include <wctype.h>
 
-#include "physics.h"
+#include "physics_core/physics.h"
 #include "infrastructure/project_tree.hpp"
-#include "runtime_snapshot_repo.hpp"
+#include "physics_runtime/runtime_snapshot_repo.hpp"
 #include "infrastructure/ui_layout_repo.hpp"
+#include "presentation/render/editor_screen_renderer.hpp"
 #include "presentation/render/ui_icons.hpp"
 #include "presentation/render/ui_primitives.hpp"
 #include "presentation/render/ui_text.hpp"
 #include "presentation/render/ui_widgets.hpp"
+#include "presentation/status/status_presenter.hpp"
+#include "presentation/window/window_host.hpp"
 #include "domain/app_command.hpp"
+#include "application/editor_session_service.hpp"
 #include "application/app_runtime.hpp"
 #include "application/editor_command_bus.hpp"
 #include "application/scene_catalog.hpp"
@@ -36,15 +40,17 @@
 #include "application/history_service.hpp"
 #include "application/runtime_param_service.hpp"
 #include "application/pie_lifecycle.hpp"
+#include "application/editor_extension_host_service.hpp"
 #include "application/editor_extension_state_service.hpp"
-#include "asset_hot_reload.hpp"
-#include "asset_fs_watch.hpp"
-#include "project_workspace.hpp"
-#include "prefab_schema.hpp"
-#include "prefab_semantics.hpp"
-#include "editor_plugin.hpp"
-#include "session_recovery.hpp"
-#include "diagnostic_bundle.hpp"
+#include "physics_content/asset_hot_reload.hpp"
+#include "physics_content/asset_fs_watch.hpp"
+#include "physics_content/project_workspace.hpp"
+#include "physics_content/prefab_schema.hpp"
+#include "physics_content/prefab_semantics.hpp"
+#include "physics_content/editor_plugin.hpp"
+#include "physics_runtime/session_recovery.hpp"
+#include "physics_content/diagnostic_bundle.hpp"
+#include "presentation/input/input_router.hpp"
 #include "presentation/input/input_mapping.hpp"
 #include "presentation/input/menu_file_edit_actions.hpp"
 #include "presentation/input/menu_view_physics_window_actions.hpp"
@@ -303,7 +309,6 @@ static AssetHotReloadService g_hot_reload_service;
 static AssetFsWatchState g_asset_fs_watch;
 static char g_hot_reload_root_dir[ASSET_WATCH_MAX_PATH];
 static const char* PIE_EDITOR_SNAPSHOT_PATH = "pie_editor_state_snapshot.txt";
-static const char* SESSION_RECOVERY_PATH = "ProjectSettings/editor_session.physicssession";
 static const char* BUILD_METADATA_PATH = "artifacts/build/build_metadata.json";
 static const float WORLD_SCALE = 12.0f;
 static const float WORLD_ORIGIN_X = 20.0f;
@@ -2775,46 +2780,32 @@ static void log_editor_extension_startup_diagnostics(void) {
 }
 
 static void phase_g_refresh_editor_extension_state(void) {
-    EditorExtensionStartupConfig config;
     EditorPluginV1 scene_inspector{};
     EditorPluginV1 failing_plugin{};
-    EditorExtensionBuiltinPlugin builtin_plugins[2]{};
-    int startup_ok;
 
     g_editor_plugin_builtin_enabled = 0;
     g_startup_status_text[0] = L'\0';
     g_startup_degraded = 0;
 
-    editor_extension_startup_config_init(&config);
     scene_inspector.init = phase_g_scene_inspector_init;
     scene_inspector.shutdown = phase_g_scene_inspector_shutdown;
     scene_inspector.user = &g_editor_plugin_builtin_enabled;
     failing_plugin.init = phase_g_failing_plugin_init;
     failing_plugin.shutdown = NULL;
     failing_plugin.user = NULL;
-    strcpy(builtin_plugins[0].plugin_id, "builtin.scene_inspector");
-    strcpy(builtin_plugins[0].manifest_path, "Packages/builtin.scene_inspector.physicsplugin");
-    builtin_plugins[0].implementation = scene_inspector;
-    strcpy(builtin_plugins[1].plugin_id, "builtin.failing_menu");
-    strcpy(builtin_plugins[1].manifest_path, "Packages/builtin.failing_menu.physicsplugin");
-    builtin_plugins[1].implementation = failing_plugin;
-    config.builtin_plugins = builtin_plugins;
-    config.builtin_plugin_count = 2;
 
-    startup_ok = editor_extension_startup_run(&config, &g_editor_extension_startup_state);
-    g_startup_degraded = g_editor_extension_startup_state.degraded || !startup_ok;
-    if (!startup_ok) {
-        swprintf(g_startup_status_text, 96, L"启动:失败(%d)", g_editor_extension_startup_state.diagnostic_count);
-    } else if (g_startup_degraded) {
-        swprintf(g_startup_status_text, 96, L"启动:降级(%d)", g_editor_extension_startup_state.diagnostic_count);
-    } else {
-        swprintf(g_startup_status_text, 96, L"启动:正常");
-    }
+    editor_extension_host_refresh(&g_editor_extension_startup_state,
+                                  &g_editor_plugin_builtin_enabled,
+                                  g_startup_status_text,
+                                  96,
+                                  &g_startup_degraded,
+                                  &scene_inspector,
+                                  &failing_plugin);
     log_editor_extension_startup_diagnostics();
 }
 
 static void phase_g_shutdown_editor_extension_state(void) {
-    editor_extension_startup_shutdown(&g_editor_extension_startup_state);
+    editor_extension_host_shutdown(&g_editor_extension_startup_state);
 }
 
 static void session_recovery_persist(const wchar_t* recent_action) {
@@ -2824,7 +2815,7 @@ static void session_recovery_persist(const wchar_t* recent_action) {
     snprintf(scene_guid, sizeof(scene_guid), "scene://%d", g_state.scene_index + 1);
     session_recovery_mark_unclean(&g_session_recovery_state, "autosave_snapshot.txt", "autosave_snapshot.txt", scene_guid,
                                   action_utf8[0] != '\0' ? action_utf8 : "tick");
-    session_recovery_state_save_v1(&g_session_recovery_state, SESSION_RECOVERY_PATH);
+    session_recovery_state_save_v1(&g_session_recovery_state, editor_extension_host_default_session_recovery_path());
 }
 
 static void export_diagnostic_bundle_now(void) {
@@ -2836,26 +2827,7 @@ static void export_diagnostic_bundle_now(void) {
     strcpy(request.label, "sandbox_manual_export");
     strcpy(request.build_metadata_path, BUILD_METADATA_PATH);
     request.file_count = 0;
-    if (file_exists_utf8_path("autosave_snapshot.txt") && request.file_count < DIAGNOSTIC_BUNDLE_MAX_FILES) {
-        strcpy(request.files[request.file_count].source_path, "autosave_snapshot.txt");
-        strcpy(request.files[request.file_count].bundle_name, "autosave_snapshot.txt");
-        request.file_count++;
-    }
-    if (file_exists_utf8_path("scene_snapshot.txt") && request.file_count < DIAGNOSTIC_BUNDLE_MAX_FILES) {
-        strcpy(request.files[request.file_count].source_path, "scene_snapshot.txt");
-        strcpy(request.files[request.file_count].bundle_name, "scene_snapshot.txt");
-        request.file_count++;
-    }
-    if (file_exists_utf8_path(SESSION_RECOVERY_PATH) && request.file_count < DIAGNOSTIC_BUNDLE_MAX_FILES) {
-        strcpy(request.files[request.file_count].source_path, SESSION_RECOVERY_PATH);
-        strcpy(request.files[request.file_count].bundle_name, "editor_session.physicssession");
-        request.file_count++;
-    }
-    if (file_exists_utf8_path("ProjectSettings/workspace.physicsworkspace") && request.file_count < DIAGNOSTIC_BUNDLE_MAX_FILES) {
-        strcpy(request.files[request.file_count].source_path, "ProjectSettings/workspace.physicsworkspace");
-        strcpy(request.files[request.file_count].bundle_name, "workspace.physicsworkspace");
-        request.file_count++;
-    }
+    editor_extension_host_append_default_diagnostic_files(&request, "autosave_snapshot.txt", "scene_snapshot.txt");
     request.log_line_count = g_console_log_count < DIAGNOSTIC_BUNDLE_MAX_LOG_LINES ? g_console_log_count : DIAGNOSTIC_BUNDLE_MAX_LOG_LINES;
     for (i = 0; i < request.log_line_count; ++i) {
         wchar_t* src = g_console_logs[(g_console_log_head + g_console_log_count - request.log_line_count + i + CONSOLE_LOG_CAP) % CONSOLE_LOG_CAP];
@@ -6064,8 +6036,9 @@ static void render_open_menu_dropdown(void) {
 static void render_status_bar(D2D1_RECT_F status_rect) {
     wchar_t line[128];
     wchar_t line_right[128];
-    D2D1_COLOR_F bus_color = rgba(0.66f, 0.88f, 0.66f, 1.0f);
-    D2D1_COLOR_F hot_reload_color = rgba(0.63f, 0.72f, 0.84f, 1.0f);
+    D2D1_COLOR_F bus_color;
+    D2D1_COLOR_F hot_reload_color;
+    StatusPresenterModel model{};
     const AppRuntimeSnapshot* snapshot = app_runtime_get_last_snapshot(&g_app_runtime);
     const AppHotReloadSnapshot* hot_snapshot = app_runtime_get_last_hot_reload(&g_app_runtime);
     int hot_imported = g_state.hot_reload_imported_count;
@@ -6083,11 +6056,20 @@ static void render_status_bar(D2D1_RECT_F status_rect) {
         hot_imported = hot_snapshot->imported_count;
         hot_failed = hot_snapshot->failed_count;
     }
-    swprintf(line, 128, L"对象:%d  约束:%d  接触:%d  回收:%d",
-             body_count,
-             constraint_count,
-             contact_count,
-             g_state.recycled_count);
+    model.body_count = body_count;
+    model.constraint_count = constraint_count;
+    model.contact_count = contact_count;
+    model.recycled_count = g_state.recycled_count;
+    model.status_user = g_status_user;
+    model.startup_status_text = g_startup_status_text;
+    model.startup_degraded = g_startup_degraded;
+    model.hot_imported = hot_imported;
+    model.hot_failed = hot_failed;
+    model.hot_reload_last_event_ms = g_state.hot_reload_last_event_ms;
+    model.now_ms = now_ms;
+    model.runtime_bus_congested = g_state.runtime_bus_congested;
+    model.runtime_event_drop_count = g_state.runtime_event_drop_count;
+    status_presenter_format_counts(&model, line, 128);
     {
         const wchar_t* tip = L"";
         if (g_state.runtime_bus_congested && point_in_rect(g_state.mouse_screen, runtime_bus_badge_rect())) {
@@ -6124,27 +6106,16 @@ static void render_status_bar(D2D1_RECT_F status_rect) {
     }
     draw_text(line, rc(status_rect.left + 12.0f, status_rect.top + 6.0f, status_rect.right - 200.0f, status_rect.bottom - 4.0f),
               g_ui.fmt_info, rgba(0.77f, 0.84f, 0.93f, 1.0f));
-    swprintf(line, 128, L"用户:%ls | v0.3", g_status_user[0] ? g_status_user : L"unknown");
+    status_presenter_format_meta(&model, line, 128);
     g_status_meta_rect = rc(status_rect.right - 620.0f, status_rect.top + 6.0f, status_rect.right - 392.0f, status_rect.bottom - 4.0f);
     draw_text(line, g_status_meta_rect, g_ui.fmt_info, rgba(0.55f, 0.65f, 0.79f, 1.0f));
-    swprintf(line_right, 128, L"%ls", g_startup_status_text[0] ? g_startup_status_text : L"启动:未知");
+    status_presenter_format_startup(&model, line_right, 128);
     draw_text(line_right, rc(status_rect.right - 520.0f, status_rect.top + 6.0f, status_rect.right - 390.0f, status_rect.bottom - 4.0f),
               g_ui.fmt_info, g_startup_degraded ? rgba(0.98f, 0.72f, 0.40f, 1.0f) : rgba(0.66f, 0.74f, 0.85f, 1.0f));
-    if (hot_failed > 0) {
-        hot_reload_color = rgba(0.98f, 0.47f, 0.43f, 1.0f);
-    } else if (hot_imported > 0 && g_state.hot_reload_last_event_ms > 0 &&
-               (now_ms - g_state.hot_reload_last_event_ms) <= 3000) {
-        hot_reload_color = rgba(0.68f, 0.90f, 0.70f, 1.0f);
-    }
-    swprintf(line_right, 128, L"热重载:+%d/-%d", hot_imported, hot_failed);
+    status_presenter_format_hot_reload(&model, line_right, 128, &hot_reload_color);
     draw_text(line_right, rc(status_rect.right - 386.0f, status_rect.top + 6.0f, status_rect.right - 220.0f, status_rect.bottom - 4.0f),
               g_ui.fmt_info, hot_reload_color);
-    if (g_state.runtime_bus_congested) {
-        bus_color = (g_state.runtime_event_drop_count >= 100) ? rgba(0.98f, 0.42f, 0.38f, 1.0f) : rgba(0.97f, 0.78f, 0.42f, 1.0f);
-        swprintf(line_right, 128, L"事件总线:拥塞(%u)", g_state.runtime_event_drop_count);
-    } else {
-        swprintf(line_right, 128, L"事件总线:健康");
-    }
+    status_presenter_format_bus(&model, line_right, 128, &bus_color);
     draw_text(line_right, rc(status_rect.right - 216.0f, status_rect.top + 6.0f, status_rect.right - 24.0f, status_rect.bottom - 4.0f),
               g_ui.fmt_info, bus_color);
 }
@@ -6320,36 +6291,33 @@ static void render(HWND hwnd) {
     D2D1_COLOR_F clear_color = g_state.ui_theme_light ? rgba(0.92f, 0.94f, 0.98f, 1.0f) : rgba(0.10f, 0.11f, 0.13f, 1.0f);
     RenderLayout layout = compute_render_layout(w, h, top_h, status_h, bottom_h, left_w, right_w);
     {
-        float work_bottom = layout.work_bottom;
-        D2D1_RECT_F top_rect = layout.top_rect;
-        D2D1_RECT_F status_rect = layout.status_rect;
-        D2D1_RECT_F bottom_rect = layout.bottom_rect;
-        D2D1_RECT_F left_rect = layout.left_rect;
-        D2D1_RECT_F right_rect = layout.right_rect;
-        D2D1_RECT_F center_rect = layout.center_rect;
-        D2D1_RECT_F stage_rect = layout.stage_rect;
-        reset_splitter_rects();
-
-    D2D1_ROUNDED_RECT left_rr;
-    D2D1_ROUNDED_RECT center_rr;
-    D2D1_ROUNDED_RECT right_rr;
-    D2D1_ROUNDED_RECT bottom_rr;
-    D2D1_ROUNDED_RECT status_rr;
-    D2D1_ROUNDED_RECT stage_rr;
-
-    update_stage_bounds_and_fit(stage_rect);
-    begin_render_pass(clear_color);
-
-    build_shell_round_rects(left_rect, center_rect, right_rect, bottom_rect, status_rect, stage_rect,
-                            &left_rr, &center_rr, &right_rr, &bottom_rr, &status_rr, &stage_rr);
-
-    render_shell_panels(left_rect, center_rect, right_rect, bottom_rect, status_rect, left_rr, center_rr, right_rr, bottom_rr, status_rr);
-
-    render_top_bar_content(top_rect, w, menu_h, toolbar_h, hwnd);
-    render_workspace_content(top_rect, work_bottom, left_rect, right_rect, center_rect, stage_rr, stage_rect, bottom_rect, status_rect, w, h);
+        EditorScreenRenderFrame frame{};
+        EditorScreenRendererCallbacks callbacks{};
+        frame.hwnd = hwnd;
+        frame.clear_color = clear_color;
+        frame.width = w;
+        frame.height = h;
+        frame.menu_height = menu_h;
+        frame.toolbar_height = toolbar_h;
+        frame.work_bottom = layout.work_bottom;
+        frame.top_rect = layout.top_rect;
+        frame.status_rect = layout.status_rect;
+        frame.bottom_rect = layout.bottom_rect;
+        frame.left_rect = layout.left_rect;
+        frame.right_rect = layout.right_rect;
+        frame.center_rect = layout.center_rect;
+        frame.stage_rect = layout.stage_rect;
+        build_shell_round_rects(frame.left_rect, frame.center_rect, frame.right_rect, frame.bottom_rect, frame.status_rect, frame.stage_rect,
+                                &frame.left_rr, &frame.center_rr, &frame.right_rr, &frame.bottom_rr, &frame.status_rr, &frame.stage_rr);
+        callbacks.reset_splitter_rects = reset_splitter_rects;
+        callbacks.update_stage_bounds_and_fit = update_stage_bounds_and_fit;
+        callbacks.begin_render_pass = begin_render_pass;
+        callbacks.render_shell_panels = render_shell_panels;
+        callbacks.render_top_bar_content = render_top_bar_content;
+        callbacks.render_workspace_content = render_workspace_content;
+        callbacks.finalize_render_pass = finalize_render_pass;
+        editor_screen_renderer_draw_frame(&frame, &callbacks);
     }
-
-    finalize_render_pass();
 }
 
 static void app_cmd_toggle_run(void* user) {
@@ -6621,11 +6589,16 @@ static void tick(HWND hwnd) {
             g_state.fps_accum_frames = 0;
             g_state.fps_last_tick_ms = now_ms;
         }
-        if (g_state.engine != NULL && !pie_runtime_active() && (now_ms - g_state.last_autosave_ms) >= 30000) {
-            if (save_scene_snapshot("autosave_snapshot.txt")) {
-                g_state.last_autosave_ms = now_ms;
-                session_recovery_persist(L"autosave");
-            }
+        {
+            EditorSessionAutosaveArgs autosave_args{};
+            autosave_args.enabled = (g_state.engine != NULL && !pie_runtime_active());
+            autosave_args.now_ms = now_ms;
+            autosave_args.autosave_interval_ms = 30000;
+            autosave_args.last_autosave_ms = &g_state.last_autosave_ms;
+            autosave_args.save_scene_snapshot = save_scene_snapshot;
+            autosave_args.session_recovery_persist = session_recovery_persist;
+            autosave_args.autosave_snapshot_path = "autosave_snapshot.txt";
+            editor_session_tick_autosave(&autosave_args);
         }
     }
     app_runtime_collect_errors_for_tick();
@@ -7989,22 +7962,19 @@ static int handle_destroy(void) {
 }
 
 static void init_status_context(void) {
-    g_status_project_path[0] = L'\0';
-    g_status_user[0] = L'\0';
-    g_startup_status_text[0] = L'\0';
-    g_startup_degraded = 0;
-    GetCurrentDirectoryW(260, g_status_project_path);
-    {
-        DWORD uname_len = 63;
-        if (!GetUserNameW(g_status_user, &uname_len)) {
-            g_status_user[0] = L'\0';
-        }
-    }
+    status_presenter_init_context(g_status_project_path, 260, g_status_user, 64, g_startup_status_text, 96, &g_startup_degraded);
+}
+
+static int session_recovery_should_restore_current(void) {
+    return session_recovery_should_restore(&g_session_recovery_state);
+}
+
+static void reset_clipboard_body_state(void) {
+    g_clipboard_body.valid = 0;
 }
 
 static int init_platform_ui(void) {
-    SetProcessDPIAware();
-    if (FAILED(CoInitializeEx(NULL, COINIT_APARTMENTTHREADED))) return 0;
+    if (!window_host_initialize_platform()) return 0;
     if (FAILED(init_ui())) {
         CoUninitialize();
         return 0;
@@ -8019,75 +7989,39 @@ static void phase_g_refresh_editor_extension_state(void);
 static void phase_g_shutdown_editor_extension_state(void);
 static void session_recovery_persist(const wchar_t* recent_action);
 static void export_diagnostic_bundle_now(void);
-
-static int register_main_window_class(HINSTANCE inst, WNDCLASSEXW* out_wc) {
-    if (out_wc == NULL) return 0;
-    ZeroMemory(out_wc, sizeof(*out_wc));
-    out_wc->cbSize = sizeof(*out_wc);
-    out_wc->style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
-    out_wc->lpfnWndProc = wnd_proc;
-    out_wc->hInstance = inst;
-    g_app_icon_large = (HICON)LoadImageW(inst, MAKEINTRESOURCEW(IDI_APP_MAIN), IMAGE_ICON, 0, 0, LR_DEFAULTSIZE);
-    g_app_icon_small = (HICON)LoadImageW(inst, MAKEINTRESOURCEW(IDI_APP_MAIN), IMAGE_ICON,
-                                         GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0);
-    out_wc->hIcon = g_app_icon_large ? g_app_icon_large : LoadIconW(NULL, (LPCWSTR)IDI_APPLICATION);
-    out_wc->hIconSm = g_app_icon_small ? g_app_icon_small : out_wc->hIcon;
-    out_wc->hCursor = LoadCursorW(NULL, (LPCWSTR)IDC_ARROW);
-    out_wc->hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-    out_wc->lpszClassName = L"PhysicsSandboxDWrite";
-    return RegisterClassExW(out_wc) ? 1 : 0;
-}
+static int session_recovery_should_restore_current(void);
+static void reset_clipboard_body_state(void);
 
 static void init_app_bootstrap_state(void) {
-    int recovered_session = 0;
-    init_state_defaults();
+    EditorSessionBootstrapArgs args{};
+    EditorSessionBootstrapResult result{};
     pie_lifecycle_init(&g_pie_lifecycle, PIE_EDITOR_SNAPSHOT_PATH);
-    init_editor_command_bus_callbacks();
-    init_app_runtime_callbacks();
-    phase_g_refresh_editor_extension_state();
-    init_hot_reload_pipeline();
-    clear_debug_histories();
-    clear_collision_events();
+    args.init_state_defaults = init_state_defaults;
+    args.init_editor_command_bus_callbacks = init_editor_command_bus_callbacks;
+    args.init_app_runtime_callbacks = init_app_runtime_callbacks;
+    args.refresh_editor_extension_state = phase_g_refresh_editor_extension_state;
+    args.init_hot_reload_pipeline = init_hot_reload_pipeline;
+    args.clear_debug_histories = clear_debug_histories;
+    args.clear_collision_events = clear_collision_events;
+    args.reset_clipboard_body = reset_clipboard_body_state;
+    args.load_ui_layout = load_ui_layout;
+    args.apply_scene = apply_scene;
+    args.session_recovery_should_restore = session_recovery_should_restore_current;
+    args.file_exists = file_exists_utf8_path;
+    args.load_scene_snapshot = load_scene_snapshot;
+    args.history_reset_and_capture = history_reset_and_capture;
+    args.session_recovery_persist = session_recovery_persist;
+    args.autosave_snapshot_path = "autosave_snapshot.txt";
+    editor_session_bootstrap(&args, &result);
     g_collision_event_filter_selected_only = 0;
-    g_clipboard_body.valid = 0;
-    load_ui_layout();
     push_console_log(L"[启动] 物理沙盒已启动");
     push_console_log(L"[启动] %ls", g_startup_status_text[0] ? g_startup_status_text : L"启动:未知");
-    if (file_exists_utf8_path("autosave_snapshot.txt")) {
+    if (result.autosave_snapshot_detected) {
         push_console_log(L"[启动] 检测到 autosave_snapshot.txt，可在 文件 菜单恢复");
     }
-    apply_scene(0);
-    if (session_recovery_should_restore(&g_session_recovery_state) &&
-        file_exists_utf8_path(g_session_recovery_state.last_snapshot_path) &&
-        load_scene_snapshot(g_session_recovery_state.last_snapshot_path)) {
-        history_reset_and_capture();
-        recovered_session = 1;
+    if (result.recovered_session) {
         push_console_log(L"[恢复] 检测到未清理退出，已恢复最近工作会话");
     }
-    if (!recovered_session) {
-        session_recovery_persist(L"startup");
-    }
-}
-
-static HWND create_main_window(HINSTANCE inst, const wchar_t* class_name) {
-    HWND hwnd = CreateWindowExW(0, class_name, L"物理引擎沙盒（DirectWrite）",
-                                (WS_POPUP | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU),
-                                CW_USEDEFAULT, CW_USEDEFAULT, 1280, 720, NULL, NULL, inst, NULL);
-    if (hwnd == NULL) return NULL;
-    g_app_hwnd = hwnd;
-    ShowWindow(hwnd, SW_SHOWMAXIMIZED);
-    UpdateWindow(hwnd);
-    SetTimer(hwnd, 1, 16, NULL);
-    return hwnd;
-}
-
-static int run_message_loop(void) {
-    MSG msg;
-    while (GetMessageW(&msg, NULL, 0, 0) > 0) {
-        TranslateMessage(&msg);
-        DispatchMessageW(&msg);
-    }
-    return (int)msg.wParam;
 }
 
 static int shutdown_and_get_exit_code(int exit_code) {
@@ -8095,7 +8029,7 @@ static int shutdown_and_get_exit_code(int exit_code) {
     phase_g_shutdown_editor_extension_state();
     asset_fs_watch_shutdown(&g_asset_fs_watch);
     session_recovery_mark_clean(&g_session_recovery_state, "clean exit");
-    session_recovery_state_save_v1(&g_session_recovery_state, SESSION_RECOVERY_PATH);
+    session_recovery_state_save_v1(&g_session_recovery_state, editor_extension_host_default_session_recovery_path());
     save_ui_layout();
     shutdown_ui();
     CoUninitialize();
@@ -8218,55 +8152,24 @@ static void init_state_defaults(void) {
 }
 
 static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
-    switch (msg) {
-        case WM_NCCALCSIZE:
-            return 0;
-        case WM_NCHITTEST:
-            return handle_nchittest(hwnd, msg, wparam, lparam);
-        case WM_PAINT:
-            handle_paint(hwnd);
-            return 0;
-        case WM_SIZE:
-            handle_size(lparam);
-            return 0;
-        case WM_TIMER:
-            handle_timer(hwnd);
-            return 0;
-        case WM_KEYDOWN:
-            handle_keydown(hwnd, wparam);
-            InvalidateRect(hwnd, NULL, FALSE);
-            return 0;
-        case WM_CHAR:
-            handle_char(hwnd, wparam);
-            return 0;
-        case WM_SYSKEYDOWN:
-            return handle_syskeydown_message(hwnd, msg, wparam, lparam);
-        case WM_MOUSEMOVE:
-            handle_mousemove(hwnd, lparam);
-            return 0;
-        case WM_MOUSEWHEEL:
-            handle_mousewheel(hwnd, wparam, lparam);
-            return 0;
-        case WM_SETCURSOR:
-            if (handle_setcursor(hwnd, lparam)) return TRUE;
-            break;
-        case WM_LBUTTONDOWN: {
-            g_state.mouse_screen.x = (float)GET_X_LPARAM(lparam);
-            g_state.mouse_screen.y = (float)GET_Y_LPARAM(lparam);
-            handle_lbuttondown(hwnd);
-            return 0;
-        }
-        case WM_LBUTTONUP:
-            handle_lbuttonup();
-            return 0;
-        case WM_LBUTTONDBLCLK:
-            handle_lbuttondblclk_message(hwnd, lparam);
-            return 0;
-        case WM_DESTROY:
-            handle_destroy();
-            return 0;
-    }
-    return DefWindowProcW(hwnd, msg, wparam, lparam);
+    InputRouterCallbacks callbacks{};
+    callbacks.handle_nchittest = handle_nchittest;
+    callbacks.handle_paint = handle_paint;
+    callbacks.handle_size = handle_size;
+    callbacks.handle_timer = handle_timer;
+    callbacks.handle_keydown = handle_keydown;
+    callbacks.handle_char = handle_char;
+    callbacks.handle_syskeydown_message = handle_syskeydown_message;
+    callbacks.handle_mousemove = handle_mousemove;
+    callbacks.handle_mousewheel = handle_mousewheel;
+    callbacks.handle_setcursor = handle_setcursor;
+    callbacks.handle_lbuttondown = handle_lbuttondown;
+    callbacks.handle_lbuttonup = handle_lbuttonup;
+    callbacks.handle_lbuttondblclk_message = handle_lbuttondblclk_message;
+    callbacks.handle_destroy = handle_destroy;
+    callbacks.mouse_x = &g_state.mouse_screen.x;
+    callbacks.mouse_y = &g_state.mouse_screen.y;
+    return input_router_dispatch(&callbacks, hwnd, msg, wparam, lparam);
 }
 
 int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
@@ -8282,12 +8185,17 @@ int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmd, int show) {
 
     init_app_bootstrap_state();
 
-    if (!register_main_window_class(inst, &wc)) return shutdown_and_get_exit_code(1);
+    if (!window_host_register_main_window_class(inst, wnd_proc, L"PhysicsSandboxDWrite", IDI_APP_MAIN,
+                                                &g_app_icon_large, &g_app_icon_small, &wc)) {
+        return shutdown_and_get_exit_code(1);
+    }
 
-    hwnd = create_main_window(inst, wc.lpszClassName);
+    hwnd = window_host_create_main_window(inst, wc.lpszClassName, L"物理引擎沙盒（DirectWrite）", SW_SHOWMAXIMIZED);
     if (hwnd == NULL) return shutdown_and_get_exit_code(1);
+    g_app_hwnd = hwnd;
 
-    exit_code = run_message_loop();
+    exit_code = window_host_run_message_loop();
     return shutdown_and_get_exit_code(exit_code);
 }
+
 

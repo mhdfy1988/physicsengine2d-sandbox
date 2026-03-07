@@ -1,7 +1,7 @@
 #include <float.h>
 #include <math.h>
 #include <stddef.h>
-#include "../include/collision.hpp"
+#include "../include/physics_core/collision.hpp"
 #include "internal/physics_tuning.hpp"
 
 static void project_polygon_on_axis(RigidBody* body, PolygonShape* poly, Vec2 axis, float* min_p, float* max_p) {

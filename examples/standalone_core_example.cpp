@@ -1,7 +1,7 @@
 #include <cstdio>
 
 #include "physics_core/physics.h"
-#include "runtime_snapshot_repo.hpp"
+#include "physics_runtime/runtime_snapshot_repo.hpp"
 
 int main() {
     const char* snapshot_path = "_tmp_standalone_core_example.snapshot";

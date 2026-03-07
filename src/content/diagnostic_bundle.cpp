@@ -1,4 +1,4 @@
-#include "diagnostic_bundle.hpp"
+#include "physics_content/diagnostic_bundle.hpp"
 
 #include <stdio.h>
 #include <string.h>

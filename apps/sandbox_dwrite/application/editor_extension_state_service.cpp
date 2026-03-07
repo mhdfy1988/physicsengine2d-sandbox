@@ -5,7 +5,9 @@
 #include <string.h>
 #include <filesystem>
 
-#include "prefab_schema.hpp"
+#include "physics_content/prefab_schema.hpp"
+
+static const char* EDITOR_SAMPLE_PROJECT_ROOT = "samples/physics_sandbox_project";
 
 static PrefabSchemaDocument* startup_alloc_prefab_documents(int count) {
     if (count <= 0) return NULL;
@@ -166,16 +168,17 @@ static void startup_run_prefab_analysis(const EditorExtensionStartupConfig* conf
 void editor_extension_startup_config_init(EditorExtensionStartupConfig* config) {
     if (config == NULL) return;
     memset(config, 0, sizeof(*config));
-    config->root_path = ".";
-    config->workspace_path = "ProjectSettings/workspace.physicsworkspace";
-    config->project_path = "ProjectSettings/project.physicsproject";
-    config->package_path = "Packages/core_tools.physicspackage";
-    config->settings_path = "ProjectSettings/editor.physicssettings";
-    config->session_recovery_path = "ProjectSettings/editor_session.physicssession";
-    config->packages_dir = "Packages";
-    config->prefab_base_path = "Prefabs/phase_g_base.prefab";
-    config->prefab_nested_path = "Prefabs/phase_g_nested.prefab";
-    config->prefab_variant_path = "Prefabs/phase_g_variant.prefab";
+    config->root_path = EDITOR_SAMPLE_PROJECT_ROOT;
+    config->project_root = EDITOR_SAMPLE_PROJECT_ROOT;
+    config->workspace_path = "samples/physics_sandbox_project/ProjectSettings/workspace.physicsworkspace";
+    config->project_path = "samples/physics_sandbox_project/ProjectSettings/project.physicsproject";
+    config->package_path = "samples/physics_sandbox_project/Packages/core_tools.physicspackage";
+    config->settings_path = "samples/physics_sandbox_project/ProjectSettings/editor.physicssettings";
+    config->session_recovery_path = "samples/physics_sandbox_project/ProjectSettings/editor_session.physicssession";
+    config->packages_dir = "samples/physics_sandbox_project/Packages";
+    config->prefab_base_path = "samples/physics_sandbox_project/Prefabs/phase_g_base.prefab";
+    config->prefab_nested_path = "samples/physics_sandbox_project/Prefabs/phase_g_nested.prefab";
+    config->prefab_variant_path = "samples/physics_sandbox_project/Prefabs/phase_g_variant.prefab";
 }
 
 void editor_extension_startup_result_init(EditorExtensionStartupResult* result) {

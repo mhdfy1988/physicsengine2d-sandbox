@@ -114,7 +114,7 @@ Preferred standalone core targets:
 1. Build the standalone core package:
 
 ```bash
-powershell -ExecutionPolicy Bypass -File .\scripts\package_physics_core.ps1 -Build -Version 1.0.0
+powershell -ExecutionPolicy Bypass -File .\scripts\package\package_physics_core.ps1 -Build -Version 1.0.0
 ```
 
 2. Or build the libraries directly:
@@ -137,7 +137,7 @@ Core-safe include forms:
 #include "physics_core/raii.hpp"
 ```
 
-See [docs/PHYSICS_CORE_BOUNDARY.md](docs/PHYSICS_CORE_BOUNDARY.md) for the supported standalone boundary.
+See [docs/architecture/PHYSICS_CORE_BOUNDARY.md](docs/architecture/PHYSICS_CORE_BOUNDARY.md) for the supported standalone boundary.
 
 ## Current Sandbox Focus
 
@@ -147,23 +147,23 @@ See [docs/PHYSICS_CORE_BOUNDARY.md](docs/PHYSICS_CORE_BOUNDARY.md) for the suppo
 
 - [CORE_DEV_GUIDE.md](CORE_DEV_GUIDE.md)
 - [CHANGELOG.md](CHANGELOG.md)
-- [docs/API_CN.md](docs/API_CN.md)
-- [docs/API_EN.md](docs/API_EN.md)
-- [docs/ENGINE_ARCHITECTURE.md](docs/ENGINE_ARCHITECTURE.md)
-- [docs/PHYSICS_CORE_BOUNDARY.md](docs/PHYSICS_CORE_BOUNDARY.md)
+- [docs/api/API_CN.md](docs/api/API_CN.md)
+- [docs/api/API_EN.md](docs/api/API_EN.md)
+- [docs/architecture/ENGINE_ARCHITECTURE.md](docs/architecture/ENGINE_ARCHITECTURE.md)
+- [docs/architecture/PHYSICS_CORE_BOUNDARY.md](docs/architecture/PHYSICS_CORE_BOUNDARY.md)
 
 ## Packaging
 
 Portable zip:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1 -Build -Version 1.0.0
+powershell -ExecutionPolicy Bypass -File .\scripts\package\package.ps1 -Build -Version 1.0.0
 ```
 
 Portable zip plus installer:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\package.ps1 -Build -WithInstaller -Version 1.0.0
+powershell -ExecutionPolicy Bypass -File .\scripts\package\package.ps1 -Build -WithInstaller -Version 1.0.0
 ```
 
 Installer script:
@@ -173,5 +173,5 @@ Installer script:
 Standalone core package:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\package_physics_core.ps1 -Build -Version 1.0.0
+powershell -ExecutionPolicy Bypass -File .\scripts\package\package_physics_core.ps1 -Build -Version 1.0.0
 ```

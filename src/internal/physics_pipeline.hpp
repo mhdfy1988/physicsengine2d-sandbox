@@ -1,7 +1,7 @@
 #ifndef PHYSICS_INTERNAL_PIPELINE_H
 #define PHYSICS_INTERNAL_PIPELINE_H
 
-#include "../../include/physics.hpp"
+#include "../../include/physics_core/physics.hpp"
 
 #ifdef __cplusplus
 extern "C" {

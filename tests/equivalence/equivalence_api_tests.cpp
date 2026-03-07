@@ -1,6 +1,6 @@
 #include <math.h>
 #include <stdio.h>
-#include "../../include/physics.hpp"
+#include "../../include/physics_core/physics.hpp"
 #include "../regression_tests.hpp"
 
 #define EPS_EQ 1e-5f

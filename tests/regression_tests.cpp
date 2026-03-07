@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "../include/physics.hpp"
+#include "../include/physics_core/physics.hpp"
 #include "regression_tests.hpp"
 
 typedef int (*RegressionTestFn)(void);

@@ -2,7 +2,7 @@
 #define APP_RUNTIME_H
 
 #include "app_controller.hpp"
-#include "asset_hot_reload.hpp"
+#include "physics_content/asset_hot_reload.hpp"
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,8 +1,8 @@
 #include <direct.h>
 #include <stdio.h>
 #include <string.h>
-#include "../include/asset_importer.hpp"
-#include "../include/subsystem_render_audio_animation.hpp"
+#include "../include/physics_content/asset_importer.hpp"
+#include "../include/physics_content/subsystem_render_audio_animation.hpp"
 
 static int write_text_file(const char* path, const char* text) {
     FILE* fp;
